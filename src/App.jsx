@@ -4,12 +4,15 @@ import Hero from './components/Hero';
 import MissionSection from './components/MissionSection';
 import Services from './components/Services';
 import Features from './components/Features';
+import Products from './components/Products';
 import About from './components/About';
 import Contact from './components/Contact';
 import Newsletter from './components/Newsletter';
 import Footer from './components/Footer';
 import NeonTextBuilder from './pages/NeonTextBuilder';
 import ProductDesigner from './pages/ProductDesigner';
+import Login from './pages/Login';
+import Register from './pages/Register';
 
 function App() {
   const [currentSection, setCurrentSection] = useState('home');
@@ -18,7 +21,7 @@ function App() {
     setCurrentSection(section);
     
     // Smooth scroll to section if it exists on the page
-    if (section !== 'neon-builder' && section !== 'product-designer' && section !== 'home') {
+    if (section !== 'neon-builder' && section !== 'product-designer' && section !== 'home' && section !== 'login' && section !== 'register') {
       setTimeout(() => {
         const element = document.getElementById(section);
         if (element) {
@@ -97,7 +100,11 @@ function App() {
       {currentSection === 'product-designer' ? (
         <ProductDesigner productType="pen" onClose={() => setCurrentSection('home')} />
       ) : currentSection === 'neon-builder' ? (
-        <NeonTextBuilder />
+        <NeonTextBuilder onClose={() => setCurrentSection('home')} />
+      ) : currentSection === 'login' ? (
+        <Login onNavigate={handleNavigate} onClose={() => setCurrentSection('home')} />
+      ) : currentSection === 'register' ? (
+        <Register onNavigate={handleNavigate} onClose={() => setCurrentSection('home')} />
       ) : (
         <>
           <div id="home">
@@ -106,6 +113,7 @@ function App() {
           <MissionSection onNavigate={handleNavigate} />
           <Features />
           <Services onNavigate={handleNavigate} />
+          <Products onNavigate={handleNavigate} />
           <About />
           <Contact />
           <Newsletter />
