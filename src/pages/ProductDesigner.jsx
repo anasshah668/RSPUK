@@ -3,7 +3,7 @@ import { fabric } from 'fabric';
 import QRCode from 'qrcode';
 import { productTemplates, findPrintArea, constrainToPrintArea } from '../utils/productTemplates';
 
-const ProductDesigner = ({ productType = 'pen', onClose, onSave }) => {
+const ProductDesigner = ({ productType = 'pen', uploadedImage = null, onClose, onSave }) => {
   const canvasRef = useRef(null);
   const uploadInputRef = useRef(null);
   const [canvas, setCanvas] = useState(null);
@@ -167,6 +167,37 @@ const ProductDesigner = ({ productType = 'pen', onClose, onSave }) => {
       fabricCanvas.dispose();
     };
   }, [currentProductType]);
+
+  // Load uploaded image if provided
+  useEffect(() => {
+    if (uploadedImage && canvas) {
+      fabric.Image.fromURL(
+        uploadedImage,
+        (img) => {
+          if (img) {
+            const printArea = productTemplate.printAreas[0];
+            if (printArea) {
+              const areaWidth = printArea.bounds.right - printArea.bounds.left;
+              const areaHeight = printArea.bounds.bottom - printArea.bounds.top;
+              const scale = Math.min(areaWidth / img.width, areaHeight / img.height) * 0.9;
+              img.scale(scale);
+              img.set({
+                left: printArea.bounds.left + (areaWidth - img.width * scale) / 2,
+                top: printArea.bounds.top + (areaHeight - img.height * scale) / 2,
+                selectable: true,
+                evented: true,
+                name: 'uploaded-image'
+              });
+              canvas.add(img);
+              canvas.setActiveObject(img);
+              canvas.renderAll();
+            }
+          }
+        },
+        { crossOrigin: 'anonymous' }
+      );
+    }
+  }, [uploadedImage, canvas, productTemplate]);
 
   const handleZoom = (direction) => {
     const newZoom = direction === 'in' 
@@ -544,7 +575,7 @@ const ProductDesigner = ({ productType = 'pen', onClose, onSave }) => {
                   value={textInput}
                   onChange={(e) => setTextInput(e.target.value)}
                   placeholder="Type here..."
-                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 />
               </div>
@@ -593,7 +624,7 @@ const ProductDesigner = ({ productType = 'pen', onClose, onSave }) => {
                   onChange={(e) => setQrText(e.target.value)}
                   rows={3}
                   placeholder="Enter URL or text for QR code"
-                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 />
               </div>
@@ -681,7 +712,7 @@ const ProductDesigner = ({ productType = 'pen', onClose, onSave }) => {
             </div>
           )}
 
-          <div className="mt-8 p-4 bg-amber-50 rounded-xl border border-amber-200">
+          <div className="mt-8 p-4 bg-blue-50 rounded-xl border border-blue-200">
             <p className="text-xs text-gray-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
               <strong>Print Area:</strong> Green dashed boxes indicate where printing will occur. Keep your design inside them.
             </p>
@@ -719,7 +750,7 @@ const ProductDesigner = ({ productType = 'pen', onClose, onSave }) => {
             <select
               value={currentProductType}
               onChange={(e) => setCurrentProductType(e.target.value)}
-              className="ml-4 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+              className="ml-4 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               <option value="pen">Pen</option>
@@ -735,7 +766,7 @@ const ProductDesigner = ({ productType = 'pen', onClose, onSave }) => {
             <select
               value={selectedObject?.type === 'text' ? selectedObject.fontFamily || fontFamily : fontFamily}
               onChange={(e) => handleFontFamilyChange(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm min-w-[150px] focus:outline-none focus:ring-2 focus:ring-amber-500"
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm min-w-[150px] focus:outline-none focus:ring-2 focus:ring-blue-500"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               <option value="Lexend Deca">Lexend Deca</option>
@@ -918,7 +949,7 @@ const ProductDesigner = ({ productType = 'pen', onClose, onSave }) => {
             </button>
             <button 
               onClick={exportDesign}
-              className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-semibold flex items-center gap-2"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center gap-2"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

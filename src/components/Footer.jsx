@@ -2,74 +2,192 @@ import React from 'react';
 
 const Footer = ({ onNavigate }) => {
   return (
-    <footer className="bg-gray-900 text-gray-300">
-      <div className="container mx-auto px-4 lg:px-6 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-          {/* Company Info */}
-          <div>
-            <h3 className="text-white text-xl font-bold mb-4" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-              RIVER SIGNS &amp; PRINT
-            </h3>
-            <p className="text-gray-400 mb-4">
-              Your partner in professional signage solutions. From design to installation, we deliver excellence.
+    <footer className="bg-gray-800 text-white relative">
+      {/* Light Blue Top Border */}
+      <div className="h-0.5 bg-blue-400"></div>
+      
+      <div className="container mx-auto px-4 lg:px-8 py-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          {/* Column 1 - Company Information */}
+          <div className="space-y-4">
+            {/* Logo */}
+            <div className="flex items-center">
+              <img 
+                src="/logo.png" 
+                alt="RER Logo" 
+                className="h-10 w-auto object-contain"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+                }}
+              />
+              <div className="hidden items-center">
+                <span className="text-3xl font-bold" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  <span className="text-blue-400">R</span>
+                  <span className="text-white">ER</span>
+                </span>
+              </div>
+            </div>
+            
+            <p className="text-gray-300 text-sm" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              UK-based signage & printing company.
             </p>
+            
+            <p className="text-gray-300 text-sm" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              Custom neon signs, large-format printing & bespoke fabrication.
+            </p>
+            
+            {/* Contact Information */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center gap-2 text-gray-300 text-sm">
+                <svg className="w-4 h-4 text-red-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                </svg>
+                <span style={{ fontFamily: 'Lexend Deca, sans-serif' }}>United Kingdom</span>
+              </div>
+              
+              <div className="flex items-center gap-2 text-gray-300 text-sm">
+                <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <span style={{ fontFamily: 'Lexend Deca, sans-serif' }}>hello@riversignsprint.co.uk</span>
+              </div>
+              
+              <div className="flex items-center gap-2 text-gray-300 text-sm">
+                <svg className="w-4 h-4 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
+                <span style={{ fontFamily: 'Lexend Deca, sans-serif' }}>01234 567 890</span>
+              </div>
+            </div>
           </div>
 
-          {/* Quick Links */}
+          {/* Column 2 - Services */}
           <div>
-            <h4 className="text-white font-semibold mb-4">Quick Links</h4>
+            <h4 className="text-white font-bold mb-4 text-base" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              Services
+            </h4>
+            <ul className="space-y-2">
+              {['Neon Signs', 'Large Format Printing', 'Window Graphics', 'Fabrication', 'Business Cards'].map((service) => (
+                <li key={service}>
+                  <button
+                    onClick={() => onNavigate && onNavigate('services')}
+                    className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
+                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  >
+                    {service}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Column 3 - Company */}
+          <div>
+            <h4 className="text-white font-bold mb-4 text-base" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              Company
+            </h4>
             <ul className="space-y-2">
               <li>
                 <button
-                  onClick={() => onNavigate && onNavigate('neon-builder')}
-                  className="text-gray-400 hover:text-pink-600 transition-colors"
-                >
-                  Neon Text Builder
-                </button>
-              </li>
-             
-              <li>
-                <button
                   onClick={() => onNavigate && onNavigate('about')}
-                  className="text-gray-400 hover:text-pink-600 transition-colors"
+                  className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
                   About Us
                 </button>
               </li>
               <li>
                 <button
-                  onClick={() => onNavigate && onNavigate('contact')}
-                  className="text-gray-400 hover:text-pink-600 transition-colors"
+                  onClick={() => onNavigate && onNavigate('gallery')}
+                  className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
-                  Contact
+                  Gallery
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate && onNavigate('blog')}
+                  className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  Blog
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate && onNavigate('careers')}
+                  className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  Careers
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate && onNavigate('trade-accounts')}
+                  className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  Trade Accounts
                 </button>
               </li>
             </ul>
           </div>
 
-          {/* Contact Info */}
+          {/* Column 4 - Support */}
           <div>
-            <h4 className="text-white font-semibold mb-4">Contact</h4>
-            <ul className="space-y-2 text-gray-400">
-              <li>Email: info@neonsigns.com</li>
-              <li>Phone: +44 (0) 123 456 7890</li>
-              <li className="mt-4">
-                <div className="text-sm">
-                  <div className="font-semibold text-white mb-1">London Office</div>
-                  <div>20–22 Example Road</div>
-                  <div>London, N1 7GU</div>
-                </div>
+            <h4 className="text-white font-bold mb-4 text-base" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              Support
+            </h4>
+            <ul className="space-y-2">
+              <li>
+                <button
+                  onClick={() => onNavigate && onNavigate('quote')}
+                  className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  Get a Free Quote
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate && onNavigate('product-designer')}
+                  className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  Design Tool
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate && onNavigate('faqs')}
+                  className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  FAQs
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate && onNavigate('shipping')}
+                  className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  Shipping Info
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate && onNavigate('returns')}
+                  className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  Returns
+                </button>
               </li>
             </ul>
-          </div>
-        </div>
-
-        <div className="border-t border-gray-800 pt-8 text-center text-sm text-gray-500">
-          <p>© {new Date().getFullYear()} RIVER SIGNS &amp; PRINT. All rights reserved.</p>
-          <div className="mt-4 space-x-4">
-            <button className="hover:text-pink-600 transition-colors">Privacy Policy</button>
-            <span>|</span>
-            <button className="hover:text-pink-600 transition-colors">Terms & Conditions</button>
           </div>
         </div>
       </div>

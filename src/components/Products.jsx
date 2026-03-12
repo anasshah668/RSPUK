@@ -107,9 +107,20 @@ const Products = ({ onNavigate }) => {
   };
 
   const handleProductClick = (product) => {
-    // Navigate to product designer or product page
+    // Navigate to product detail page
     if (onNavigate) {
-      onNavigate('product-designer');
+      const productTypeMap = {
+        'Mug': 'shop-mug',
+        'Pen': 'shop-pen',
+        'Shirt': 'shop-shirt',
+        'Flyer': 'shop-flyer',
+        'Banner': 'shop-banner',
+        'Sticker': 'shop-sticker',
+        'Business Card': 'shop-business-card',
+        'Brochure': 'shop-brochure'
+      };
+      const section = productTypeMap[product.category] || 'shop-mug';
+      onNavigate(section);
     }
   };
 
@@ -161,7 +172,7 @@ const Products = ({ onNavigate }) => {
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold text-white ${
                       product.badge === 'Sale' ? 'bg-red-500' :
                       product.badge === 'New' ? 'bg-green-500' :
-                      product.badge === 'Best Seller' ? 'bg-amber-600' :
+                      product.badge === 'Best Seller' ? 'bg-blue-600' :
                       'bg-blue-500'
                     }`} style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                       {product.badge}
@@ -178,7 +189,7 @@ const Products = ({ onNavigate }) => {
                       e.stopPropagation();
                       handleProductClick(product);
                     }}
-                    className="px-6 py-3 bg-white text-gray-900 rounded-lg font-semibold hover:bg-amber-600 hover:text-white transition-colors"
+                    className="px-6 py-3 bg-white text-gray-900 rounded-lg font-semibold hover:bg-blue-600 hover:text-white transition-colors"
                     style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                   >
                     Quick View
@@ -187,7 +198,7 @@ const Products = ({ onNavigate }) => {
 
                 {/* Rating Badge */}
                 <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg flex items-center gap-1">
-                  <svg className="w-4 h-4 text-amber-500 fill-current" viewBox="0 0 20 20">
+                  <svg className="w-4 h-4 text-blue-500 fill-current" viewBox="0 0 20 20">
                     <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
                   </svg>
                   <span className="text-xs font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -199,13 +210,13 @@ const Products = ({ onNavigate }) => {
               {/* Product Info */}
               <div className="p-5">
                 <div className="mb-2">
-                  <span className="text-xs text-amber-600 font-semibold uppercase tracking-wide" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  <span className="text-xs text-blue-600 font-semibold uppercase tracking-wide" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                     {product.category}
                   </span>
                 </div>
                 
                 <h3 
-                  className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 group-hover:text-amber-600 transition-colors"
+                  className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
                   {product.name}
@@ -219,7 +230,7 @@ const Products = ({ onNavigate }) => {
                         key={i}
                         className={`w-4 h-4 ${
                           i < Math.floor(product.rating)
-                            ? 'text-amber-500 fill-current'
+                            ? 'text-blue-500 fill-current'
                             : 'text-gray-300'
                         }`}
                         viewBox="0 0 20 20"
@@ -265,7 +276,7 @@ const Products = ({ onNavigate }) => {
                     e.stopPropagation();
                     handleAddToCart(product);
                   }}
-                  className="w-full py-3 bg-amber-600 text-white rounded-lg font-semibold hover:bg-amber-700 transition-colors duration-200 flex items-center justify-center gap-2 group/btn"
+                  className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center gap-2 group/btn"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
                   <svg className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">

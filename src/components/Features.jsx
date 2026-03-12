@@ -1,65 +1,96 @@
 import React from 'react';
 
 const Features = () => {
-  const features = [
+  const steps = [
     {
-      title: 'Quotation',
-      description: 'We provide accurate signage quotations, delivered direct to your inbox in hours, not weeks.',
+      number: '01',
+      title: 'Choose Your Service',
       icon: (
         <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.025 4.718l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
         </svg>
       ),
     },
     {
-      title: 'Fabrication',
-      description: 'Our signage fabrication facilities are equipped with state-of-the-art technology and staffed with time-served manufacturing experts.',
+      number: '02',
+      title: 'Design or Upload Artwork',
       icon: (
         <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
         </svg>
       ),
     },
     {
-      title: 'Installation',
-      description: 'Our in-house installation engineers operate across the UK, providing high-quality technical solutions and on-site support.',
+      number: '03',
+      title: 'We Manufacture in the UK',
       icon: (
         <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+      ),
+    },
+    {
+      number: '04',
+      title: 'Fast Delivery to Your Door',
+      icon: (
+        <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
         </svg>
       ),
     },
   ];
 
   return (
-    <section className="py-20 bg-white">
+    <section id="how-it-works" className="py-12 bg-gray-50">
       <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 lg:gap-16">
-          {features.map((feature, index) => (
-            <div 
-              key={index} 
-              className="text-center group hover:transform hover:scale-105 transition-all duration-300"
-            >
-              <div className="flex justify-center mb-6">
-                <div className="w-20 h-20 rounded-full bg-amber-50 flex items-center justify-center text-amber-600 group-hover:bg-amber-100 transition-colors duration-300">
-                  {feature.icon}
+        <div className="text-center mb-10">
+          <h2 
+            className="text-3xl md:text-4xl font-bold text-gray-900 mb-3"
+            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+          >
+            How It Works
+          </h2>
+          <div className="flex justify-center mb-4">
+            <div className="h-1 bg-yellow-400 w-20"></div>
+          </div>
+        </div>
+
+        <div className="relative py-4">
+          {/* Single Connecting Line */}
+          <div className="hidden md:block absolute top-12 left-1/2 transform -translate-x-1/2 w-3/4 h-0.5 bg-blue-300 z-0"></div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-3 lg:gap-6 relative">
+            {steps.map((step, index) => (
+              <div 
+                key={index} 
+                className="flex flex-col items-center text-center relative z-10"
+              >
+                {/* Number Circle */}
+                <div className="absolute top-0 z-20 w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center">
+                  <span className="text-white font-bold text-xs" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {step.number}
+                  </span>
                 </div>
+
+                {/* Main Circle */}
+                <div className="w-24 h-24 md:w-28 md:h-28 rounded-full border-2 border-blue-300 flex items-center justify-center mb-4 bg-white relative mt-5">
+                  <div className="text-blue-500">
+                    <div className="w-8 h-8 md:w-10 md:h-10">
+                      {step.icon}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Text */}
+                <h3 
+                  className="text-base md:text-lg font-bold text-gray-900"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  {step.title}
+                </h3>
               </div>
-              <h3 
-                className="text-2xl font-bold text-gray-900 mb-4"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-              >
-                {feature.title}
-              </h3>
-              <p 
-                className="text-gray-600 leading-relaxed"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-              >
-                {feature.description}
-              </p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </section>

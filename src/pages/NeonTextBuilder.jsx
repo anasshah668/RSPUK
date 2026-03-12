@@ -57,8 +57,8 @@ const NeonTextBuilder = ({ onClose }) => {
             className="w-full flex flex-col items-center gap-2 px-2"
             title="Text"
           >
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${sidebarTab === 'text' ? 'bg-amber-50' : 'bg-gray-50'} border border-gray-200`}>
-              <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${sidebarTab === 'text' ? 'bg-blue-50' : 'bg-gray-50'} border border-gray-200`}>
+              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M8 6v14m8-14v14" />
               </svg>
             </div>
@@ -70,8 +70,8 @@ const NeonTextBuilder = ({ onClose }) => {
             className="w-full flex flex-col items-center gap-2 px-2"
             title="Color"
           >
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${sidebarTab === 'color' ? 'bg-amber-50' : 'bg-gray-50'} border border-gray-200`}>
-              <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${sidebarTab === 'color' ? 'bg-blue-50' : 'bg-gray-50'} border border-gray-200`}>
+              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
               </svg>
             </div>
@@ -83,8 +83,8 @@ const NeonTextBuilder = ({ onClose }) => {
             className="w-full flex flex-col items-center gap-2 px-2"
             title="Effects"
           >
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${sidebarTab === 'effects' ? 'bg-amber-50' : 'bg-gray-50'} border border-gray-200`}>
-              <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${sidebarTab === 'effects' ? 'bg-blue-50' : 'bg-gray-50'} border border-gray-200`}>
+              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
               </svg>
             </div>
@@ -128,7 +128,7 @@ const NeonTextBuilder = ({ onClose }) => {
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   placeholder="Enter your text..."
-                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 />
               </div>
@@ -140,7 +140,7 @@ const NeonTextBuilder = ({ onClose }) => {
                 <select
                   value={font}
                   onChange={(e) => setFont(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   style={{ fontFamily: font }}
                 >
                   {fonts.map((f) => (
@@ -161,7 +161,7 @@ const NeonTextBuilder = ({ onClose }) => {
                   max="200"
                   value={size}
                   onChange={(e) => setSize(Number(e.target.value))}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-amber-600"
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                 />
                 <div className="flex justify-between text-xs text-gray-500 mt-1">
                   <span>20px</span>
@@ -179,7 +179,7 @@ const NeonTextBuilder = ({ onClose }) => {
                   max="20"
                   value={letterSpacing}
                   onChange={(e) => setLetterSpacing(Number(e.target.value))}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-amber-600"
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                 />
                 <div className="flex justify-between text-xs text-gray-500 mt-1">
                   <span>Tight</span>
@@ -207,7 +207,7 @@ const NeonTextBuilder = ({ onClose }) => {
                     type="text"
                     value={color}
                     onChange={(e) => setColor(e.target.value)}
-                    className="flex-1 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent font-mono"
+                    className="flex-1 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
                     placeholder="#ff4df0"
                   />
                 </div>
@@ -223,7 +223,7 @@ const NeonTextBuilder = ({ onClose }) => {
                   max="50"
                   value={glowIntensity}
                   onChange={(e) => setGlowIntensity(Number(e.target.value))}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-amber-600"
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                 />
                 <div className="flex justify-between text-xs text-gray-500 mt-1">
                   <span>Subtle</span>
@@ -243,7 +243,7 @@ const NeonTextBuilder = ({ onClose }) => {
                 <button
                   onClick={() => setFlicker(!flicker)}
                   className={`relative w-14 h-8 rounded-full transition-colors duration-200 ${
-                    flicker ? 'bg-amber-600' : 'bg-gray-300'
+                    flicker ? 'bg-blue-600' : 'bg-gray-300'
                   }`}
                 >
                   <span
@@ -305,7 +305,7 @@ const NeonTextBuilder = ({ onClose }) => {
           <div className="flex gap-4 items-center">
             <button 
               onClick={handleExport}
-              className="px-6 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-semibold flex items-center gap-2"
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center gap-2"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

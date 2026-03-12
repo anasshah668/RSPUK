@@ -167,7 +167,7 @@ const CartDropdown = ({ isOpen, onClose }) => {
                   // Navigate to checkout
                   onClose();
                 }}
-                className="w-full py-3 bg-amber-600 text-white rounded-lg font-semibold hover:bg-amber-700 transition-colors"
+                className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
                 Checkout

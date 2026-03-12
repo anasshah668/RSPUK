@@ -58,7 +58,7 @@ const Contact = () => {
                     value={formData.name}
                     onChange={handleChange}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                   />
                 </div>
@@ -75,7 +75,7 @@ const Contact = () => {
                     value={formData.email}
                     onChange={handleChange}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                   />
                 </div>
@@ -91,7 +91,7 @@ const Contact = () => {
                     name="phone"
                     value={formData.phone}
                     onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                   />
                 </div>
@@ -108,13 +108,13 @@ const Contact = () => {
                     onChange={handleChange}
                     required
                     rows="5"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                   />
                 </div>
                 <button
                   type="submit"
-                  className="w-full bg-amber-600 text-white px-6 py-3 rounded-lg hover:bg-amber-700 transition-colors font-semibold"
+                  className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
                   Send Message
@@ -141,7 +141,7 @@ const Contact = () => {
                     </div>
                     <a 
                       href="mailto:enquiries@tradeonlysigns.co.uk" 
-                      className="text-amber-600 hover:text-amber-700 transition-colors"
+                      className="text-blue-600 hover:text-blue-700 transition-colors"
                       style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                     >
                       enquiries@tradeonlysigns.co.uk
@@ -156,7 +156,7 @@ const Contact = () => {
                     </div>
                     <a 
                       href="tel:01914882011" 
-                      className="text-amber-600 hover:text-amber-700 transition-colors"
+                      className="text-blue-600 hover:text-blue-700 transition-colors"
                       style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                     >
                       0191 488 2011

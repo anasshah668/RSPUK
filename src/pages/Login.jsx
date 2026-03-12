@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 
 const Login = ({ onNavigate, onClose }) => {
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -41,8 +43,17 @@ const Login = ({ onNavigate, onClose }) => {
     setTimeout(() => {
       setIsLoading(false);
       // In a real app, you would handle authentication here
-      console.log('Login attempt:', formData);
-      alert('Login functionality would be implemented here');
+      // For now, we'll simulate a successful login
+      const userData = {
+        email: formData.email,
+        name: formData.email.split('@')[0], // Use email prefix as name
+      };
+      login(userData);
+      if (onClose) {
+        onClose();
+      } else if (onNavigate) {
+        onNavigate('home');
+      }
     }, 1000);
   };
 
@@ -96,7 +107,7 @@ const Login = ({ onNavigate, onClose }) => {
                 autoComplete="email"
                 value={formData.email}
                 onChange={handleChange}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all ${
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                   errors.email ? 'border-red-500' : 'border-gray-300'
                 }`}
                 placeholder="you@example.com"
@@ -122,7 +133,7 @@ const Login = ({ onNavigate, onClose }) => {
                 <button
                   type="button"
                   onClick={() => onNavigate && onNavigate('forgot-password')}
-                  className="text-sm text-amber-600 hover:text-amber-700 font-medium"
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
                   Forgot password?
@@ -135,7 +146,7 @@ const Login = ({ onNavigate, onClose }) => {
                 autoComplete="current-password"
                 value={formData.password}
                 onChange={handleChange}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all ${
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                   errors.password ? 'border-red-500' : 'border-gray-300'
                 }`}
                 placeholder="Enter your password"
@@ -156,7 +167,7 @@ const Login = ({ onNavigate, onClose }) => {
                 type="checkbox"
                 checked={formData.rememberMe}
                 onChange={handleChange}
-                className="h-4 w-4 text-amber-600 focus:ring-amber-500 border-gray-300 rounded"
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
               <label 
                 htmlFor="rememberMe" 
@@ -171,7 +182,7 @@ const Login = ({ onNavigate, onClose }) => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               {isLoading ? (
@@ -233,7 +244,7 @@ const Login = ({ onNavigate, onClose }) => {
               Don't have an account?{' '}
               <button
                 onClick={() => onNavigate && onNavigate('register')}
-                className="font-medium text-amber-600 hover:text-amber-700"
+                className="font-medium text-blue-600 hover:text-blue-700"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
                 Sign up

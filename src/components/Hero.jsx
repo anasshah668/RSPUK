@@ -2,66 +2,102 @@ import React from 'react';
 
 const Hero = ({ onGetStarted }) => {
   return (
-    <section className="relative min-h-[650px] md:min-h-[750px] flex items-center overflow-hidden">
-      {/* Background Image with Blur */}
-      <div 
-        className="absolute inset-0 bg-cover bg-center"
-        style={{
-          backgroundImage: 'url(https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80), linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          filter: 'blur(4px)',
-          transform: 'scale(1.1)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      />
-      
-      {/* Dark Overlay - stronger at bottom and right */}
-      <div className="absolute inset-0 bg-gradient-to-br from-black/40 via-black/50 to-black/70"></div>
+    <section className="relative min-h-[600px] md:min-h-[700px] flex items-center overflow-hidden bg-gradient-to-br from-gray-50 via-white to-gray-100 py-16">
+      {/* Decorative Yellow Lines */}
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-yellow-400 animate-line-draw-left"></div>
+      <div className="absolute top-6 right-6 w-10 h-0.5 bg-yellow-400 animate-line-draw-right"></div>
       
       {/* Content */}
       <div className="container mx-auto px-4 lg:px-8 relative z-10">
-        <div className="max-w-4xl mx-auto text-center">
-          {/* Left Side - Text Content */}
-          <div className="text-white">
-            <h1 
-              className="text-4xl md:text-5xl lg:text-6xl font-extrabold mb-6 leading-tight tracking-tight animate-fade-in-up"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              Your partner in sign.
-            </h1>
-            <p 
-              className="text-lg md:text-xl mb-5 leading-relaxed font-light max-w-3xl mx-auto animate-fade-in-up-delay-1"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              We provide a comprehensive range of white-label signage solutions, meticulously tailored to meet the diverse and evolving needs of trade clients across all industries.
-            </p>
-            <p 
-              className="text-lg md:text-xl mb-8 leading-relaxed font-light max-w-3xl mx-auto animate-fade-in-up-delay-2"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              From initial design consultation through to final installation, our end-to-end fulfilment services are built on the pillars of simplicity, efficiency, precision, and exceptional value.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in-up-delay-3">
-              <button
-                onClick={() => onGetStarted && onGetStarted('how-it-works')}
-                className="bg-slate-800 text-white px-8 py-3 rounded-lg hover:bg-slate-900 transition-all duration-200 font-semibold text-base flex items-center justify-center gap-2 shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
+        <div className="max-w-7xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+            
+            {/* Left Column - Text Content */}
+            <div className="space-y-6 animate-fade-in-up">
+              {/* Main Heading */}
+              <h1 
+                className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight tracking-tight"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
-                Learn more
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-              <button
-                onClick={() => onGetStarted && onGetStarted('neon-builder')}
-                className="bg-amber-500 text-black px-8 py-3 rounded-lg hover:bg-amber-600 transition-all duration-200 font-semibold text-base flex items-center justify-center gap-2 shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
+                <span className="text-gray-900 animate-slide-in-left">Make Your Brand</span>
+                <br />
+                <span className="text-blue-600 relative inline-block animate-slide-in-left-delay">
+                  Impossible
+                  <span className="absolute -inset-0.5 bg-blue-600/10 blur-md animate-pulse-slow"></span>
+                </span>
+                <br />
+                <span className="text-gray-900 relative inline-block animate-slide-in-left-delay-2">
+                  To{' '}
+                  <span className="relative inline-block">
+                    Ignore
+                    <span className="absolute bottom-0 left-0 right-0 h-1.5 bg-yellow-400 -z-10 animate-underline-expand"></span>
+                  </span>
+                </span>
+              </h1>
+              
+              {/* Subheading */}
+              <p 
+                className="text-base md:text-lg text-gray-600 leading-relaxed max-w-xl animate-fade-in-up-delay-2"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
-                Get a quote
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
+                Custom neon signs, large-format printing & bespoke signage manufactured in the UK.
+              </p>
+              
+              {/* CTA Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3 pt-2 animate-fade-in-up-delay-3">
+                <button
+                  onClick={() => onGetStarted && onGetStarted('product-designer')}
+                  className="group bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-all duration-300 font-semibold text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-lg hover:shadow-blue-500/50 transform hover:-translate-y-0.5 hover:scale-105"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  Start Designing
+                  <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => onGetStarted && onGetStarted('services')}
+                  className="group bg-white hover:bg-gray-50 border-2 border-blue-600 text-blue-600 hover:text-blue-700 px-6 py-2.5 rounded-lg transition-all duration-300 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  Explore Services
+                  <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            {/* Right Column - Hero Image */}
+            <div className="hidden lg:block relative animate-fade-in-up-delay-2">
+              <div className="relative animate-float-gentle">
+                {/* Card */}
+                <div className="relative rounded-xl overflow-hidden shadow-lg bg-white border border-gray-200">
+                  <div className="aspect-[4/3] overflow-hidden bg-white relative">
+                    <img 
+                      src="/hero.jpg" 
+                      alt="Neon Products" 
+                      className="w-full h-full object-cover animate-image-zoom"
+                      onError={(e) => {
+                        // Fallback to alternative paths
+                        const fallbacks = [
+                          '/hero.png',
+                          '/hero.jpeg',
+                          'https://images.unsplash.com/photo-1561070791-2526d30994b5?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80'
+                        ];
+                        let currentIndex = 0;
+                        e.target.onerror = () => {
+                          if (currentIndex < fallbacks.length - 1) {
+                            currentIndex++;
+                            e.target.src = fallbacks[currentIndex];
+                          }
+                        };
+                        e.target.src = fallbacks[0];
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -77,6 +113,66 @@ const Hero = ({ onGetStarted }) => {
           to {
             opacity: 1;
             transform: translateY(0);
+          }
+        }
+
+        @keyframes zoomBg {
+          0%, 100% {
+            transform: scale(1);
+          }
+          50% {
+            transform: scale(1.05);
+          }
+        }
+
+        @keyframes gradientShift {
+          0%, 100% {
+            opacity: 0.8;
+          }
+          50% {
+            opacity: 0.9;
+          }
+        }
+
+        @keyframes gradientText {
+          0%, 100% {
+            background-position: 0% 50%;
+          }
+          50% {
+            background-position: 100% 50%;
+          }
+        }
+
+        @keyframes float1 {
+          0%, 100% {
+            transform: translate(0, 0) scale(1);
+          }
+          33% {
+            transform: translate(30px, -30px) scale(1.1);
+          }
+          66% {
+            transform: translate(-20px, 20px) scale(0.9);
+          }
+        }
+
+        @keyframes float2 {
+          0%, 100% {
+            transform: translate(0, 0) scale(1);
+          }
+          33% {
+            transform: translate(-40px, 40px) scale(1.2);
+          }
+          66% {
+            transform: translate(30px, -20px) scale(0.8);
+          }
+        }
+
+        @keyframes float3 {
+          0%, 100% {
+            transform: translate(-50%, -50%) scale(1);
+          }
+          50% {
+            transform: translate(-50%, -50%) scale(1.15);
           }
         }
 
@@ -97,6 +193,160 @@ const Hero = ({ onGetStarted }) => {
 
         .animate-fade-in-up-delay-3 {
           animation: fadeInUp 0.8s ease-out 0.6s forwards;
+          opacity: 0;
+        }
+
+        .animate-fade-in-up-delay-4 {
+          animation: fadeInUp 0.8s ease-out 0.8s forwards;
+          opacity: 0;
+        }
+
+        .animate-zoom-bg {
+          animation: zoomBg 20s ease-in-out infinite;
+        }
+
+        .animate-gradient-shift {
+          animation: gradientShift 8s ease-in-out infinite;
+        }
+
+        .animate-gradient-text {
+          background-size: 200% auto;
+          animation: gradientText 3s linear infinite;
+        }
+
+        .animate-float-1 {
+          animation: float1 15s ease-in-out infinite;
+        }
+
+        .animate-float-2 {
+          animation: float2 18s ease-in-out infinite;
+        }
+
+        .animate-float-3 {
+          animation: float3 12s ease-in-out infinite;
+        }
+
+        @keyframes slideInLeft {
+          from {
+            opacity: 0;
+            transform: translateX(-30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        @keyframes pulseSlow {
+          0%, 100% {
+            opacity: 0.1;
+          }
+          50% {
+            opacity: 0.2;
+          }
+        }
+
+        @keyframes underlineExpand {
+          from {
+            width: 0;
+          }
+          to {
+            width: 100%;
+          }
+        }
+
+        @keyframes floatGentle {
+          0%, 100% {
+            transform: translateY(0);
+          }
+          50% {
+            transform: translateY(-10px);
+          }
+        }
+
+        @keyframes imageZoom {
+          0%, 100% {
+            transform: scale(1);
+          }
+          50% {
+            transform: scale(1.05);
+          }
+        }
+
+        .animate-slide-in-left {
+          animation: slideInLeft 0.8s ease-out forwards;
+          opacity: 0;
+        }
+
+        .animate-slide-in-left-delay {
+          animation: slideInLeft 0.8s ease-out 0.2s forwards;
+          opacity: 0;
+        }
+
+        .animate-slide-in-left-delay-2 {
+          animation: slideInLeft 0.8s ease-out 0.4s forwards;
+          opacity: 0;
+        }
+
+        .animate-pulse-slow {
+          animation: pulseSlow 3s ease-in-out infinite;
+        }
+
+        .animate-underline-expand {
+          animation: underlineExpand 0.6s ease-out 0.6s forwards;
+          width: 0;
+        }
+
+        .animate-float-gentle {
+          animation: floatGentle 4s ease-in-out infinite;
+        }
+
+        .animate-image-zoom {
+          animation: imageZoom 8s ease-in-out infinite;
+        }
+
+        @keyframes lineDrawLeft {
+          from {
+            width: 0;
+            opacity: 0;
+          }
+          to {
+            width: 3rem;
+            opacity: 1;
+          }
+        }
+
+        @keyframes lineDrawRight {
+          from {
+            width: 0;
+            opacity: 0;
+          }
+          to {
+            width: 2.5rem;
+            opacity: 1;
+          }
+        }
+
+        @keyframes linePulse {
+          0%, 100% {
+            opacity: 1;
+            transform: scaleX(1);
+          }
+          50% {
+            opacity: 0.6;
+            transform: scaleX(1.1);
+          }
+        }
+
+        .animate-line-draw-left {
+          animation: lineDrawLeft 0.8s ease-out 0.3s forwards, linePulse 2s ease-in-out 1.1s infinite;
+          width: 0;
+          opacity: 0;
+        }
+
+        .animate-line-draw-right {
+          animation: lineDrawRight 0.8s ease-out 0.5s forwards, linePulse 2s ease-in-out 1.3s infinite;
+          width: 0;
           opacity: 0;
         }
       `}</style>

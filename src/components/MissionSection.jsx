@@ -11,7 +11,7 @@ const MissionSection = ({ onNavigate }) => {
         <div className="max-w-5xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
             <div className="flex items-start gap-4 group">
-              <div className="flex-shrink-0 w-12 h-12 text-slate-700 group-hover:text-amber-600 transition-colors duration-200">
+              <div className="flex-shrink-0 w-12 h-12 text-slate-700 group-hover:text-blue-600 transition-colors duration-200">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-full h-full">
                   <circle cx="8" cy="8" r="3.5" />
                   <circle cx="16" cy="16" r="3.5" />
@@ -27,7 +27,7 @@ const MissionSection = ({ onNavigate }) => {
             </div>
             
             <div className="flex items-start gap-4 group">
-              <div className="flex-shrink-0 w-12 h-12 text-slate-700 group-hover:text-amber-600 transition-colors duration-200">
+              <div className="flex-shrink-0 w-12 h-12 text-slate-700 group-hover:text-blue-600 transition-colors duration-200">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-full h-full">
                   <rect x="3" y="3" width="18" height="18" rx="2.5" />
                   <path d="M12 5l-7 7v4h4l7-7M12 5l5 5M9 12l5 5" strokeLinecap="round" strokeLinejoin="round" />
@@ -41,7 +41,7 @@ const MissionSection = ({ onNavigate }) => {
             </div>
             
             <div className="flex items-start gap-4 group">
-              <div className="flex-shrink-0 w-12 h-12 text-slate-700 group-hover:text-amber-600 transition-colors duration-200">
+              <div className="flex-shrink-0 w-12 h-12 text-slate-700 group-hover:text-blue-600 transition-colors duration-200">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-full h-full">
                   <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" strokeLinecap="round" strokeLinejoin="round" />
                   <circle cx="9" cy="7" r="4" />
@@ -65,12 +65,12 @@ const MissionSection = ({ onNavigate }) => {
           <div className="text-left lg:pl-8 lg:pr-4">
             <div className="mb-8">
               <h2 
-                className="text-amber-600 text-xs font-black uppercase tracking-[0.2em] mb-3 inline-block"
+                className="text-blue-600 text-xs font-black uppercase tracking-[0.2em] mb-3 inline-block"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
                 OUR MISSION
               </h2>
-              <div className="h-1 bg-amber-600 w-28"></div>
+              <div className="h-1 bg-blue-600 w-28"></div>
             </div>
             
             <h3 
@@ -91,7 +91,7 @@ const MissionSection = ({ onNavigate }) => {
                 We're committed to making your experience as straightforward as possible. To this end, we've developed a user-friendly{' '}
                 <button
                   onClick={() => onNavigate && onNavigate('neon-builder')}
-                  className="font-bold text-gray-900 hover:text-amber-600 transition-colors duration-200 underline decoration-2 underline-offset-4"
+                  className="font-bold text-gray-900 hover:text-blue-600 transition-colors duration-200 underline decoration-2 underline-offset-4"
                 >
                   Online Quotations portal
                 </button>
@@ -101,7 +101,7 @@ const MissionSection = ({ onNavigate }) => {
                 What's more, our dedicated team of signage experts are always on hand to ensure a smooth journey from design to installation.{' '}
                 <button
                   onClick={() => onNavigate && onNavigate('contact')}
-                  className="font-bold text-gray-900 hover:text-amber-600 transition-colors duration-200 underline decoration-2 underline-offset-4"
+                  className="font-bold text-gray-900 hover:text-blue-600 transition-colors duration-200 underline decoration-2 underline-offset-4"
                 >
                   Contact us
                 </button>

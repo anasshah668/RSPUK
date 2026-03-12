@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 
 const Register = ({ onNavigate, onClose }) => {
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -64,8 +66,17 @@ const Register = ({ onNavigate, onClose }) => {
     setTimeout(() => {
       setIsLoading(false);
       // In a real app, you would handle registration here
-      console.log('Registration attempt:', formData);
-      alert('Registration functionality would be implemented here');
+      // For now, we'll simulate a successful registration and auto-login
+      const userData = {
+        email: formData.email,
+        name: `${formData.firstName} ${formData.lastName}`,
+      };
+      login(userData);
+      if (onClose) {
+        onClose();
+      } else if (onNavigate) {
+        onNavigate('home');
+      }
     }, 1000);
   };
 
@@ -120,7 +131,7 @@ const Register = ({ onNavigate, onClose }) => {
                   autoComplete="given-name"
                   value={formData.firstName}
                   onChange={handleChange}
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all ${
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                     errors.firstName ? 'border-red-500' : 'border-gray-300'
                   }`}
                   placeholder="John"
@@ -148,7 +159,7 @@ const Register = ({ onNavigate, onClose }) => {
                   autoComplete="family-name"
                   value={formData.lastName}
                   onChange={handleChange}
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all ${
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                     errors.lastName ? 'border-red-500' : 'border-gray-300'
                   }`}
                   placeholder="Doe"
@@ -178,7 +189,7 @@ const Register = ({ onNavigate, onClose }) => {
                 autoComplete="email"
                 value={formData.email}
                 onChange={handleChange}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all ${
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                   errors.email ? 'border-red-500' : 'border-gray-300'
                 }`}
                 placeholder="you@example.com"
@@ -207,7 +218,7 @@ const Register = ({ onNavigate, onClose }) => {
                 autoComplete="new-password"
                 value={formData.password}
                 onChange={handleChange}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all ${
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                   errors.password ? 'border-red-500' : 'border-gray-300'
                 }`}
                 placeholder="Create a password"
@@ -239,7 +250,7 @@ const Register = ({ onNavigate, onClose }) => {
                 autoComplete="new-password"
                 value={formData.confirmPassword}
                 onChange={handleChange}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all ${
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                   errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
                 }`}
                 placeholder="Confirm your password"
@@ -261,7 +272,7 @@ const Register = ({ onNavigate, onClose }) => {
                   type="checkbox"
                   checked={formData.agreeToTerms}
                   onChange={handleChange}
-                  className="h-4 w-4 text-amber-600 focus:ring-amber-500 border-gray-300 rounded mt-1"
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1"
                 />
                 <label 
                   htmlFor="agreeToTerms" 
@@ -272,7 +283,7 @@ const Register = ({ onNavigate, onClose }) => {
                   <button
                     type="button"
                     onClick={() => onNavigate && onNavigate('terms')}
-                    className="text-amber-600 hover:text-amber-700 font-medium"
+                    className="text-blue-600 hover:text-blue-700 font-medium"
                   >
                     Terms and Conditions
                   </button>
@@ -280,7 +291,7 @@ const Register = ({ onNavigate, onClose }) => {
                   <button
                     type="button"
                     onClick={() => onNavigate && onNavigate('privacy')}
-                    className="text-amber-600 hover:text-amber-700 font-medium"
+                    className="text-blue-600 hover:text-blue-700 font-medium"
                   >
                     Privacy Policy
                   </button>
@@ -297,7 +308,7 @@ const Register = ({ onNavigate, onClose }) => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               {isLoading ? (
@@ -359,7 +370,7 @@ const Register = ({ onNavigate, onClose }) => {
               Already have an account?{' '}
               <button
                 onClick={() => onNavigate && onNavigate('login')}
-                className="font-medium text-amber-600 hover:text-amber-700"
+                className="font-medium text-blue-600 hover:text-blue-700"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
                 Sign in
