@@ -29,7 +29,6 @@ const Contact = () => {
           <div className="text-center mb-12">
             <h2 
               className="text-3xl md:text-4xl font-bold text-gray-900 mb-4"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Get in Touch
             </h2>
@@ -127,7 +126,6 @@ const Contact = () => {
               <div className="bg-white rounded-lg shadow-lg p-8">
                 <h3 
                   className="text-xl font-bold text-gray-900 mb-4"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
                   Contact Information
                 </h3>
@@ -188,7 +186,6 @@ const Contact = () => {
               <div className="bg-white rounded-lg shadow-lg p-8">
                 <h3 
                   className="text-xl font-bold text-gray-900 mb-4"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
                   London Office
                 </h3>

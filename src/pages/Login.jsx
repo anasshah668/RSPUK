@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/authService';
 
-const Login = ({ onNavigate, onClose }) => {
+const Login = () => {
+  const navigate = useNavigate();
   const { login } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
@@ -62,11 +64,7 @@ const Login = ({ onNavigate, onClose }) => {
         role: data.role,
       }, data.token);
 
-      if (onClose) {
-        onClose();
-      } else if (onNavigate) {
-        onNavigate('home');
-      }
+      navigate('/');
     } catch (error) {
       setErrors({ submit: error.message });
     } finally {
@@ -117,7 +115,6 @@ const Login = ({ onNavigate, onClose }) => {
         <div className="text-center">
           <h2 
             className="text-3xl font-bold text-gray-900"
-            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >
             Welcome Back
           </h2>
@@ -287,7 +284,7 @@ const Login = ({ onNavigate, onClose }) => {
             <p className="text-sm text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
               Don't have an account?{' '}
               <button
-                onClick={() => onNavigate && onNavigate('register')}
+                onClick={() => navigate('/register')}
                 className="font-medium text-blue-600 hover:text-blue-700"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
@@ -300,7 +297,7 @@ const Login = ({ onNavigate, onClose }) => {
         {/* Back to Home */}
         <div className="text-center">
           <button
-            onClick={() => (onClose && onClose()) || (onNavigate && onNavigate('home'))}
+            onClick={() => navigate('/')}
             className="text-sm text-gray-600 hover:text-gray-900 font-medium"
             style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >

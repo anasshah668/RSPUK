@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { productService } from '../services/productService';
 import { categoryService } from '../services/categoryService';
+import { encryptId, createSlug } from '../utils/encryption';
+import { getRoutePath } from '../config/routes.config';
 
-const Products = ({ onNavigate }) => {
+const Products = () => {
+  const navigate = useNavigate();
   const [hoveredProduct, setHoveredProduct] = useState(null);
   const [imageErrors, setImageErrors] = useState({});
   const [allProducts, setAllProducts] = useState([]);
@@ -125,22 +129,13 @@ const Products = ({ onNavigate }) => {
   };
 
   const handleProductClick = (product) => {
-    // Navigate to product detail page with product data
-    if (onNavigate) {
-      // Pass the actual product data to the detail page
-      // Use productData if available (full backend product), otherwise construct from transformed product
-      const productToPass = product.productData || {
-        _id: product._id,
-        name: product.name,
-        category: product.categorySlug,
-        basePrice: product.price,
-        images: product.image ? [{ url: product.image }] : [],
-        description: '',
-        features: [],
-        specifications: {},
-      };
-      onNavigate('product-detail', { productId: product._id, product: productToPass });
-    }
+    // Navigate to product detail page with encrypted ID
+    const productId = product._id || product.id;
+    const encryptedId = encryptId(productId);
+    const slug = createSlug(product.name);
+    const category = product.categorySlug || product.category?.toLowerCase() || 'product';
+    
+    navigate(getRoutePath('productDetail', { category, productName: slug, encryptedId }));
   };
 
   return (
@@ -150,7 +145,6 @@ const Products = ({ onNavigate }) => {
         <div className="text-center mb-8">
           <h2 
             className="text-4xl md:text-5xl font-bold text-gray-900 mb-4"
-            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >
             Our Products
           </h2>
@@ -206,7 +200,7 @@ const Products = ({ onNavigate }) => {
             <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
             </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            <h3 className="mt-2 text-sm font-medium text-gray-900">
               No products available
             </h3>
             <p className="mt-1 text-sm text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -276,7 +270,6 @@ const Products = ({ onNavigate }) => {
               <div className="p-5">
                 <h3 
                   className="text-lg font-bold text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
                   {product.name}
                 </h3>
@@ -290,7 +283,7 @@ const Products = ({ onNavigate }) => {
         {filteredProducts.length > 0 && (
           <div className="text-center mt-12">
             <button
-              onClick={() => onNavigate && onNavigate('shop')}
+              onClick={() => navigate('/')}
               className="px-8 py-3 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors duration-200 inline-flex items-center gap-2"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >

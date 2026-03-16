@@ -1,6 +1,6 @@
 import React from 'react';
 
-const Services = ({ onNavigate }) => {
+const Services = () => {
   const services = [
     {
       title: 'Neon Signs',
@@ -56,7 +56,6 @@ const Services = ({ onNavigate }) => {
         <div className="text-center mb-16">
           <h2 
             className="text-4xl md:text-5xl font-bold text-white mb-4"
-            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >
             What We Do
           </h2>
@@ -84,7 +83,6 @@ const Services = ({ onNavigate }) => {
               </div>
               <h3 
                 className="text-xl font-bold text-white mb-3 text-center"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
                 {service.title}
               </h3>

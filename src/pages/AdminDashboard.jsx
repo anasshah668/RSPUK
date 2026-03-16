@@ -6,7 +6,10 @@ import { orderService } from '../services/orderService';
 import { quoteService } from '../services/quoteService';
 import { categoryService } from '../services/categoryService';
 
-const AdminDashboard = ({ onNavigate, onClose }) => {
+import { useNavigate } from 'react-router-dom';
+
+const AdminDashboard = () => {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [analytics, setAnalytics] = useState(null);
@@ -18,7 +21,7 @@ const AdminDashboard = ({ onNavigate, onClose }) => {
 
   useEffect(() => {
     if (user?.role !== 'admin') {
-      if (onNavigate) onNavigate('admin-login');
+      navigate('/admin/login');
       return;
     }
     fetchData();
@@ -99,14 +102,13 @@ const AdminDashboard = ({ onNavigate, onClose }) => {
               </div>
               <h1
                 className="text-2xl font-bold text-white"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
                 Admin Dashboard
               </h1>
             </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => (onNavigate && onNavigate('home'))}
+                onClick={() => navigate('/')}
                 className="text-gray-200 hover:text-white font-medium flex items-center gap-2 transition-colors text-sm"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
@@ -118,7 +120,7 @@ const AdminDashboard = ({ onNavigate, onClose }) => {
               <button
                 onClick={() => {
                   logout();
-                  onNavigate && onNavigate('admin-login');
+                  navigate('/admin/login');
                 }}
                 className="px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-semibold transition-colors"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
@@ -192,7 +194,7 @@ const OverviewTab = ({ analytics }) => {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+      <h2 className="text-2xl font-bold text-gray-900">
         Dashboard Overview
       </h2>
 
@@ -213,7 +215,7 @@ const OverviewTab = ({ analytics }) => {
       {/* Revenue Chart */}
       {analytics.revenueByMonth && analytics.revenueByMonth.length > 0 && (
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+          <h3 className="text-xl font-bold text-gray-900 mb-4">
             Revenue by Month
           </h3>
           <div className="space-y-2">
@@ -247,7 +249,7 @@ const ProductsTab = ({ products, onRefresh }) => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+        <h2 className="text-2xl font-bold text-gray-900">
           Products Management
         </h2>
         <button
@@ -622,7 +624,7 @@ const OrdersTab = ({ orders, onStatusUpdate }) => {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+      <h2 className="text-2xl font-bold text-gray-900">
         Orders Management
       </h2>
 
@@ -702,7 +704,7 @@ const QuotesTab = ({ quotes, onResponse }) => {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+      <h2 className="text-2xl font-bold text-gray-900">
         Quote Requests
       </h2>
 
@@ -738,7 +740,7 @@ const QuotesTab = ({ quotes, onResponse }) => {
 
         {selectedQuote && (
           <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            <h3 className="text-xl font-bold text-gray-900 mb-4">
               Quote Details
             </h3>
             <div className="space-y-4">
@@ -818,7 +820,7 @@ const CategoriesTab = ({ categories, onRefresh }) => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+        <h2 className="text-2xl font-bold text-gray-900">
           Categories Management
         </h2>
         <button
@@ -918,7 +920,7 @@ const CategoriesTab = ({ categories, onRefresh }) => {
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">
               Delete Category
             </h3>
             <p className="text-gray-600 mb-6" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -1014,7 +1016,6 @@ const CategoryModal = ({ category, API_BASE_URL, onClose, onSaved }) => {
         <div className="flex items-center justify-between mb-4">
           <h3
             className="text-xl font-bold text-gray-900"
-            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >
             {category ? 'Edit Category' : 'Add Category'}
           </h3>

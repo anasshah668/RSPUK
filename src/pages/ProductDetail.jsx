@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { productService } from '../services/productService';
+import { decryptId } from '../utils/encryption';
 
-const ProductDetail = ({ productType, productId, product: productProp, onNavigate, onClose }) => {
+const ProductDetail = ({ productType, productId, product: productProp }) => {
+  const { category, productName, encryptedId } = useParams();
+  const navigate = useNavigate();
   const { addToCart } = useCart();
   const [designOption, setDesignOption] = useState('custom'); // 'custom' or 'upload'
   const [uploadedImage, setUploadedImage] = useState(null);
@@ -11,27 +15,32 @@ const ProductDetail = ({ productType, productId, product: productProp, onNavigat
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // Initialize with productProp if available, then fetch if productId is provided and we don't have productProp
+  // Initialize with productProp if available, then fetch from URL params or productId
   useEffect(() => {
     if (productProp) {
       setProduct(productProp);
-      setLoading(false); // We already have the product, no need to show loading
+      setLoading(false);
+    } else if (encryptedId) {
+      // Decrypt ID from URL
+      const decryptedId = decryptId(encryptedId);
+      fetchProduct(decryptedId);
     } else if (productId) {
-      fetchProduct();
+      fetchProduct(productId);
     }
-  }, [productId, productProp]);
+  }, [encryptedId, productId, productProp]);
 
-  const fetchProduct = async () => {
+  const fetchProduct = async (id) => {
     try {
       setLoading(true);
       // Use centralized service
-      const data = await productService.getById(productId);
+      const data = await productService.getById(id);
       // Backend returns product directly, not wrapped
       if (data._id || data.name) {
         setProduct(data);
       }
     } catch (error) {
       console.error('Error fetching product:', error);
+      navigate('/'); // Redirect to home on error
     } finally {
       setLoading(false);
     }
@@ -280,21 +289,22 @@ const ProductDetail = ({ productType, productId, product: productProp, onNavigat
   };
 
   const handleDesignProduct = () => {
-    if (onNavigate) {
-      // Navigate to product designer with the product type and image
-      const type = product?.category || productType || 'pen';
-      const category = product?.category || null;
-      // Use uploaded image if user uploaded one, otherwise use the product image
-      const imageToUse = designOption === 'upload' && uploadedImage 
-        ? uploadedImage 
-        : (displayProduct?.image || null);
-      
-      onNavigate('product-designer', { 
+    // Navigate to product designer with the product type and image
+    const type = product?.category || productType || 'pen';
+    const category = product?.category || null;
+    // Use uploaded image if user uploaded one, otherwise use the product image
+    const imageToUse = designOption === 'upload' && uploadedImage 
+      ? uploadedImage 
+      : (displayProduct?.image || null);
+    
+    // Navigate to product designer - you can pass params via state or query params
+    navigate('/product-designer', { 
+      state: { 
         productType: type === 'business-card' ? 'business-card' : type,
         productCategory: category,
         uploadedImage: imageToUse 
-      });
-    }
+      }
+    });
   };
 
   const handleAddToCart = () => {
@@ -318,7 +328,7 @@ const ProductDetail = ({ productType, productId, product: productProp, onNavigat
       <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
         {/* Back Button */}
         <button
-          onClick={() => (onClose && onClose()) || (onNavigate && onNavigate('home'))}
+          onClick={() => navigate(-1)}
           className="mb-4 text-gray-600 hover:text-gray-900 font-medium flex items-center gap-2 transition-colors text-sm"
           style={{ fontFamily: 'Lexend Deca, sans-serif' }}
         >
@@ -358,7 +368,7 @@ const ProductDetail = ({ productType, productId, product: productProp, onNavigat
               <span className="text-xs text-blue-600 font-semibold uppercase tracking-wide" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                 {displayProduct.category}
               </span>
-              <h1 className="text-3xl font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              <h1 className="text-3xl font-bold text-gray-900 mt-1">
                 {displayProduct.name}
               </h1>
             </div>
@@ -529,7 +539,7 @@ const ProductDetail = ({ productType, productId, product: productProp, onNavigat
               <div className="space-y-4">
                 {/* Features */}
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2">
                     Features
                   </h3>
                   <ul className="grid grid-cols-2 gap-2">
@@ -550,7 +560,7 @@ const ProductDetail = ({ productType, productId, product: productProp, onNavigat
 
                 {/* Specifications */}
                 <div className="pt-3 border-t border-gray-200">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">
                     Specifications
                   </h3>
                   <dl className="grid grid-cols-2 gap-3">

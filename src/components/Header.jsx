@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getRoutePath } from '../config/routes.config';
 
-const Header = ({ onNavigate }) => {
+const Header = () => {
+  const navigate = useNavigate();
   const { isAuthenticated, user, logout, getUserInitial } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
@@ -9,9 +12,41 @@ const Header = ({ onNavigate }) => {
   const shopRef = useRef(null);
   const userMenuRef = useRef(null);
 
+  // Map old section names to routes
+  const routeMap = {
+    'home': '/',
+    'quote': '/get-free-quote',
+    'about-us': '/about-us',
+    'login': '/login',
+    'register': '/register',
+    'custom-neon-builder': '/custom-neon-builder',
+    'product-designer': '/product-designer',
+    'neon-builder': '/neon-builder',
+    'contact': '/#contact',
+    'gallery': '/#gallery',
+    'shop-mug': '/#products',
+    'shop-pen': '/#products',
+    'shop-shirt': '/#products',
+    'shop-flyer': '/#products',
+    'shop-banner': '/#products',
+    'shop-sticker': '/#products',
+    'shop-business-card': '/#products',
+    'shop-brochure': '/#products',
+  };
+
   const handleNavClick = (section) => {
-    if (onNavigate) {
-      onNavigate(section);
+    const route = routeMap[section] || '/';
+    if (route.startsWith('/#')) {
+      // Handle hash navigation (scroll to section)
+      navigate('/');
+      setTimeout(() => {
+        const element = document.getElementById(route.substring(2));
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 100);
+    } else {
+      navigate(route);
     }
     setMobileMenuOpen(false);
     setShopOpen(false);
@@ -37,9 +72,7 @@ const Header = ({ onNavigate }) => {
   const handleLogout = () => {
     logout();
     setUserMenuOpen(false);
-    if (onNavigate) {
-      onNavigate('home');
-    }
+    navigate('/');
   };
 
   return (
@@ -50,7 +83,7 @@ const Header = ({ onNavigate }) => {
           <div className="hidden lg:flex items-center space-x-6">
             <button
               onClick={() => handleNavClick('home')}
-              className="text-white hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Home
@@ -59,7 +92,7 @@ const Header = ({ onNavigate }) => {
             <div className="relative" ref={shopRef}>
               <button
                 onClick={() => setShopOpen(!shopOpen)}
-                className="text-white hover:text-blue-400 font-semibold text-sm transition-colors duration-200 flex items-center gap-1.5"
+                className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 flex items-center gap-1.5"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
                 Shop
@@ -69,71 +102,114 @@ const Header = ({ onNavigate }) => {
               </button>
               {shopOpen && (
                 <div
-                  className="absolute top-full left-0 mt-2 w-56 bg-white rounded-lg shadow-2xl py-2 border border-gray-100 z-50"
+                  className="absolute top-full left-0 mt-2 w-[600px] bg-white rounded-lg shadow-2xl py-4 border border-gray-100 z-50"
                 >
-                  <button
-                    onClick={() => handleNavClick('shop-mug')}
-                    className="block w-full text-left px-5 py-2.5 text-gray-800 hover:bg-blue-50 hover:text-blue-600 transition-all duration-150 text-sm font-medium"
-                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                  >
-                    Mug
-                  </button>
-                  <button
-                    onClick={() => handleNavClick('shop-pen')}
-                    className="block w-full text-left px-5 py-2.5 text-gray-800 hover:bg-blue-50 hover:text-blue-600 transition-all duration-150 text-sm font-medium"
-                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                  >
-                    Pen
-                  </button>
-                  <button
-                    onClick={() => handleNavClick('shop-shirt')}
-                    className="block w-full text-left px-5 py-2.5 text-gray-800 hover:bg-blue-50 hover:text-blue-600 transition-all duration-150 text-sm font-medium"
-                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                  >
-                    Shirt
-                  </button>
-                  <button
-                    onClick={() => handleNavClick('shop-flyer')}
-                    className="block w-full text-left px-5 py-2.5 text-gray-800 hover:bg-blue-50 hover:text-blue-600 transition-all duration-150 text-sm font-medium"
-                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                  >
-                    Flyer
-                  </button>
-                  <button
-                    onClick={() => handleNavClick('shop-banner')}
-                    className="block w-full text-left px-5 py-2.5 text-gray-800 hover:bg-blue-50 hover:text-blue-600 transition-all duration-150 text-sm font-medium"
-                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                  >
-                    Banner
-                  </button>
-                  <button
-                    onClick={() => handleNavClick('shop-sticker')}
-                    className="block w-full text-left px-5 py-2.5 text-gray-800 hover:bg-blue-50 hover:text-blue-600 transition-all duration-150 text-sm font-medium"
-                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                  >
-                    Sticker
-                  </button>
-                  <button
-                    onClick={() => handleNavClick('shop-business-card')}
-                    className="block w-full text-left px-5 py-2.5 text-gray-800 hover:bg-blue-50 hover:text-blue-600 transition-all duration-150 text-sm font-medium"
-                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                  >
-                    Business Card
-                  </button>
-                  <button
-                    onClick={() => handleNavClick('shop-brochure')}
-                    className="block w-full text-left px-5 py-2.5 text-gray-800 hover:bg-blue-50 hover:text-blue-600 transition-all duration-150 text-sm font-medium"
-                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                  >
-                    Brochure
-                  </button>
+                  <div className="grid grid-cols-2 gap-6 px-6">
+                    {/* Left Column */}
+                    <div className="space-y-4">
+                      {/* Large Format Printing */}
+                      <div>
+                        <h3 className="text-blue-600 font-semibold text-sm mb-2">
+                          Large Format Printing
+                        </h3>
+                        <ul className="space-y-1">
+                          {['Banners', 'Posters', 'Wall Murals', 'Exhibition Displays', 'Pop-Up Stands'].map((item) => (
+                            <li key={item}>
+                              <button
+                                onClick={() => {
+                                  handleNavClick('shop');
+                                  setShopOpen(false);
+                                }}
+                                className="block w-full text-left text-gray-600 hover:text-blue-600 transition-colors text-sm"
+                                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                              >
+                                {item}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Fabrication */}
+                      <div>
+                        <h3 className="text-blue-600 font-semibold text-sm mb-2">
+                          Fabrication
+                        </h3>
+                        <ul className="space-y-1">
+                          {['3D Letters', 'Channel Letters', 'Metal Signs', 'Acrylic Signs', 'Built-Up Letters'].map((item) => (
+                            <li key={item}>
+                              <button
+                                onClick={() => {
+                                  handleNavClick('shop');
+                                  setShopOpen(false);
+                                }}
+                                className="block w-full text-left text-gray-600 hover:text-blue-600 transition-colors text-sm"
+                                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                              >
+                                {item}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+
+                    {/* Right Column */}
+                    <div className="space-y-4">
+                      {/* Business Cards */}
+                      <div>
+                        <h3 className="text-blue-600 font-semibold text-sm mb-2">
+                          Business Cards
+                        </h3>
+                        <ul className="space-y-1">
+                          {['Standard Cards', 'Premium Cards', 'Spot UV Cards', 'Foil Cards', 'Recycled Cards'].map((item) => (
+                            <li key={item}>
+                              <button
+                                onClick={() => {
+                                  handleNavClick('shop');
+                                  setShopOpen(false);
+                                }}
+                                className="block w-full text-left text-gray-600 hover:text-blue-600 transition-colors text-sm"
+                                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                              >
+                                {item}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Signage Solutions */}
+                      <div>
+                        <h3 className="text-blue-600 font-semibold text-sm mb-2">
+                          Signage Solutions
+                        </h3>
+                        <ul className="space-y-1">
+                          {['Shop Fronts', 'Wayfinding Signs', 'Safety Signs', 'A-Boards', 'Illuminated Signs'].map((item) => (
+                            <li key={item}>
+                              <button
+                                onClick={() => {
+                                  handleNavClick('shop');
+                                  setShopOpen(false);
+                                }}
+                                className="block w-full text-left text-gray-600 hover:text-blue-600 transition-colors text-sm"
+                                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                              >
+                                {item}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
 
             <button
               onClick={() => handleNavClick('custom-neon-builder')}
-              className="text-white hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Design Custom Neon
@@ -141,7 +217,7 @@ const Header = ({ onNavigate }) => {
 
             <button
               onClick={() => handleNavClick('product-designer')}
-              className="text-white hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Design Tool
@@ -172,7 +248,7 @@ const Header = ({ onNavigate }) => {
           <div className="hidden lg:flex items-center space-x-6">
             <button
               onClick={() => handleNavClick('quote')}
-              className="text-white hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Get a Free Quote
@@ -180,7 +256,7 @@ const Header = ({ onNavigate }) => {
 
             <button
               onClick={() => handleNavClick('gallery')}
-              className="text-white hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Gallery
@@ -188,7 +264,7 @@ const Header = ({ onNavigate }) => {
 
             <button
               onClick={() => handleNavClick('about-us')}
-              className="text-white hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               About Us
@@ -196,7 +272,7 @@ const Header = ({ onNavigate }) => {
 
             <button
               onClick={() => handleNavClick('contact')}
-              className="text-white hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Contact
@@ -207,7 +283,7 @@ const Header = ({ onNavigate }) => {
               <>
                 <button
                   onClick={() => handleNavClick('login')}
-                  className="text-white hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+                  className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
                   Login
@@ -282,7 +358,7 @@ const Header = ({ onNavigate }) => {
           <div className="lg:hidden py-4 space-y-1 border-t border-gray-700 animate-in slide-in-from-top duration-200">
             <button
               onClick={() => handleNavClick('home')}
-              className="block w-full text-left px-4 py-3 text-white hover:bg-gray-700 hover:text-gray-300 rounded-lg transition-all duration-150 text-sm font-medium"
+              className="block w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gray-100 rounded-lg transition-all duration-150 text-sm font-medium"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Home
@@ -291,7 +367,7 @@ const Header = ({ onNavigate }) => {
             <div className="px-4">
               <button
                 onClick={() => setShopOpen(!shopOpen)}
-                className="w-full text-left py-3 text-white hover:text-blue-300 rounded-lg transition-all duration-150 text-sm font-medium flex items-center justify-between"
+                className="w-full text-left py-3 text-gray-300 hover:text-blue-300 rounded-lg transition-all duration-150 text-sm font-medium flex items-center justify-between"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
                 Shop
@@ -300,70 +376,105 @@ const Header = ({ onNavigate }) => {
                 </svg>
               </button>
               {shopOpen && (
-                <div className="pl-4 space-y-1 mt-2">
-                  <button
-                    onClick={() => handleNavClick('shop-mug')}
-                    className="block w-full text-left px-4 py-2 text-white hover:bg-gray-700 hover:text-gray-300 rounded-lg transition-all duration-150 text-sm"
-                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                  >
-                    Mug
-                  </button>
-                  <button
-                    onClick={() => handleNavClick('shop-pen')}
-                    className="block w-full text-left px-4 py-2 text-white hover:bg-gray-700 hover:text-gray-300 rounded-lg transition-all duration-150 text-sm"
-                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                  >
-                    Pen
-                  </button>
-                  <button
-                    onClick={() => handleNavClick('shop-shirt')}
-                    className="block w-full text-left px-4 py-2 text-white hover:bg-gray-700 hover:text-gray-300 rounded-lg transition-all duration-150 text-sm"
-                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                  >
-                    Shirt
-                  </button>
-                  <button
-                    onClick={() => handleNavClick('shop-flyer')}
-                    className="block w-full text-left px-4 py-2 text-white hover:bg-gray-700 hover:text-gray-300 rounded-lg transition-all duration-150 text-sm"
-                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                  >
-                    Flyer
-                  </button>
-                  <button
-                    onClick={() => handleNavClick('shop-banner')}
-                    className="block w-full text-left px-4 py-2 text-white hover:bg-gray-700 hover:text-gray-300 rounded-lg transition-all duration-150 text-sm"
-                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                  >
-                    Banner
-                  </button>
-                  <button
-                    onClick={() => handleNavClick('shop-sticker')}
-                    className="block w-full text-left px-4 py-2 text-white hover:bg-gray-700 hover:text-gray-300 rounded-lg transition-all duration-150 text-sm"
-                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                  >
-                    Sticker
-                  </button>
-                  <button
-                    onClick={() => handleNavClick('shop-business-card')}
-                    className="block w-full text-left px-4 py-2 text-white hover:bg-gray-700 hover:text-gray-300 rounded-lg transition-all duration-150 text-sm"
-                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                  >
-                    Business Card
-                  </button>
-                  <button
-                    onClick={() => handleNavClick('shop-brochure')}
-                    className="block w-full text-left px-4 py-2 text-white hover:bg-gray-700 hover:text-gray-300 rounded-lg transition-all duration-150 text-sm"
-                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                  >
-                    Brochure
-                  </button>
+                <div className="pl-4 space-y-4 mt-2">
+                  {/* Large Format Printing */}
+                  <div>
+                    <h3 className="text-blue-400 font-semibold text-sm mb-2 px-4">
+                      Large Format Printing
+                    </h3>
+                    <div className="space-y-1">
+                      {['Banners', 'Posters', 'Wall Murals', 'Exhibition Displays', 'Pop-Up Stands'].map((item) => (
+                        <button
+                          key={item}
+                          onClick={() => {
+                            handleNavClick('shop');
+                            setShopOpen(false);
+                            setMobileMenuOpen(false);
+                          }}
+                          className="block w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-all duration-150 text-sm"
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        >
+                          {item}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Fabrication */}
+                  <div>
+                    <h3 className="text-blue-400 font-semibold text-sm mb-2 px-4">
+                      Fabrication
+                    </h3>
+                    <div className="space-y-1">
+                      {['3D Letters', 'Channel Letters', 'Metal Signs', 'Acrylic Signs', 'Built-Up Letters'].map((item) => (
+                        <button
+                          key={item}
+                          onClick={() => {
+                            handleNavClick('shop');
+                            setShopOpen(false);
+                            setMobileMenuOpen(false);
+                          }}
+                          className="block w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-all duration-150 text-sm"
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        >
+                          {item}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Business Cards */}
+                  <div>
+                    <h3 className="text-blue-400 font-semibold text-sm mb-2 px-4">
+                      Business Cards
+                    </h3>
+                    <div className="space-y-1">
+                      {['Standard Cards', 'Premium Cards', 'Spot UV Cards', 'Foil Cards', 'Recycled Cards'].map((item) => (
+                        <button
+                          key={item}
+                          onClick={() => {
+                            handleNavClick('shop');
+                            setShopOpen(false);
+                            setMobileMenuOpen(false);
+                          }}
+                          className="block w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-all duration-150 text-sm"
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        >
+                          {item}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Signage Solutions */}
+                  <div>
+                    <h3 className="text-blue-400 font-semibold text-sm mb-2 px-4">
+                      Signage Solutions
+                    </h3>
+                    <div className="space-y-1">
+                      {['Shop Fronts', 'Wayfinding Signs', 'Safety Signs', 'A-Boards', 'Illuminated Signs'].map((item) => (
+                        <button
+                          key={item}
+                          onClick={() => {
+                            handleNavClick('shop');
+                            setShopOpen(false);
+                            setMobileMenuOpen(false);
+                          }}
+                          className="block w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-all duration-150 text-sm"
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        >
+                          {item}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
 
             <button
               onClick={() => handleNavClick('custom-neon-builder')}
-              className="block w-full text-left px-4 py-3 text-white hover:bg-gray-700 hover:text-gray-300 rounded-lg transition-all duration-150 text-sm font-medium"
+              className="block w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gray-100 rounded-lg transition-all duration-150 text-sm font-medium"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Design Custom Neon
@@ -371,7 +482,7 @@ const Header = ({ onNavigate }) => {
 
             <button
               onClick={() => handleNavClick('product-designer')}
-              className="block w-full text-left px-4 py-3 text-white hover:bg-gray-700 hover:text-gray-300 rounded-lg transition-all duration-150 text-sm font-medium"
+              className="block w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gray-100 rounded-lg transition-all duration-150 text-sm font-medium"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Design Tool
@@ -379,7 +490,7 @@ const Header = ({ onNavigate }) => {
 
             <button
               onClick={() => handleNavClick('quote')}
-              className="block w-full text-left px-4 py-3 text-white hover:bg-gray-700 hover:text-gray-300 rounded-lg transition-all duration-150 text-sm font-medium"
+              className="block w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gray-100 rounded-lg transition-all duration-150 text-sm font-medium"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Get a Free Quote
@@ -387,7 +498,7 @@ const Header = ({ onNavigate }) => {
 
             <button
               onClick={() => handleNavClick('gallery')}
-              className="block w-full text-left px-4 py-3 text-white hover:bg-gray-700 hover:text-gray-300 rounded-lg transition-all duration-150 text-sm font-medium"
+              className="block w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gray-100 rounded-lg transition-all duration-150 text-sm font-medium"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Gallery
@@ -395,7 +506,7 @@ const Header = ({ onNavigate }) => {
 
             <button
               onClick={() => handleNavClick('about-us')}
-              className="block w-full text-left px-4 py-3 text-white hover:bg-gray-700 hover:text-gray-300 rounded-lg transition-all duration-150 text-sm font-medium"
+              className="block w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gray-100 rounded-lg transition-all duration-150 text-sm font-medium"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               About Us
@@ -403,7 +514,7 @@ const Header = ({ onNavigate }) => {
 
             <button
               onClick={() => handleNavClick('contact')}
-              className="block w-full text-left px-4 py-3 text-white hover:bg-gray-700 hover:text-gray-300 rounded-lg transition-all duration-150 text-sm font-medium"
+              className="block w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gray-100 rounded-lg transition-all duration-150 text-sm font-medium"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Contact
@@ -414,7 +525,7 @@ const Header = ({ onNavigate }) => {
               <>
                 <button
                   onClick={() => handleNavClick('login')}
-                  className="block w-full text-left px-4 py-3 text-white hover:bg-gray-700 hover:text-gray-300 rounded-lg transition-all duration-150 text-sm font-medium"
+                  className="block w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gray-100 rounded-lg transition-all duration-150 text-sm font-medium"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
                   Login

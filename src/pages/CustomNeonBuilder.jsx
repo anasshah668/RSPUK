@@ -3,7 +3,10 @@ import NeonText from '../components/NeonText';
 import { useCart } from '../context/CartContext';
 import { toPng } from 'html-to-image';
 
-const CustomNeonBuilder = ({ onNavigate, onClose }) => {
+import { useNavigate } from 'react-router-dom';
+
+const CustomNeonBuilder = () => {
+  const navigate = useNavigate();
   const { addToCart } = useCart();
   const previewRef = useRef(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -63,11 +66,7 @@ const CustomNeonBuilder = ({ onNavigate, onClose }) => {
     };
     addToCart(order, 1);
     alert('Order added to cart!');
-    if (onClose) {
-      onClose();
-    } else if (onNavigate) {
-      onNavigate('home');
-    }
+    navigate('/');
   };
 
   const handleDownload = async () => {
@@ -99,7 +98,7 @@ const CustomNeonBuilder = ({ onNavigate, onClose }) => {
         return (
           <div className="space-y-6">
             <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-6" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              <h3 className="text-xl font-bold text-gray-900 mb-6">
                 Customize Your Neon Sign
               </h3>
               
@@ -251,7 +250,7 @@ const CustomNeonBuilder = ({ onNavigate, onClose }) => {
         return (
           <div className="space-y-6">
             <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              <h3 className="text-xl font-bold text-gray-900 mb-4">
                 Select Size
               </h3>
               
@@ -295,14 +294,14 @@ const CustomNeonBuilder = ({ onNavigate, onClose }) => {
         return (
           <div className="space-y-6">
             <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              <h3 className="text-xl font-bold text-gray-900 mb-4">
                 Review & Checkout
               </h3>
               
               <div className="grid md:grid-cols-2 gap-6">
                 {/* Order Summary */}
                 <div>
-                  <h4 className="font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  <h4 className="font-semibold text-gray-900 mb-3">
                     Order Summary
                   </h4>
                   <div className="bg-gray-50 rounded-lg p-4 space-y-3">
@@ -339,7 +338,7 @@ const CustomNeonBuilder = ({ onNavigate, onClose }) => {
 
                 {/* Customer Information */}
                 <div>
-                  <h4 className="font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  <h4 className="font-semibold text-gray-900 mb-3">
                     Contact Information
                   </h4>
                   <div className="space-y-3">
@@ -393,7 +392,7 @@ const CustomNeonBuilder = ({ onNavigate, onClose }) => {
         {/* Header */}
         <div className="mb-6">
           <button
-            onClick={() => (onClose && onClose()) || (onNavigate && onNavigate('home'))}
+            onClick={() => navigate('/')}
             className="text-gray-600 hover:text-gray-900 font-medium flex items-center gap-2 transition-colors text-sm mb-4"
             style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >
@@ -402,7 +401,7 @@ const CustomNeonBuilder = ({ onNavigate, onClose }) => {
             </svg>
             Back
           </button>
-          <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+          <h1 className="text-3xl font-bold text-gray-900">
             Custom Neon Sign Builder
           </h1>
         </div>

@@ -2,7 +2,10 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/authService';
 
-const AdminLogin = ({ onNavigate, onClose }) => {
+import { useNavigate } from 'react-router-dom';
+
+const AdminLogin = () => {
+  const navigate = useNavigate();
   const { login } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
@@ -67,9 +70,7 @@ const AdminLogin = ({ onNavigate, onClose }) => {
       }, data.token);
 
       // Navigate to admin dashboard
-      if (onNavigate) {
-        onNavigate('admin');
-      }
+      navigate('/admin');
     } catch (error) {
       setErrors({ submit: error.message });
     } finally {
@@ -130,7 +131,6 @@ const AdminLogin = ({ onNavigate, onClose }) => {
             )}
             <h2 
               className="text-3xl font-bold text-gray-900"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Admin Login
             </h2>
@@ -263,7 +263,7 @@ const AdminLogin = ({ onNavigate, onClose }) => {
             <div className="text-center">
             <button
               type="button"
-              onClick={() => (onClose && onClose()) || (onNavigate && onNavigate('home'))}
+              onClick={() => navigate('/')}
               className="text-sm text-gray-600 hover:text-gray-900"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >

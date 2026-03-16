@@ -1,6 +1,9 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { getRoutePath } from '../config/routes.config';
 
-const Hero = ({ onGetStarted }) => {
+const Hero = () => {
+  const navigate = useNavigate();
   return (
     <section className="relative min-h-[600px] md:min-h-[700px] flex items-center overflow-hidden bg-gradient-to-br from-gray-50 via-white to-gray-100 py-16">
       {/* Decorative Yellow Lines */}
@@ -17,7 +20,6 @@ const Hero = ({ onGetStarted }) => {
               {/* Main Heading */}
               <h1 
                 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight tracking-tight"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
                 <span className="text-gray-900 animate-slide-in-left">Make Your Brand</span>
                 <br />
@@ -46,7 +48,7 @@ const Hero = ({ onGetStarted }) => {
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-3 pt-2 animate-fade-in-up-delay-3">
                 <button
-                  onClick={() => onGetStarted && onGetStarted('product-designer')}
+                  onClick={() => navigate(getRoutePath('productDesigner'))}
                   className="group bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-all duration-300 font-semibold text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-lg hover:shadow-blue-500/50 transform hover:-translate-y-0.5 hover:scale-105"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
@@ -56,7 +58,15 @@ const Hero = ({ onGetStarted }) => {
                   </svg>
                 </button>
                 <button
-                  onClick={() => onGetStarted && onGetStarted('services')}
+                  onClick={() => {
+                    navigate('/');
+                    setTimeout(() => {
+                      const element = document.getElementById('services');
+                      if (element) {
+                        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }, 100);
+                  }}
                   className="group bg-white hover:bg-gray-50 border-2 border-blue-600 text-blue-600 hover:text-blue-700 px-6 py-2.5 rounded-lg transition-all duration-300 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >

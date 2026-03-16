@@ -1,6 +1,9 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { getRoutePath } from '../config/routes.config';
 
-const MissionSection = ({ onNavigate }) => {
+const MissionSection = () => {
+  const navigate = useNavigate();
   return (
     <section className="py-16 bg-white relative overflow-hidden">
       {/* Subtle wave background element */}
@@ -66,7 +69,6 @@ const MissionSection = ({ onNavigate }) => {
             <div className="mb-8">
               <h2 
                 className="text-blue-600 text-xs font-black uppercase tracking-[0.2em] mb-3 inline-block"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
                 OUR MISSION
               </h2>
@@ -75,7 +77,6 @@ const MissionSection = ({ onNavigate }) => {
             
             <h3 
               className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-gray-900 mb-8 leading-tight tracking-tight"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Signage. Simplified.
             </h3>
@@ -90,7 +91,7 @@ const MissionSection = ({ onNavigate }) => {
               <p className="font-light">
                 We're committed to making your experience as straightforward as possible. To this end, we've developed a user-friendly{' '}
                 <button
-                  onClick={() => onNavigate && onNavigate('neon-builder')}
+                  onClick={() => navigate(getRoutePath('neonBuilder'))}
                   className="font-bold text-gray-900 hover:text-blue-600 transition-colors duration-200 underline decoration-2 underline-offset-4"
                 >
                   Online Quotations portal
@@ -100,7 +101,15 @@ const MissionSection = ({ onNavigate }) => {
               <p className="font-light">
                 What's more, our dedicated team of signage experts are always on hand to ensure a smooth journey from design to installation.{' '}
                 <button
-                  onClick={() => onNavigate && onNavigate('contact')}
+                  onClick={() => {
+                    navigate('/');
+                    setTimeout(() => {
+                      const element = document.getElementById('contact');
+                      if (element) {
+                        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }, 100);
+                  }}
                   className="font-bold text-gray-900 hover:text-blue-600 transition-colors duration-200 underline decoration-2 underline-offset-4"
                 >
                   Contact us

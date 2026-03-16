@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { quoteService } from '../services/quoteService';
 
-const GetQuote = ({ onNavigate, onClose }) => {
+const GetQuote = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -99,14 +101,14 @@ const GetQuote = ({ onNavigate, onClose }) => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
               Quote Request Submitted!
             </h2>
             <p className="text-gray-600 mb-6" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
               Thank you for your interest. We'll get back to you within 24 hours with a detailed quote.
             </p>
             <button
-              onClick={() => (onClose && onClose()) || (onNavigate && onNavigate('home'))}
+              onClick={() => navigate('/')}
               className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
@@ -134,7 +136,7 @@ const GetQuote = ({ onNavigate, onClose }) => {
             Back
           </button>
           <div className="text-center">
-            <h1 className="text-4xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            <h1 className="text-4xl font-bold text-gray-900 mb-3">
               Get a Free Quote
             </h1>
             <p className="text-lg text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -148,7 +150,7 @@ const GetQuote = ({ onNavigate, onClose }) => {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Personal Information */}
             <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">
                 Contact Information
               </h2>
               <div className="grid md:grid-cols-2 gap-6">
@@ -245,7 +247,7 @@ const GetQuote = ({ onNavigate, onClose }) => {
 
             {/* Project Details */}
             <div className="border-t border-gray-200 pt-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">
                 Project Details
               </h2>
               <div className="grid md:grid-cols-2 gap-6">
@@ -381,7 +383,7 @@ const GetQuote = ({ onNavigate, onClose }) => {
               </svg>
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              <h3 className="font-semibold text-gray-900 mb-1">
                 What happens next?
               </h3>
               <p className="text-sm text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>

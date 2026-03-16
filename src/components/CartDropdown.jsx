@@ -22,7 +22,6 @@ const CartDropdown = ({ isOpen, onClose }) => {
         <div className="p-5 border-b border-gray-200 flex items-center justify-between">
           <h3 
             className="text-lg font-bold text-gray-900"
-            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >
             Shopping Cart
           </h3>
@@ -79,7 +78,6 @@ const CartDropdown = ({ isOpen, onClose }) => {
                   <div className="flex-1 min-w-0">
                     <h4 
                       className="font-semibold text-gray-900 mb-1 truncate"
-                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                     >
                       {item.name}
                     </h4>

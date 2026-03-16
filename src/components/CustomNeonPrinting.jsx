@@ -1,13 +1,15 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { getRoutePath } from '../config/routes.config';
 
-const CustomNeonPrinting = ({ onNavigate }) => {
+const CustomNeonPrinting = () => {
+  const navigate = useNavigate();
   return (
     <section id="custom-neon" className="py-12 bg-white">
       <div className="container mx-auto px-4 lg:px-8 max-w-6xl">
         <div className="text-center mb-8">
           <h2 
             className="text-3xl md:text-4xl font-bold text-gray-900 mb-2"
-            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >
             Custom Neon Printing
           </h2>
@@ -86,7 +88,7 @@ const CustomNeonPrinting = ({ onNavigate }) => {
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900 text-sm mb-0.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  <h3 className="font-semibold text-gray-900 text-sm mb-0.5">
                     Easy Design Tool
                   </h3>
                   <p className="text-gray-600 text-xs" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -102,7 +104,7 @@ const CustomNeonPrinting = ({ onNavigate }) => {
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900 text-sm mb-0.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  <h3 className="font-semibold text-gray-900 text-sm mb-0.5">
                     Multiple Sizes
                   </h3>
                   <p className="text-gray-600 text-xs" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -118,7 +120,7 @@ const CustomNeonPrinting = ({ onNavigate }) => {
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900 text-sm mb-0.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  <h3 className="font-semibold text-gray-900 text-sm mb-0.5">
                     Instant Quote
                   </h3>
                   <p className="text-gray-600 text-xs" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -129,7 +131,7 @@ const CustomNeonPrinting = ({ onNavigate }) => {
             </div>
 
             <button
-              onClick={() => onNavigate && onNavigate('custom-neon-builder')}
+              onClick={() => navigate(getRoutePath('customNeonBuilder'))}
               className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-base transition-colors duration-200 flex items-center justify-center gap-2"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >

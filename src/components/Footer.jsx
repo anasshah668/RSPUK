@@ -1,6 +1,38 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { getRoutePath } from '../config/routes.config';
 
-const Footer = ({ onNavigate }) => {
+const Footer = () => {
+  const navigate = useNavigate();
+
+  const handleNavClick = (section) => {
+    const routeMap = {
+      'services': '/#services',
+      'about': '/about-us',
+      'gallery': '/#gallery',
+      'blog': '/#blog',
+      'careers': '/#careers',
+      'trade-accounts': '/#trade-accounts',
+      'quote': '/get-free-quote',
+      'product-designer': '/product-designer',
+      'faqs': '/#faqs',
+      'shipping': '/#shipping',
+      'returns': '/#returns',
+    };
+
+    const route = routeMap[section] || '/';
+    if (route.startsWith('/#')) {
+      navigate('/');
+      setTimeout(() => {
+        const element = document.getElementById(route.substring(2));
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 100);
+    } else {
+      navigate(route);
+    }
+  };
   return (
     <footer className="bg-gray-800 text-white relative">
       {/* Light Blue Top Border */}
@@ -64,14 +96,14 @@ const Footer = ({ onNavigate }) => {
 
           {/* Column 2 - Services */}
           <div>
-            <h4 className="text-white font-bold mb-4 text-base" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            <h4 className="text-white font-bold mb-4 text-base">
               Services
             </h4>
             <ul className="space-y-2">
               {['Neon Signs', 'Large Format Printing', 'Window Graphics', 'Fabrication', 'Business Cards'].map((service) => (
                 <li key={service}>
                   <button
-                    onClick={() => onNavigate && onNavigate('services')}
+                    onClick={() => handleNavClick('services')}
                     className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
                     style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                   >
@@ -84,13 +116,13 @@ const Footer = ({ onNavigate }) => {
 
           {/* Column 3 - Company */}
           <div>
-            <h4 className="text-white font-bold mb-4 text-base" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            <h4 className="text-white font-bold mb-4 text-base">
               Company
             </h4>
             <ul className="space-y-2">
               <li>
                 <button
-                  onClick={() => onNavigate && onNavigate('about')}
+                  onClick={() => handleNavClick('about')}
                   className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
@@ -99,7 +131,7 @@ const Footer = ({ onNavigate }) => {
               </li>
               <li>
                 <button
-                  onClick={() => onNavigate && onNavigate('gallery')}
+                  onClick={() => handleNavClick('gallery')}
                   className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
@@ -108,7 +140,7 @@ const Footer = ({ onNavigate }) => {
               </li>
               <li>
                 <button
-                  onClick={() => onNavigate && onNavigate('blog')}
+                  onClick={() => handleNavClick('blog')}
                   className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
@@ -117,7 +149,7 @@ const Footer = ({ onNavigate }) => {
               </li>
               <li>
                 <button
-                  onClick={() => onNavigate && onNavigate('careers')}
+                  onClick={() => handleNavClick('careers')}
                   className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
@@ -126,7 +158,7 @@ const Footer = ({ onNavigate }) => {
               </li>
               <li>
                 <button
-                  onClick={() => onNavigate && onNavigate('trade-accounts')}
+                  onClick={() => handleNavClick('trade-accounts')}
                   className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
@@ -138,13 +170,13 @@ const Footer = ({ onNavigate }) => {
 
           {/* Column 4 - Support */}
           <div>
-            <h4 className="text-white font-bold mb-4 text-base" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            <h4 className="text-white font-bold mb-4 text-base">
               Support
             </h4>
             <ul className="space-y-2">
               <li>
                 <button
-                  onClick={() => onNavigate && onNavigate('quote')}
+                  onClick={() => handleNavClick('quote')}
                   className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
@@ -153,7 +185,7 @@ const Footer = ({ onNavigate }) => {
               </li>
               <li>
                 <button
-                  onClick={() => onNavigate && onNavigate('product-designer')}
+                  onClick={() => handleNavClick('product-designer')}
                   className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
@@ -162,7 +194,7 @@ const Footer = ({ onNavigate }) => {
               </li>
               <li>
                 <button
-                  onClick={() => onNavigate && onNavigate('faqs')}
+                  onClick={() => handleNavClick('faqs')}
                   className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
@@ -171,7 +203,7 @@ const Footer = ({ onNavigate }) => {
               </li>
               <li>
                 <button
-                  onClick={() => onNavigate && onNavigate('shipping')}
+                  onClick={() => handleNavClick('shipping')}
                   className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
@@ -180,7 +212,7 @@ const Footer = ({ onNavigate }) => {
               </li>
               <li>
                 <button
-                  onClick={() => onNavigate && onNavigate('returns')}
+                  onClick={() => handleNavClick('returns')}
                   className="text-gray-300 hover:text-blue-400 transition-colors text-sm"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >

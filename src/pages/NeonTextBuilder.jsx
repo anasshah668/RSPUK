@@ -2,7 +2,10 @@ import React, { useState } from 'react';
 import NeonText from '../components/NeonText';
 import { toPng } from 'html-to-image';
 
-const NeonTextBuilder = ({ onClose }) => {
+import { useNavigate } from 'react-router-dom';
+
+const NeonTextBuilder = () => {
+  const navigate = useNavigate();
   const [text, setText] = useState('NEON TEXT');
   const [font, setFont] = useState('Pacifico');
   const [color, setColor] = useState('#ff4df0');
@@ -95,7 +98,7 @@ const NeonTextBuilder = ({ onClose }) => {
         {/* Panel */}
         <div className="w-80 bg-white shadow-lg p-5 overflow-y-auto">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            <h3 className="font-bold text-gray-900">
               {sidebarTab === 'text' ? 'Text' : sidebarTab === 'color' ? 'Color' : 'Effects'}
             </h3>
             <button
@@ -265,7 +268,6 @@ const NeonTextBuilder = ({ onClose }) => {
           <div className="flex items-center gap-3">
             <h2 
               className="text-xl font-bold text-gray-900"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Neon Text Builder
             </h2>
@@ -273,7 +275,7 @@ const NeonTextBuilder = ({ onClose }) => {
           
           <div className="flex gap-2">
             <button 
-              onClick={onClose || (() => window.history.back())}
+              onClick={() => navigate(-1)}
               className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >

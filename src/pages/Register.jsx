@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/authService';
 
-const Register = ({ onNavigate, onClose }) => {
+const Register = () => {
+  const navigate = useNavigate();
   const { login } = useAuth();
   const [formData, setFormData] = useState({
     firstName: '',
@@ -84,11 +86,7 @@ const Register = ({ onNavigate, onClose }) => {
         role: data.role,
       }, data.token);
 
-      if (onClose) {
-        onClose();
-      } else if (onNavigate) {
-        onNavigate('home');
-      }
+      navigate('/');
     } catch (error) {
       setErrors({ submit: error.message });
     } finally {
@@ -123,7 +121,6 @@ const Register = ({ onNavigate, onClose }) => {
           )}
           <h2 
             className="text-3xl font-bold text-gray-900"
-            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >
             Create Account
           </h2>
@@ -303,7 +300,7 @@ const Register = ({ onNavigate, onClose }) => {
                   I agree to the{' '}
                   <button
                     type="button"
-                    onClick={() => onNavigate && onNavigate('terms')}
+                    onClick={() => navigate('/')}
                     className="text-blue-600 hover:text-blue-700 font-medium"
                   >
                     Terms and Conditions
@@ -311,7 +308,7 @@ const Register = ({ onNavigate, onClose }) => {
                   {' '}and{' '}
                   <button
                     type="button"
-                    onClick={() => onNavigate && onNavigate('privacy')}
+                    onClick={() => navigate('/')}
                     className="text-blue-600 hover:text-blue-700 font-medium"
                   >
                     Privacy Policy
@@ -390,7 +387,7 @@ const Register = ({ onNavigate, onClose }) => {
             <p className="text-sm text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
               Already have an account?{' '}
               <button
-                onClick={() => onNavigate && onNavigate('login')}
+                onClick={() => navigate('/login')}
                 className="font-medium text-blue-600 hover:text-blue-700"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
@@ -403,7 +400,7 @@ const Register = ({ onNavigate, onClose }) => {
         {/* Back to Home */}
         <div className="text-center">
           <button
-            onClick={() => (onClose && onClose()) || (onNavigate && onNavigate('home'))}
+            onClick={() => navigate('/')}
             className="text-sm text-gray-600 hover:text-gray-900 font-medium"
             style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >

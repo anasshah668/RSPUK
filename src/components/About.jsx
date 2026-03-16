@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { getRoutePath } from '../config/routes.config';
 
 const CountUp = ({ end, suffix = '', duration = 2000 }) => {
   const [count, setCount] = useState(0);
@@ -54,7 +56,8 @@ const CountUp = ({ end, suffix = '', duration = 2000 }) => {
   );
 };
 
-const About = ({ onNavigate }) => {
+const About = () => {
+  const navigate = useNavigate();
   const stats = [
     { number: 30, suffix: '+', label: 'Years experience' },
     { number: 5000, suffix: '+', label: 'Projects completed' },
@@ -127,7 +130,6 @@ const About = ({ onNavigate }) => {
             <div className="mb-8">
               <h2 
                 className="text-blue-600 text-xs font-black uppercase tracking-[0.2em] mb-3 inline-block"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
                 OUR MISSION
               </h2>
@@ -136,7 +138,6 @@ const About = ({ onNavigate }) => {
             
             <h3 
               className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-gray-900 mb-8 leading-tight tracking-tight"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Signage. Simplified.
             </h3>
@@ -151,7 +152,7 @@ const About = ({ onNavigate }) => {
               <p className="font-light">
                 We're committed to making your experience as straightforward as possible. To this end, we've developed a user-friendly{' '}
                 <button
-                  onClick={() => onNavigate && onNavigate('neon-builder')}
+                  onClick={() => navigate(getRoutePath('neonBuilder'))}
                   className="font-bold text-gray-900 hover:text-blue-600 transition-colors duration-200 underline decoration-2 underline-offset-4"
                 >
                   Online Quotations portal
@@ -161,7 +162,15 @@ const About = ({ onNavigate }) => {
               <p className="font-light">
                 What's more, our dedicated team of signage experts are always on hand to ensure a smooth journey from design to installation.{' '}
                 <button
-                  onClick={() => onNavigate && onNavigate('contact')}
+                  onClick={() => {
+                    navigate('/');
+                    setTimeout(() => {
+                      const element = document.getElementById('contact');
+                      if (element) {
+                        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }, 100);
+                  }}
                   className="font-bold text-gray-900 hover:text-blue-600 transition-colors duration-200 underline decoration-2 underline-offset-4"
                 >
                   Contact us

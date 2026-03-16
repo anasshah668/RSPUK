@@ -46,7 +46,6 @@ const Features = () => {
         <div className="text-center mb-10">
           <h2 
             className="text-3xl md:text-4xl font-bold text-gray-900 mb-3"
-            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >
             How It Works
           </h2>
@@ -84,7 +83,6 @@ const Features = () => {
                 {/* Text */}
                 <h3 
                   className="text-base md:text-lg font-bold text-gray-900"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
                   {step.title}
                 </h3>

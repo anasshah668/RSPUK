@@ -4,7 +4,16 @@ import QRCode from 'qrcode';
 import { productTemplates, findPrintArea, constrainToPrintArea } from '../utils/productTemplates';
 import { getProductPrintAreas, validatePrintArea, calculateDynamicPrintAreas } from '../config/productPrintAreas';
 
-const ProductDesigner = ({ productType = 'pen', productCategory = null, uploadedImage = null, onClose, onSave }) => {
+import { useNavigate, useLocation } from 'react-router-dom';
+
+const ProductDesigner = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Get props from location state or use defaults
+  const productType = location.state?.productType || 'pen';
+  const productCategory = location.state?.productCategory || null;
+  const uploadedImage = location.state?.uploadedImage || null;
   const canvasRef = useRef(null);
   const uploadInputRef = useRef(null);
   const [canvas, setCanvas] = useState(null);
@@ -1542,7 +1551,7 @@ const ProductDesigner = ({ productType = 'pen', productCategory = null, uploaded
         {/* Panel */}
         <div className="w-72 bg-white shadow-lg p-4 overflow-y-auto flex-shrink-0">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            <h3 className="font-bold text-gray-900">
               {sidebarTab === 'uploads' ? 'Uploads' : sidebarTab === 'text' ? 'Text' : sidebarTab === 'elements' ? 'Elements' : 'Printing color'}
             </h3>
             <button
@@ -1572,7 +1581,7 @@ const ProductDesigner = ({ productType = 'pen', productCategory = null, uploaded
               {/* Social Icons */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Socials</h4>
+                  <h4 className="text-sm font-semibold text-gray-900">Socials</h4>
                   <button 
                     onClick={() => setShowAllSocials(!showAllSocials)}
                     className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
@@ -1606,7 +1615,7 @@ const ProductDesigner = ({ productType = 'pen', productCategory = null, uploaded
               {/* Emojis */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Emojis</h4>
+                  <h4 className="text-sm font-semibold text-gray-900">Emojis</h4>
                   <button 
                     onClick={() => setShowAllEmojis(!showAllEmojis)}
                     className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
@@ -1630,7 +1639,7 @@ const ProductDesigner = ({ productType = 'pen', productCategory = null, uploaded
               {/* Contacts */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Contacts</h4>
+                  <h4 className="text-sm font-semibold text-gray-900">Contacts</h4>
                   <button 
                     onClick={() => setShowAllContacts(!showAllContacts)}
                     className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
@@ -1664,7 +1673,7 @@ const ProductDesigner = ({ productType = 'pen', productCategory = null, uploaded
               {/* Shapes */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Shapes</h4>
+                  <h4 className="text-sm font-semibold text-gray-900">Shapes</h4>
                   <button 
                     onClick={() => setShowAllShapes(!showAllShapes)}
                     className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
@@ -1833,7 +1842,7 @@ const ProductDesigner = ({ productType = 'pen', productCategory = null, uploaded
           {selectedObject && (
             <div className="mt-8 p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-4">
               <div className="flex items-center justify-between">
-                <h4 className="font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Edit Selected</h4>
+                <h4 className="font-semibold text-gray-900">Edit Selected</h4>
                 <span className="text-xs text-gray-500">{selectedObject.type}</span>
               </div>
 
@@ -2249,7 +2258,7 @@ const ProductDesigner = ({ productType = 'pen', productCategory = null, uploaded
           {/* Actions */}
           <div className="flex gap-2 flex-shrink-0 ml-2">
             <button 
-              onClick={onClose || (() => window.history.back())}
+              onClick={() => navigate(-1)}
               className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm whitespace-nowrap"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
