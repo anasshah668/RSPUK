@@ -222,13 +222,19 @@ const Header = ({ onNavigate }) => {
               </>
             ) : (
               <div className="relative" ref={userMenuRef}>
-                <button
-                  onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center justify-center transition-colors duration-200"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  {getUserInitial()}
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setUserMenuOpen(!userMenuOpen)}
+                    className="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center justify-center transition-colors duration-200"
+                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  >
+                    {getUserInitial()}
+                  </button>
+                  {/* Online status indicator */}
+                  {isAuthenticated() && (
+                    <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-400 border-2 border-gray-800 rounded-full"></span>
+                  )}
+                </div>
                 {userMenuOpen && (
                   <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-2xl py-2 border border-gray-100 z-50">
                     <div className="px-4 py-2 border-b border-gray-100">
@@ -246,7 +252,7 @@ const Header = ({ onNavigate }) => {
                       className="block w-full text-left px-4 py-2.5 text-gray-800 hover:bg-blue-50 hover:text-blue-600 transition-all duration-150 text-sm font-medium"
                       style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                     >
-                      Logout
+                      Sign out
                     </button>
                   </div>
                 )}

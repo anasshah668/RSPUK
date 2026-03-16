@@ -1,12 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCart } from '../context/CartContext';
+import { API_BASE_URL } from '../config/apiConfig.js';
 
-const ProductDetail = ({ productType, onNavigate, onClose }) => {
+const ProductDetail = ({ productType, productId, product: productProp, onNavigate, onClose }) => {
   const { addToCart } = useCart();
   const [designOption, setDesignOption] = useState('custom'); // 'custom' or 'upload'
   const [uploadedImage, setUploadedImage] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('design');
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // Initialize with productProp if available, then fetch if productId is provided and we don't have productProp
+  useEffect(() => {
+    if (productProp) {
+      setProduct(productProp);
+      setLoading(false); // We already have the product, no need to show loading
+    } else if (productId) {
+      fetchProduct();
+    }
+  }, [productId, productProp]);
+
+  const fetchProduct = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_BASE_URL}/products/${productId}`);
+      if (!response.ok) {
+        throw new Error('Product not found');
+      }
+      const data = await response.json();
+      // Backend returns product directly, not wrapped
+      if (data._id || data.name) {
+        setProduct(data);
+      }
+    } catch (error) {
+      console.error('Error fetching product:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const productData = {
     mug: {
@@ -187,7 +219,57 @@ const ProductDetail = ({ productType, onNavigate, onClose }) => {
     }
   };
 
-  const product = productData[productType] || productData.mug;
+  // Determine which product to use
+  const getProduct = () => {
+    // If we have product from backend, use it
+    if (product) {
+      return {
+        name: product.name,
+        category: product.category?.charAt(0).toUpperCase() + product.category?.slice(1).replace('-', ' ') || 'Product',
+        price: product.basePrice || product.variants?.[0]?.price || 0,
+        originalPrice: null,
+        image: product.images?.[0]?.url || '',
+        description: product.description || '',
+        features: product.features || [],
+        specifications: product.specifications || {},
+      };
+    }
+    // If we have productProp passed from parent, use it (this prevents image flash)
+    if (productProp) {
+      return {
+        name: productProp.name,
+        category: productProp.category?.charAt(0).toUpperCase() + productProp.category?.slice(1).replace('-', ' ') || 'Product',
+        price: productProp.basePrice || productProp.variants?.[0]?.price || 0,
+        originalPrice: null,
+        image: productProp.images?.[0]?.url || '',
+        description: productProp.description || '',
+        features: productProp.features || [],
+        specifications: productProp.specifications || {},
+      };
+    }
+    // Otherwise use hardcoded data based on productType (only if not loading from backend)
+    if (!productId && !loading) {
+      return productData[productType] || productData.mug;
+    }
+    // Return null during loading to prevent showing placeholder
+    return null;
+  };
+
+  const displayProduct = getProduct();
+
+  // Don't render if we don't have product data yet (prevents showing placeholder image)
+  if (!displayProduct && (loading || productId)) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-6 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p className="mt-4 text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            Loading product...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
@@ -202,28 +284,36 @@ const ProductDetail = ({ productType, onNavigate, onClose }) => {
 
   const handleDesignProduct = () => {
     if (onNavigate) {
-      // Navigate to product designer with the product type and uploaded image if any
+      // Navigate to product designer with the product type and image
+      const type = product?.category || productType || 'pen';
+      const category = product?.category || null;
+      // Use uploaded image if user uploaded one, otherwise use the product image
+      const imageToUse = designOption === 'upload' && uploadedImage 
+        ? uploadedImage 
+        : (displayProduct?.image || null);
+      
       onNavigate('product-designer', { 
-        productType: productType === 'business-card' ? 'business-card' : productType, 
-        uploadedImage: designOption === 'upload' ? uploadedImage : null 
+        productType: type === 'business-card' ? 'business-card' : type,
+        productCategory: category,
+        uploadedImage: imageToUse 
       });
     }
   };
 
   const handleAddToCart = () => {
     const cartProduct = {
-      id: `${productType}-${Date.now()}`,
-      name: product.name,
-      category: product.category,
-      price: product.price,
-      image: product.image,
+      id: product?._id || `${productType}-${Date.now()}`,
+      name: displayProduct.name,
+      category: displayProduct.category,
+      price: displayProduct.price,
+      image: displayProduct.image,
       quantity: quantity,
       designOption: designOption,
       uploadedImage: uploadedImage
     };
     addToCart(cartProduct, quantity);
     // Show success message (you could use a toast library here)
-    alert(`${product.name} added to cart!`);
+    alert(`${displayProduct.name} added to cart!`);
   };
 
   return (
@@ -244,15 +334,23 @@ const ProductDetail = ({ productType, onNavigate, onClose }) => {
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Product Image */}
           <div className="bg-white rounded-xl shadow-lg overflow-hidden sticky top-6 self-start">
-            <div className="aspect-square w-full relative p-4">
-              <img
-                src={product.image}
-                alt={product.name}
-                className="w-full h-full object-contain"
-                onError={(e) => {
-                  e.target.src = 'https://via.placeholder.com/800x800?text=' + encodeURIComponent(product.name);
-                }}
-              />
+            <div className="aspect-square w-full relative p-4 bg-gray-100">
+              {displayProduct.image ? (
+                <img
+                  key={`${product?._id || productProp?._id || 'product'}-${displayProduct.image}`}
+                  src={displayProduct.image}
+                  alt={displayProduct.name}
+                  className="w-full h-full object-contain"
+                  loading="eager"
+                  onError={(e) => {
+                    e.target.src = 'https://via.placeholder.com/800x800?text=' + encodeURIComponent(displayProduct.name);
+                  }}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                  <span>No image available</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -261,21 +359,21 @@ const ProductDetail = ({ productType, onNavigate, onClose }) => {
             {/* Category & Name */}
             <div>
               <span className="text-xs text-blue-600 font-semibold uppercase tracking-wide" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                {product.category}
+                {displayProduct.category}
               </span>
               <h1 className="text-3xl font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                {product.name}
+                {displayProduct.name}
               </h1>
             </div>
 
             {/* Price */}
             <div className="flex items-center gap-3 pb-2 border-b border-gray-200">
               <span className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                £{product.price.toFixed(2)}
+                £{displayProduct.price.toFixed(2)}
               </span>
-              {product.originalPrice && (
+              {displayProduct.originalPrice && (
                 <span className="text-lg text-gray-400 line-through" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  £{product.originalPrice.toFixed(2)}
+                  £{displayProduct.originalPrice.toFixed(2)}
                 </span>
               )}
             </div>
@@ -283,7 +381,7 @@ const ProductDetail = ({ productType, onNavigate, onClose }) => {
             {/* Description - Compact */}
             <div>
               <p className="text-sm text-gray-600 leading-relaxed" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                {product.description}
+                {displayProduct.description}
               </p>
             </div>
 
@@ -438,14 +536,18 @@ const ProductDetail = ({ productType, onNavigate, onClose }) => {
                     Features
                   </h3>
                   <ul className="grid grid-cols-2 gap-2">
-                    {product.features.map((feature, index) => (
-                      <li key={index} className="flex items-start gap-2">
-                        <svg className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                        <span className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>{feature}</span>
-                      </li>
-                    ))}
+                    {displayProduct.features && displayProduct.features.length > 0 ? (
+                      displayProduct.features.map((feature, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <svg className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          <span className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>{feature}</span>
+                        </li>
+                      ))
+                    ) : (
+                      <li className="col-span-2 text-xs text-gray-500">No features listed</li>
+                    )}
                   </ul>
                 </div>
 
@@ -455,12 +557,16 @@ const ProductDetail = ({ productType, onNavigate, onClose }) => {
                     Specifications
                   </h3>
                   <dl className="grid grid-cols-2 gap-3">
-                    {Object.entries(product.specifications).map(([key, value]) => (
-                      <div key={key}>
-                        <dt className="text-xs font-medium text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>{key}</dt>
-                        <dd className="text-xs font-semibold text-gray-900 mt-0.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>{value}</dd>
-                      </div>
-                    ))}
+                    {displayProduct.specifications && Object.keys(displayProduct.specifications).length > 0 ? (
+                      Object.entries(displayProduct.specifications).map(([key, value]) => (
+                        <div key={key}>
+                          <dt className="text-xs font-medium text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>{key}</dt>
+                          <dd className="text-xs font-semibold text-gray-900 mt-0.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>{value}</dd>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-gray-500 col-span-2">No specifications listed</p>
+                    )}
                   </dl>
                 </div>
               </div>

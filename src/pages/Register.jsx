@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE_URL } from '../config/apiConfig.js';
 
 const Register = ({ onNavigate, onClose }) => {
   const { login } = useAuth();
@@ -62,22 +63,48 @@ const Register = ({ onNavigate, onClose }) => {
 
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      // In a real app, you would handle registration here
-      // For now, we'll simulate a successful registration and auto-login
-      const userData = {
-        email: formData.email,
-        name: `${formData.firstName} ${formData.lastName}`,
-      };
-      login(userData);
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: `${formData.firstName} ${formData.lastName}`,
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Registration failed');
+      }
+
+      // Store token
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+      }
+
+      // Login user
+      login({
+        _id: data._id,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+      }, data.token);
+
       if (onClose) {
         onClose();
       } else if (onNavigate) {
         onNavigate('home');
       }
-    }, 1000);
+    } catch (error) {
+      setErrors({ submit: error.message });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleChange = (e) => {
@@ -100,6 +127,11 @@ const Register = ({ onNavigate, onClose }) => {
       <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center">
+          {errors.submit && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+              {errors.submit}
+            </div>
+          )}
           <h2 
             className="text-3xl font-bold text-gray-900"
             style={{ fontFamily: 'Lexend Deca, sans-serif' }}

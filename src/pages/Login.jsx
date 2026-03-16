@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE_URL } from '../config/apiConfig.js';
 
 const Login = ({ onNavigate, onClose }) => {
   const { login } = useAuth();
@@ -10,6 +11,7 @@ const Login = ({ onNavigate, onClose }) => {
   });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
+  const [resetMessage, setResetMessage] = useState('');
 
   const validateForm = () => {
     const newErrors = {};
@@ -32,6 +34,7 @@ const Login = ({ onNavigate, onClose }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setResetMessage('');
     
     if (!validateForm()) {
       return;
@@ -39,22 +42,47 @@ const Login = ({ onNavigate, onClose }) => {
 
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      // In a real app, you would handle authentication here
-      // For now, we'll simulate a successful login
-      const userData = {
-        email: formData.email,
-        name: formData.email.split('@')[0], // Use email prefix as name
-      };
-      login(userData);
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Login failed');
+      }
+
+      // Store token
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+      }
+
+      // Login user
+      login({
+        _id: data._id,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+      }, data.token);
+
       if (onClose) {
         onClose();
       } else if (onNavigate) {
         onNavigate('home');
       }
-    }, 1000);
+    } catch (error) {
+      setErrors({ submit: error.message });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleChange = (e) => {
@@ -63,12 +91,44 @@ const Login = ({ onNavigate, onClose }) => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
-    // Clear error when user starts typing
+    setResetMessage('');
+    // Clear messages and error when user starts typing
+    setResetMessage('');
     if (errors[name]) {
       setErrors(prev => ({
         ...prev,
         [name]: '',
       }));
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    // Require a valid email before requesting reset
+    if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      setErrors(prev => ({
+        ...prev,
+        email: 'Enter a valid email to reset your password',
+      }));
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: formData.email }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Unable to request password reset');
+      }
+
+      setResetMessage(data.message || 'If an account exists, a reset link has been sent.');
+    } catch (error) {
+      setResetMessage(error.message);
     }
   };
 
@@ -132,7 +192,7 @@ const Login = ({ onNavigate, onClose }) => {
                 </label>
                 <button
                   type="button"
-                  onClick={() => onNavigate && onNavigate('forgot-password')}
+                  onClick={handleForgotPassword}
                   className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
@@ -158,6 +218,12 @@ const Login = ({ onNavigate, onClose }) => {
                 </p>
               )}
             </div>
+
+            {resetMessage && (
+              <p className="text-sm text-green-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                {resetMessage}
+              </p>
+            )}
 
             {/* Remember Me */}
             <div className="flex items-center">
