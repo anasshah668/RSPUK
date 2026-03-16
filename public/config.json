@@ -1,0 +1,10 @@
+{
+  "api": {
+    "baseUrl": "https://rspuk-services.vercel.app/api",
+    "timeout": 30000
+  },
+  "app": {
+    "name": "RSPUK",
+    "version": "1.0.0"
+  }
+}

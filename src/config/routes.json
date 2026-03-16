@@ -1,0 +1,40 @@
+{
+  "authentication": {
+    "login": "auth/login",
+    "register": "auth/register",
+    "me": "auth/me",
+    "forgotPassword": "auth/forgot-password"
+  },
+  "products": {
+    "list": "products",
+    "getById": "products",
+    "getByCategory": "products/category",
+    "create": "admin/products",
+    "update": "admin/products",
+    "delete": "admin/products"
+  },
+  "categories": {
+    "list": "categories",
+    "listAll": "categories/admin/all",
+    "getById": "categories",
+    "create": "categories",
+    "update": "categories",
+    "delete": "categories"
+  },
+  "orders": {
+    "create": "orders",
+    "getUserOrders": "orders",
+    "getById": "orders",
+    "list": "admin/orders",
+    "updateStatus": "admin/orders"
+  },
+  "quotes": {
+    "create": "quotes",
+    "list": "quotes",
+    "getById": "quotes",
+    "update": "quotes"
+  },
+  "admin": {
+    "analytics": "admin/analytics"
+  }
+}

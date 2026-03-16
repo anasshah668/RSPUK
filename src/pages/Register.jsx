@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { API_BASE_URL } from '../config/apiConfig.js';
+import { authService } from '../services/authService';
 
 const Register = ({ onNavigate, onClose }) => {
   const { login } = useAuth();
@@ -64,23 +64,12 @@ const Register = ({ onNavigate, onClose }) => {
     setIsLoading(true);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: `${formData.firstName} ${formData.lastName}`,
-          email: formData.email,
-          password: formData.password,
-        }),
+      // Use centralized service
+      const data = await authService.register({
+        name: `${formData.firstName} ${formData.lastName}`,
+        email: formData.email,
+        password: formData.password,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Registration failed');
-      }
 
       // Store token
       if (data.token) {

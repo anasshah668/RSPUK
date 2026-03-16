@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { API_BASE_URL } from '../config/apiConfig.js';
+import { authService } from '../services/authService';
 
 const Login = ({ onNavigate, onClose }) => {
   const { login } = useAuth();
@@ -43,22 +43,11 @@ const Login = ({ onNavigate, onClose }) => {
     setIsLoading(true);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
+      // Use centralized service
+      const data = await authService.login({
+        email: formData.email,
+        password: formData.password,
       });
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
-      }
 
       // Store token
       if (data.token) {
@@ -113,19 +102,8 @@ const Login = ({ onNavigate, onClose }) => {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: formData.email }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Unable to request password reset');
-      }
-
+      // Use centralized service
+      const data = await authService.forgotPassword(formData.email);
       setResetMessage(data.message || 'If an account exists, a reset link has been sent.');
     } catch (error) {
       setResetMessage(error.message);

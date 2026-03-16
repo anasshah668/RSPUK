@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useCart } from '../context/CartContext';
-import { API_BASE_URL } from '../config/apiConfig.js';
+import { productService } from '../services/productService';
+import { categoryService } from '../services/categoryService';
 
 const Products = ({ onNavigate }) => {
   const [hoveredProduct, setHoveredProduct] = useState(null);
@@ -42,8 +43,8 @@ const Products = ({ onNavigate }) => {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/categories`);
-      const data = await response.json();
+      // Use centralized service
+      const data = await categoryService.list();
       if (data.categories) {
         setCategories(data.categories);
       }
@@ -55,8 +56,8 @@ const Products = ({ onNavigate }) => {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/products`);
-      const data = await response.json();
+      // Use centralized service
+      const data = await productService.list();
       
       if (data.products && data.products.length > 0) {
         // Get category mapping from current categories state

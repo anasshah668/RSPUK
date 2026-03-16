@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useCart } from '../context/CartContext';
-import { API_BASE_URL } from '../config/apiConfig.js';
+import { productService } from '../services/productService';
 
 const ProductDetail = ({ productType, productId, product: productProp, onNavigate, onClose }) => {
   const { addToCart } = useCart();
@@ -24,11 +24,8 @@ const ProductDetail = ({ productType, productId, product: productProp, onNavigat
   const fetchProduct = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/products/${productId}`);
-      if (!response.ok) {
-        throw new Error('Product not found');
-      }
-      const data = await response.json();
+      // Use centralized service
+      const data = await productService.getById(productId);
       // Backend returns product directly, not wrapped
       if (data._id || data.name) {
         setProduct(data);

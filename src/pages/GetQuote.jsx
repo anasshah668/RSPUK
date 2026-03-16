@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { quoteService } from '../services/quoteService';
 
 const GetQuote = ({ onNavigate, onClose }) => {
   const [formData, setFormData] = useState({
@@ -77,13 +78,15 @@ const GetQuote = ({ onNavigate, onClose }) => {
 
     setIsSubmitting(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      // Use centralized service
+      await quoteService.create(formData);
       setIsSubmitted(true);
-      // In a real app, you would submit to your backend here
-      console.log('Quote request submitted:', formData);
-    }, 1500);
+    } catch (error) {
+      setErrors({ submit: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (isSubmitted) {

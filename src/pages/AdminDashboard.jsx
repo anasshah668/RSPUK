@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { API_BASE_URL } from '../config/apiConfig.js';
+import { adminService } from '../services/adminService';
+import { productService } from '../services/productService';
+import { orderService } from '../services/orderService';
+import { quoteService } from '../services/quoteService';
+import { categoryService } from '../services/categoryService';
 
 const AdminDashboard = ({ onNavigate, onClose }) => {
   const { user, logout } = useAuth();
@@ -22,31 +26,20 @@ const AdminDashboard = ({ onNavigate, onClose }) => {
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      };
-
       if (activeTab === 'overview') {
-        const res = await fetch(`${API_BASE_URL}/admin/analytics`, { headers });
-        const data = await res.json();
+        const data = await adminService.analytics();
         setAnalytics(data);
       } else if (activeTab === 'products') {
-        const res = await fetch(`${API_BASE_URL}/products`, { headers });
-        const data = await res.json();
+        const data = await productService.list();
         setProducts(data.products || []);
       } else if (activeTab === 'orders') {
-        const res = await fetch(`${API_BASE_URL}/admin/orders`, { headers });
-        const data = await res.json();
+        const data = await orderService.list();
         setOrders(data.orders || []);
       } else if (activeTab === 'quotes') {
-        const res = await fetch(`${API_BASE_URL}/quotes`, { headers });
-        const data = await res.json();
+        const data = await quoteService.list();
         setQuotes(data.quotes || []);
       } else if (activeTab === 'categories') {
-        const res = await fetch(`${API_BASE_URL}/categories/admin/all`, { headers });
-        const data = await res.json();
+        const data = await categoryService.listAll();
         setCategories(data.categories || []);
       }
     } catch (error) {
@@ -58,18 +51,8 @@ const AdminDashboard = ({ onNavigate, onClose }) => {
 
   const handleOrderStatusUpdate = async (orderId, newStatus) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE_URL}/admin/orders/${orderId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (res.ok) {
-        fetchData();
-      }
+      await orderService.updateStatus(orderId, newStatus);
+      fetchData();
     } catch (error) {
       console.error('Error updating order:', error);
     }
@@ -77,18 +60,8 @@ const AdminDashboard = ({ onNavigate, onClose }) => {
 
   const handleQuoteResponse = async (quoteId, response) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE_URL}/quotes/${quoteId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(response),
-      });
-      if (res.ok) {
-        fetchData();
-      }
+      await quoteService.update(quoteId, response);
+      fetchData();
     } catch (error) {
       console.error('Error responding to quote:', error);
     }
@@ -188,9 +161,9 @@ const AdminDashboard = ({ onNavigate, onClose }) => {
         ) : (
           <>
             {activeTab === 'overview' && <OverviewTab analytics={analytics} />}
-            {activeTab === 'products' && <ProductsTab products={products} onRefresh={fetchData} API_BASE_URL={API_BASE_URL} />}
+            {activeTab === 'products' && <ProductsTab products={products} onRefresh={fetchData} />}
             {activeTab === 'categories' && (
-              <CategoriesTab categories={categories} onRefresh={fetchData} API_BASE_URL={API_BASE_URL} />
+              <CategoriesTab categories={categories} onRefresh={fetchData} />
             )}
             {activeTab === 'orders' && (
               <OrdersTab orders={orders} onStatusUpdate={handleOrderStatusUpdate} />
@@ -267,7 +240,7 @@ const OverviewTab = ({ analytics }) => {
 };
 
 // Products Tab Component
-const ProductsTab = ({ products, onRefresh, API_BASE_URL }) => {
+const ProductsTab = ({ products, onRefresh }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
 
@@ -336,7 +309,6 @@ const ProductsTab = ({ products, onRefresh, API_BASE_URL }) => {
       {(showAddModal || editingProduct) && (
         <AddProductModal
           product={editingProduct}
-          API_BASE_URL={API_BASE_URL}
           onClose={() => {
             setShowAddModal(false);
             setEditingProduct(null);
@@ -353,7 +325,7 @@ const ProductsTab = ({ products, onRefresh, API_BASE_URL }) => {
 };
 
 // Simple Add Product modal
-const AddProductModal = ({ product, API_BASE_URL, onClose, onSaved }) => {
+const AddProductModal = ({ product, onClose, onSaved }) => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -397,19 +369,8 @@ const AddProductModal = ({ product, API_BASE_URL, onClose, onSaved }) => {
 
   const fetchCategories = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/categories/admin/all`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch categories');
-      }
-      
-      const data = await response.json();
+      // Use centralized service
+      const data = await categoryService.listAll();
       if (data.categories && data.categories.length > 0) {
         setCategories(data.categories);
         // Set default category only if not editing and category is not set
@@ -424,8 +385,7 @@ const AddProductModal = ({ product, API_BASE_URL, onClose, onSaved }) => {
       console.error('Error fetching categories:', error);
       // Fallback: try public endpoint if admin endpoint fails
       try {
-        const response = await fetch(`${API_BASE_URL}/categories`);
-        const data = await response.json();
+        const data = await categoryService.list();
         if (data.categories && data.categories.length > 0) {
           setCategories(data.categories);
           const activeCategory = data.categories.find(cat => cat.isActive) || data.categories[0];
@@ -470,35 +430,19 @@ const AddProductModal = ({ product, API_BASE_URL, onClose, onSaved }) => {
     setSubmitError('');
 
     try {
-      const token = localStorage.getItem('token');
-      const formDataToSend = new FormData();
-      formDataToSend.append('name', formData.name);
-      formDataToSend.append('description', formData.description);
-      formDataToSend.append('category', formData.category);
-      formDataToSend.append('basePrice', String(formData.basePrice));
-      formDataToSend.append('isActive', String(formData.isActive));
+      const payload = {
+        name: formData.name,
+        description: formData.description,
+        category: formData.category,
+        basePrice: String(formData.basePrice),
+        isActive: String(formData.isActive),
+      };
 
-      // Only append new files if any are selected
-      files.forEach((file) => {
-        formDataToSend.append('images', file);
-      });
-
-      const url = product 
-        ? `${API_BASE_URL}/admin/products/${product._id}`
-        : `${API_BASE_URL}/admin/products`;
-      const method = product ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method: method,
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formDataToSend,
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || `Failed to ${product ? 'update' : 'add'} product`);
+      // Use centralized service
+      if (product) {
+        await productService.update(product._id, payload, files);
+      } else {
+        await productService.create(payload, files);
       }
 
       onSaved && onSaved();
@@ -854,33 +798,20 @@ const QuotesTab = ({ quotes, onResponse }) => {
 };
 
 // Categories Tab Component
-const CategoriesTab = ({ categories, onRefresh, API_BASE_URL }) => {
+const CategoriesTab = ({ categories, onRefresh }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const handleDelete = async (categoryId) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE_URL}/categories/${categoryId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.message || 'Failed to delete category');
-        return;
-      }
-
+      // Use centralized service
+      await categoryService.delete(categoryId);
       setDeleteConfirm(null);
       onRefresh && onRefresh();
     } catch (error) {
       console.error('Error deleting category:', error);
-      alert('Failed to delete category');
+      alert(error.message || 'Failed to delete category');
     }
   };
 
@@ -972,7 +903,6 @@ const CategoriesTab = ({ categories, onRefresh, API_BASE_URL }) => {
       {showAddModal && (
         <CategoryModal
           category={editingCategory}
-          API_BASE_URL={API_BASE_URL}
           onClose={() => {
             setShowAddModal(false);
             setEditingCategory(null);
@@ -1055,30 +985,19 @@ const CategoryModal = ({ category, API_BASE_URL, onClose, onSaved }) => {
     setSubmitError('');
 
     try {
-      const token = localStorage.getItem('token');
-      const url = category
-        ? `${API_BASE_URL}/categories/${category._id}`
-        : `${API_BASE_URL}/categories`;
-      const method = category ? 'PUT' : 'POST';
+      const payload = {
+        ...formData,
+        name: formData.name.trim().toLowerCase(),
+        displayName: formData.displayName.trim(),
+        description: formData.description.trim(),
+        order: parseInt(formData.order) || 0,
+      };
 
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          name: formData.name.trim().toLowerCase(),
-          displayName: formData.displayName.trim(),
-          description: formData.description.trim(),
-          order: parseInt(formData.order) || 0,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to save category');
+      // Use centralized service
+      if (category) {
+        await categoryService.update(category._id, payload);
+      } else {
+        await categoryService.create(payload);
       }
 
       onSaved && onSaved();
