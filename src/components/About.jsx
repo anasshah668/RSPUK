@@ -144,7 +144,7 @@ const About = () => {
             
             <div className="space-y-6 text-gray-700 leading-relaxed text-lg" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
               <p className="font-light">
-                At Trade Only Signs, we turn complex signage needs into simple, seamless solutions.
+                At River Signs & Print, we turn complex signage needs into simple, seamless solutions.
               </p>
               <p className="font-light">
                 With the widest range of signage and illumination options — all manufactured at our base in the North East — our offerings are tailored for trade clients who demand excellence.

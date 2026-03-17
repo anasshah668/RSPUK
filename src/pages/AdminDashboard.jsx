@@ -245,6 +245,18 @@ const OverviewTab = ({ analytics }) => {
 const ProductsTab = ({ products, onRefresh }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+
+  const handleDelete = async (productId) => {
+    try {
+      await productService.delete(productId);
+      setDeleteConfirm(null);
+      onRefresh && onRefresh();
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      alert(error.message || 'Failed to delete product');
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -298,7 +310,10 @@ const ProductsTab = ({ products, onRefresh }) => {
                   >
                     Edit
                   </button>
-                  <button className="text-red-600 hover:text-red-900">
+                  <button
+                    onClick={() => setDeleteConfirm(product)}
+                    className="text-red-600 hover:text-red-900"
+                  >
                     Delete
                   </button>
                 </td>
@@ -321,6 +336,33 @@ const ProductsTab = ({ products, onRefresh }) => {
             onRefresh && onRefresh();
           }}
         />
+      )}
+
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">
+              Delete Product
+            </h3>
+            <p className="text-gray-600 mb-6" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              Are you sure you want to delete "{deleteConfirm.name}"? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDelete(deleteConfirm._id)}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

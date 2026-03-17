@@ -176,8 +176,14 @@ const AboutUs = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-blue-600 to-blue-800 text-white py-20 px-4">
-        <div className="container mx-auto max-w-6xl">
+      <section className="relative overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-white py-10 md:py-12 px-4">
+        {/* Subtle background accents */}
+        <div className="absolute inset-0 opacity-30">
+          <div className="absolute -top-24 -left-24 w-80 h-80 bg-blue-600/30 blur-3xl rounded-full"></div>
+          <div className="absolute -bottom-24 -right-24 w-80 h-80 bg-cyan-500/20 blur-3xl rounded-full"></div>
+        </div>
+
+        <div className="container mx-auto max-w-6xl relative z-10">
           <button
             onClick={() => navigate('/')}
             className="text-white/80 hover:text-white font-medium flex items-center gap-2 transition-colors text-sm mb-8"
@@ -190,13 +196,20 @@ const AboutUs = () => {
           </button>
           
           <div className="max-w-3xl">
-            <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-xs font-semibold tracking-wide mb-4"
+                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              River Signs & Print
+              <span className="h-1 w-1 rounded-full bg-white/50"></span>
+              About Us
+            </div>
+
+            <h1 className="text-3xl md:text-4xl font-bold mb-3 leading-tight tracking-tight">
               About Us
             </h1>
-            <p className="text-xl md:text-2xl text-blue-100 leading-relaxed" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            <p className="text-base md:text-lg text-slate-200 leading-relaxed" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
               Signage. Simplified.
             </p>
-            <p className="text-lg text-blue-200 mt-4 leading-relaxed" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            <p className="text-sm md:text-base text-slate-300 mt-2 leading-relaxed" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
               We turn complex signage needs into simple, seamless solutions.
             </p>
           </div>
@@ -255,7 +268,7 @@ const AboutUs = () => {
               Making Signage Simple
             </h3>
             <p className="text-lg text-gray-700 leading-relaxed mb-8" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-              At RER, we're committed to simplifying the signage process. With the widest range of signage and illumination options — all manufactured at our base in the North East — our offerings are tailored for trade clients who demand excellence.
+              At River Signs & Print, we're committed to simplifying the signage process. With the widest range of signage and illumination options — all manufactured at our base in the North East — our offerings are tailored for trade clients who demand excellence.
             </p>
             <p className="text-lg text-gray-700 leading-relaxed" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
               We've developed user-friendly online tools to streamline the pricing process and help you cost your projects quickly, clearly, and accurately. Our dedicated team of signage experts are always on hand to ensure a smooth journey from design to installation.
@@ -320,23 +333,29 @@ const AboutUs = () => {
       </section>
 
       {/* Services Overview */}
-      <section className="py-16 px-4 bg-gray-50">
+      <section className="py-14 px-4 bg-gray-50">
         <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-12">
-            <h2 className="text-blue-600 text-xs font-black uppercase tracking-[0.2em] mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+          <div className="text-center mb-10">
+            <h2 className="text-blue-600 text-xs font-black uppercase tracking-[0.2em] mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
               WHAT WE OFFER
             </h2>
-            <div className="h-1 bg-blue-600 w-28 mx-auto mb-6"></div>
-            <h3 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            <div className="h-0.5 bg-blue-600 w-20 mx-auto mb-5"></div>
+            <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3 tracking-tight" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
               Comprehensive Signage Solutions
             </h3>
+            <p className="text-sm md:text-base text-gray-600 max-w-3xl mx-auto" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              Trade-focused production, fast turnaround, and consistent quality — built to make your ordering process simple.
+            </p>
           </div>
           
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-3 gap-6">
             {services.map((service, index) => (
-              <div key={index} className="bg-white rounded-xl p-8 shadow-md hover:shadow-xl transition-shadow duration-200">
-                <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center mb-4">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div
+                key={index}
+                className="bg-white rounded-2xl p-7 border border-gray-200 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
+              >
+                <div className="w-11 h-11 bg-blue-50 rounded-xl flex items-center justify-center mb-4 border border-blue-100">
+                  <svg className="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { productService } from '../services/productService';
 import { decryptId } from '../utils/encryption';
+import EndBenefitsStrip from '../components/EndBenefitsStrip';
 
 const ProductDetail = ({ productType, productId, product: productProp }) => {
   const { category, productName, encryptedId } = useParams();
@@ -14,6 +15,14 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const [activeTab, setActiveTab] = useState('design');
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(false);
+  
+  // Business card configuration states
+  const [material, setMaterial] = useState('450gsm-silk-finish');
+  const [sidesPrinted, setSidesPrinted] = useState('double-sided');
+  const [lamination, setLamination] = useState('both-sides-matt');
+  const [roundCorners, setRoundCorners] = useState('no');
+  const [deliveryOption, setDeliveryOption] = useState('saver');
+  const [showPricingGrid, setShowPricingGrid] = useState(false);
 
   // Initialize with productProp if available, then fetch from URL params or productId
   useEffect(() => {
@@ -46,184 +55,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     }
   };
 
-  const productData = {
-    mug: {
-      name: 'Custom Printed Mug',
-      category: 'Mug',
-      price: 12.99,
-      originalPrice: 18.99,
-      image: 'https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?w=800&h=800&fit=crop',
-      description: 'High-quality ceramic mugs perfect for custom printing. Available in various sizes and colors. Perfect for personal use, gifts, or promotional items.',
-      features: [
-        'Premium ceramic material',
-        'Dishwasher and microwave safe',
-        'Full-color printing',
-        'Multiple size options',
-        'Fast turnaround time'
-      ],
-      specifications: {
-        'Material': 'Ceramic',
-        'Capacity': '11oz / 15oz / 20oz',
-        'Print Area': 'Full wrap or front only',
-        'Production Time': '3-5 business days',
-        'Minimum Order': '1 piece'
-      }
-    },
-    pen: {
-      name: 'Premium Pen Set',
-      category: 'Pen',
-      price: 24.99,
-      originalPrice: null,
-      image: 'https://images.unsplash.com/photo-1583484963886-cce2f44558ac?w=800&h=800&fit=crop',
-      description: 'Professional quality pens with custom printing options. Perfect for corporate gifts, events, or personal branding.',
-      features: [
-        'Premium quality construction',
-        'Smooth writing experience',
-        'Custom logo printing',
-        'Multiple color options',
-        'Bulk order discounts'
-      ],
-      specifications: {
-        'Type': 'Ballpoint / Gel',
-        'Print Area': 'Barrel printing',
-        'Colors Available': 'Black, Blue, Red, Green',
-        'Production Time': '5-7 business days',
-        'Minimum Order': '50 pieces'
-      }
-    },
-    shirt: {
-      name: 'Custom T-Shirt',
-      category: 'Shirt',
-      price: 19.99,
-      originalPrice: 29.99,
-      image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800&h=800&fit=crop',
-      description: 'Comfortable, high-quality t-shirts with custom printing. Perfect for events, teams, or personal expression.',
-      features: [
-        '100% cotton or blend options',
-        'Multiple sizes (S-3XL)',
-        'Full-color printing',
-        'Durable print quality',
-        'Washable and long-lasting'
-      ],
-      specifications: {
-        'Material': '100% Cotton / 50/50 Blend',
-        'Sizes': 'S, M, L, XL, 2XL, 3XL',
-        'Print Area': 'Front, Back, or Both',
-        'Production Time': '5-7 business days',
-        'Minimum Order': '1 piece'
-      }
-    },
-    flyer: {
-      name: 'Business Flyer',
-      category: 'Flyer',
-      price: 0.15,
-      originalPrice: null,
-      image: 'https://images.unsplash.com/photo-1493612276216-ee3925520721?w=800&h=800&fit=crop',
-      description: 'Professional flyers for marketing and promotional campaigns. High-quality printing with various paper options.',
-      features: [
-        'Multiple paper weights',
-        'Full-color printing',
-        'Glossy or matte finish',
-        'Various sizes available',
-        'Bulk pricing available'
-      ],
-      specifications: {
-        'Paper Weight': '130gsm / 170gsm / 300gsm',
-        'Finish': 'Glossy / Matte',
-        'Sizes': 'A4, A5, DL, Custom',
-        'Production Time': '2-3 business days',
-        'Minimum Order': '100 pieces'
-      }
-    },
-    banner: {
-      name: 'Vinyl Banner',
-      category: 'Banner',
-      price: 45.99,
-      originalPrice: 59.99,
-      image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=800&fit=crop',
-      description: 'Durable vinyl banners perfect for outdoor advertising, events, and promotions. Weather-resistant and long-lasting.',
-      features: [
-        'Weather-resistant material',
-        'UV protected printing',
-        'Multiple size options',
-        'Eyelet holes included',
-        'Suitable for indoor/outdoor use'
-      ],
-      specifications: {
-        'Material': 'Heavy-duty Vinyl',
-        'Thickness': '510gsm',
-        'Finish': 'Matte / Glossy',
-        'Production Time': '3-5 business days',
-        'Minimum Order': '1 piece'
-      }
-    },
-    sticker: {
-      name: 'Custom Stickers',
-      category: 'Sticker',
-      price: 8.99,
-      originalPrice: null,
-      image: 'https://images.unsplash.com/photo-1611224923853-80b023f02d71?w=800&h=800&fit=crop',
-      description: 'High-quality custom stickers in various shapes and finishes. Perfect for branding, packaging, or personal use.',
-      features: [
-        'Multiple shapes available',
-        'Waterproof and weatherproof',
-        'Various finishes (glossy, matte, clear)',
-        'Die-cut or kiss-cut options',
-        'Bulk order discounts'
-      ],
-      specifications: {
-        'Material': 'Vinyl / Paper',
-        'Finish': 'Glossy / Matte / Clear',
-        'Cut Type': 'Die-cut / Kiss-cut',
-        'Production Time': '3-5 business days',
-        'Minimum Order': '50 pieces'
-      }
-    },
-    'business-card': {
-      name: 'Business Cards',
-      category: 'Business Card',
-      price: 14.99,
-      originalPrice: 19.99,
-      image: 'https://images.unsplash.com/photo-1544966503-7cc5ac882d5f?w=800&h=800&fit=crop',
-      description: 'Professional business cards with premium finishes. Make a lasting impression with high-quality printing and finishes.',
-      features: [
-        'Premium cardstock',
-        'Multiple finish options',
-        'Full-color printing',
-        'Standard or custom sizes',
-        'Fast turnaround'
-      ],
-      specifications: {
-        'Cardstock': '300gsm / 350gsm',
-        'Finish': 'Matte / Glossy / Silk',
-        'Size': 'Standard (85x55mm) / Custom',
-        'Production Time': '2-3 business days',
-        'Minimum Order': '100 pieces'
-      }
-    },
-    brochure: {
-      name: 'Marketing Brochure',
-      category: 'Brochure',
-      price: 0.25,
-      originalPrice: null,
-      image: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&h=800&fit=crop',
-      description: 'Professional brochures for marketing campaigns. High-quality printing with various folding options.',
-      features: [
-        'Multiple fold options',
-        'Premium paper quality',
-        'Full-color printing',
-        'Glossy or matte finish',
-        'Bulk pricing available'
-      ],
-      specifications: {
-        'Paper Weight': '170gsm / 300gsm',
-        'Finish': 'Glossy / Matte',
-        'Folds': 'Bi-fold / Tri-fold / Z-fold',
-        'Production Time': '3-5 business days',
-        'Minimum Order': '100 pieces'
-      }
-    }
-  };
+
 
   // Determine which product to use
   const getProduct = () => {
@@ -254,23 +86,108 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       };
     }
     // Otherwise use hardcoded data based on productType (only if not loading from backend)
-    if (!productId && !loading) {
-      return productData[productType] || productData.mug;
-    }
+ 
     // Return null during loading to prevent showing placeholder
     return null;
   };
 
   const displayProduct = getProduct();
 
-  // Don't render if we don't have product data yet (prevents showing placeholder image)
-  if (!displayProduct && (loading || productId)) {
+  // Check if this is a business card product
+  const isBusinessCard = () => {
+    const productCategory = product?.category || category || productType || '';
+    const categoryLower = productCategory.toLowerCase();
+    return categoryLower.includes('business-card') || 
+           categoryLower.includes('businesscard') ||
+           categoryLower === 'business card';
+  };
+
+  // Material options
+  const materialOptions = [
+    { 
+      value: '450gsm-silk-finish', 
+      label: '450gsm Silk Finish',
+      description: 'Extra-heavyweight luxury silk paper with a smooth satin-style surface & strong durability',
+      recommended: true
+    },
+    { 
+      value: '350gsm-recycled-uncoated', 
+      label: '350gsm Recycled Uncoated',
+      description: 'Extra-heavyweight recycled paper, perfect for writing on'
+    },
+    { 
+      value: '350gsm-silk-finish', 
+      label: '350gsm Silk Finish',
+      description: 'Extra-heavyweight premium silk paper with a smooth, satin-style surface and polished feel (Same Day Printing Before 1pm)'
+    },
+    { 
+      value: '300gsm-uncoated', 
+      label: '300gsm Uncoated',
+      description: 'Heavyweight with a premium natural matte finish, rigid and easy to write on'
+    }
+  ];
+
+  // Pricing grid data for business cards
+  const pricingGrid = [
+    { qty: 250, saver: 20.80, standard: 21.89, express: 24.07 },
+    { qty: 500, saver: 29.18, standard: 30.72, express: 33.79 },
+    { qty: 1000, saver: 37.27, standard: 39.23, express: 43.15 },
+    { qty: 1500, saver: 44.84, standard: 47.21, express: 51.92 },
+    { qty: 2000, saver: 55.52, standard: 58.45, express: 64.30 },
+    { qty: 2500, saver: 65.47, standard: 68.92, express: 75.80 },
+    { qty: 3000, saver: 77.39, standard: 81.46, express: 89.60 },
+    { qty: 3500, saver: 89.27, standard: 93.97, express: 103.37 },
+  ];
+
+  // Get price for current quantity and delivery option
+  const getPriceForQuantity = (qty, delivery) => {
+    // Find exact match first
+    let row = pricingGrid.find(r => r.qty === qty);
+    if (row) return row[delivery] || null;
+    
+    // If no exact match, find closest quantity
+    row = pricingGrid.reduce((prev, curr) => {
+      return Math.abs(curr.qty - qty) < Math.abs(prev.qty - qty) ? curr : prev;
+    });
+    return row[delivery] || null;
+  };
+
+  // Get current price based on quantity and delivery
+  const getCurrentPrice = () => {
+    const price = getPriceForQuantity(quantity, deliveryOption);
+    return price || 0;
+  };
+
+  const VAT_RATE = 0.2;
+
+  const getPriceIncVat = () => {
+    return isBusinessCard() ? getCurrentPrice() : (displayProduct?.price || 0);
+  };
+
+  const getPriceExVat = () => {
+    const inc = getPriceIncVat();
+    return inc / (1 + VAT_RATE);
+  };
+
+  const getDeliveryDateLabel = () => {
+    const now = new Date();
+    const addDays = deliveryOption === 'express' ? 2 : deliveryOption === 'standard' ? 4 : 6;
+    const eta = new Date(now);
+    eta.setDate(now.getDate() + addDays);
+    const weekday = eta.toLocaleDateString(undefined, { weekday: 'short' });
+    const day = eta.toLocaleDateString(undefined, { day: '2-digit' });
+    const month = eta.toLocaleDateString(undefined, { month: 'short' });
+    return `${weekday}. ${day} ${month}`;
+  };
+
+  // Don't render until we have product data (since hardcoded fallback was removed)
+  if (!displayProduct) {
     return (
       <div className="min-h-screen bg-gray-50 py-6 flex items-center justify-center">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           <p className="mt-4 text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-            Loading product...
+            {loading ? 'Loading product...' : 'Product not found'}
           </p>
         </div>
       </div>
@@ -292,31 +209,48 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     // Navigate to product designer with the product type and image
     const type = product?.category || productType || 'pen';
     const category = product?.category || null;
-    // Use uploaded image if user uploaded one, otherwise use the product image
-    const imageToUse = designOption === 'upload' && uploadedImage 
-      ? uploadedImage 
-      : (displayProduct?.image || null);
+    const businessCardMode = isBusinessCard();
+
+    // For business cards, do not pass any product image (blank editor)
+    // For others, use uploaded image if user uploaded one, otherwise use the product image
+    const imageToUse = businessCardMode
+      ? null
+      : (designOption === 'upload' && uploadedImage ? uploadedImage : (displayProduct?.image || null));
     
     // Navigate to product designer - you can pass params via state or query params
     navigate('/product-designer', { 
       state: { 
         productType: type === 'business-card' ? 'business-card' : type,
         productCategory: category,
-        uploadedImage: imageToUse 
+        uploadedImage: imageToUse,
+        // business card options
+        sidesPrinted,
+        cardVariant: 'classic'
       }
     });
   };
 
   const handleAddToCart = () => {
+    // Calculate price for business cards
+    const finalPrice = isBusinessCard() ? getCurrentPrice() : displayProduct.price;
+    
     const cartProduct = {
       id: product?._id || `${productType}-${Date.now()}`,
       name: displayProduct.name,
       category: displayProduct.category,
-      price: displayProduct.price,
+      price: finalPrice,
       image: displayProduct.image,
       quantity: quantity,
       designOption: designOption,
-      uploadedImage: uploadedImage
+      uploadedImage: uploadedImage,
+      // Include business card options if applicable
+      ...(isBusinessCard() && {
+        material,
+        sidesPrinted,
+        lamination,
+        roundCorners,
+        deliveryOption
+      })
     };
     addToCart(cartProduct, quantity);
     // Show success message (you could use a toast library here)
@@ -324,7 +258,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-6">
+    <div className="min-h-screen bg-gray-50 py-6 pb-24">
       <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
         {/* Back Button */}
         <button
@@ -342,10 +276,10 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
           {/* Product Image */}
           <div className="bg-white rounded-xl shadow-lg overflow-hidden sticky top-6 self-start">
             <div className="aspect-square w-full relative p-4 bg-gray-100">
-              {displayProduct.image ? (
+              {displayProduct?.image ? (
                 <img
                   key={`${product?._id || productProp?._id || 'product'}-${displayProduct.image}`}
-                  src={displayProduct.image}
+                  src={displayProduct?.image}
                   alt={displayProduct.name}
                   className="w-full h-full object-contain"
                   loading="eager"
@@ -373,17 +307,19 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
               </h1>
             </div>
 
-            {/* Price */}
-            <div className="flex items-center gap-3 pb-2 border-b border-gray-200">
-              <span className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                £{displayProduct.price.toFixed(2)}
-              </span>
-              {displayProduct.originalPrice && (
-                <span className="text-lg text-gray-400 line-through" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  £{displayProduct.originalPrice.toFixed(2)}
+            {/* Price (hide for business cards because pricing is dynamic) */}
+            {!isBusinessCard() && (
+              <div className="flex items-center gap-3 pb-2 border-b border-gray-200">
+                <span className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  £{displayProduct.price.toFixed(2)}
                 </span>
-              )}
-            </div>
+                {displayProduct.originalPrice && (
+                  <span className="text-lg text-gray-400 line-through" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    £{displayProduct.originalPrice.toFixed(2)}
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Description - Compact */}
             <div>
@@ -474,6 +410,428 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                   </label>
                 </div>
 
+                {/* Business Card Configuration Options */}
+                {isBusinessCard() && (
+                  <div className="space-y-6 pt-4 border-t border-gray-200">
+                    {/* Material Selection */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Material
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={material}
+                          onChange={(e) => setMaterial(e.target.value)}
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white text-sm"
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        >
+                          {materialOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                        {materialOptions.find(opt => opt.value === material)?.recommended && (
+                          <span className="absolute right-10 top-1/2 transform -translate-y-1/2 bg-orange-100 text-orange-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                            Recommended
+                          </span>
+                        )}
+                      </div>
+                      {materialOptions.find(opt => opt.value === material)?.description && (
+                        <p className="mt-1.5 text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          {materialOptions.find(opt => opt.value === material).description}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Sides Printed Selection */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Sides Printed
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setSidesPrinted('double-sided')}
+                          className={`p-4 border-2 rounded-lg transition-all text-center ${
+                            sidesPrinted === 'double-sided'
+                              ? 'border-green-500 bg-green-50'
+                              : 'border-gray-300 hover:border-gray-400'
+                          }`}
+                        >
+                          <div className="flex justify-center mb-2">
+                            <svg className="w-12 h-12 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                              <rect x="3" y="3" width="8" height="10" rx="1" fill="currentColor" opacity="0.1" />
+                              <rect x="13" y="3" width="8" height="10" rx="1" fill="currentColor" opacity="0.1" />
+                              <circle cx="6" cy="6" r="1.5" fill="currentColor" />
+                              <circle cx="16" cy="6" r="1.5" fill="currentColor" />
+                            </svg>
+                          </div>
+                          <p className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            Double Sided
+                          </p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSidesPrinted('single-sided')}
+                          className={`p-4 border-2 rounded-lg transition-all text-center ${
+                            sidesPrinted === 'single-sided'
+                              ? 'border-green-500 bg-green-50'
+                              : 'border-gray-300 hover:border-gray-400'
+                          }`}
+                        >
+                          <div className="flex justify-center mb-2">
+                            <svg className="w-12 h-12 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                              <rect x="3" y="3" width="18" height="10" rx="1" fill="currentColor" opacity="0.1" />
+                              <circle cx="6" cy="6" r="1.5" fill="currentColor" />
+                            </svg>
+                          </div>
+                          <p className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            Single Sided
+                          </p>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Lamination Selection */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Lamination
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setLamination('none')}
+                          className={`p-4 border-2 rounded-lg transition-all text-center ${
+                            lamination === 'none'
+                              ? 'border-green-500 bg-green-50'
+                              : 'border-gray-300 hover:border-gray-400'
+                          }`}
+                        >
+                          <div className="flex justify-center mb-2">
+                            <svg className="w-12 h-12 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                              <circle cx="12" cy="12" r="10" />
+                              <path d="M8 12l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </div>
+                          <p className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            None
+                          </p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setLamination('both-sides-gloss')}
+                          className={`p-4 border-2 rounded-lg transition-all text-center ${
+                            lamination === 'both-sides-gloss'
+                              ? 'border-green-500 bg-green-50'
+                              : 'border-gray-300 hover:border-gray-400'
+                          }`}
+                        >
+                          <div className="flex justify-center mb-2">
+                            <div className="w-12 h-12 bg-gray-700 rounded relative overflow-hidden">
+                              <div className="absolute inset-0 bg-white opacity-30" style={{ clipPath: 'polygon(0 0, 100% 0, 0 50%)' }}></div>
+                            </div>
+                          </div>
+                          <p className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            Both Sides (Gloss)
+                          </p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setLamination('both-sides-matt')}
+                          className={`p-4 border-2 rounded-lg transition-all text-center ${
+                            lamination === 'both-sides-matt'
+                              ? 'border-green-500 bg-green-50'
+                              : 'border-gray-300 hover:border-gray-400'
+                          }`}
+                        >
+                          <div className="flex justify-center mb-2">
+                            <div className="w-12 h-12 bg-gray-700 rounded"></div>
+                          </div>
+                          <p className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            Both Sides (Matt)
+                          </p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setLamination('both-sides-soft-touch')}
+                          className={`p-4 border-2 rounded-lg transition-all text-center ${
+                            lamination === 'both-sides-soft-touch'
+                              ? 'border-green-500 bg-green-50'
+                              : 'border-gray-300 hover:border-gray-400'
+                          }`}
+                        >
+                          <div className="flex justify-center mb-2">
+                            <div className="w-12 h-12 bg-gray-700 rounded opacity-90"></div>
+                          </div>
+                          <p className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            Both Sides (Soft Touch)
+                          </p>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Round Corners Selection */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Round Corners
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setRoundCorners('no')}
+                          className={`p-4 border-2 rounded-lg transition-all text-center ${
+                            roundCorners === 'no'
+                              ? 'border-green-500 bg-green-50'
+                              : 'border-gray-300 hover:border-gray-400'
+                          }`}
+                        >
+                          <div className="flex justify-center mb-2">
+                            <svg className="w-12 h-12 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                              <path d="M3 3h6v6H3z" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </div>
+                          <p className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            No
+                          </p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRoundCorners('yes')}
+                          className={`p-4 border-2 rounded-lg transition-all text-center ${
+                            roundCorners === 'yes'
+                              ? 'border-green-500 bg-green-50'
+                              : 'border-gray-300 hover:border-gray-400'
+                          }`}
+                        >
+                          <div className="flex justify-center mb-2">
+                            <svg className="w-12 h-12 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                              <rect x="3" y="3" width="18" height="18" rx="4" fill="none" />
+                              <path d="M3 7 Q3 3 7 3" strokeLinecap="round" />
+                            </svg>
+                          </div>
+                          <p className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            Yes
+                          </p>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Delivery & Pricing Grid */}
+                    <div className="pt-4 border-t border-gray-200">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          Choose Delivery
+                        </h3>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            Pricing Grid View
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setShowPricingGrid(!showPricingGrid)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                              showPricingGrid ? 'bg-blue-600' : 'bg-gray-300'
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 ${
+                                showPricingGrid ? 'translate-x-6' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                          <span className="text-xs text-white px-2 py-0.5 rounded" style={{ 
+                            fontFamily: 'Lexend Deca, sans-serif',
+                            backgroundColor: showPricingGrid ? '#3b82f6' : '#9ca3af'
+                          }}>
+                            {showPricingGrid ? 'ON' : 'OFF'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {!showPricingGrid ? (
+                        /* Delivery Option Buttons (when grid is hidden) */
+                        <div className="grid grid-cols-3 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setDeliveryOption('saver')}
+                            className={`p-4 border-2 rounded-lg text-center transition-all relative ${
+                              deliveryOption === 'saver'
+                                ? 'border-green-400 bg-green-50'
+                                : 'border-gray-300 hover:border-gray-400'
+                            }`}
+                          >
+                            <p className="text-sm font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              Saver
+                            </p>
+                            <p className="text-base font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              £{getCurrentPrice().toFixed(2)}
+                            </p>
+                            {deliveryOption === 'saver' && (
+                              <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2">
+                                <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M5 12l5 5 10-10" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                                  <path d="M5 12l5 5 10-10" fill="currentColor" />
+                                </svg>
+                              </div>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeliveryOption('standard')}
+                            className={`p-4 border-2 rounded-lg text-center transition-all ${
+                              deliveryOption === 'standard'
+                                ? 'border-green-400 bg-green-50'
+                                : 'border-gray-300 hover:border-gray-400'
+                            }`}
+                          >
+                            <p className="text-sm font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              Standard
+                            </p>
+                            <p className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              {(() => {
+                                const saverPrice = getPriceForQuantity(quantity, 'saver') || 0;
+                                const standardPrice = getPriceForQuantity(quantity, 'standard') || 0;
+                                const diff = standardPrice - saverPrice;
+                                return diff > 0 ? `+£${diff.toFixed(2)}` : '£' + standardPrice.toFixed(2);
+                              })()}
+                            </p>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeliveryOption('express')}
+                            className={`p-4 border-2 rounded-lg text-center transition-all ${
+                              deliveryOption === 'express'
+                                ? 'border-green-400 bg-green-50'
+                                : 'border-gray-300 hover:border-gray-400'
+                            }`}
+                          >
+                            <p className="text-sm font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              Express
+                            </p>
+                            <p className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              {(() => {
+                                const saverPrice = getPriceForQuantity(quantity, 'saver') || 0;
+                                const expressPrice = getPriceForQuantity(quantity, 'express') || 0;
+                                const diff = expressPrice - saverPrice;
+                                return diff > 0 ? `+£${diff.toFixed(2)}` : '£' + expressPrice.toFixed(2);
+                              })()}
+                            </p>
+                          </button>
+                        </div>
+                      ) : (
+                        /* Pricing Grid Table (when grid is shown) */
+                        <div className="border border-gray-200 rounded-lg overflow-hidden">
+                          <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                            <table className="w-full text-sm">
+                              <thead className="bg-gray-50 sticky top-0">
+                                <tr>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 border-r border-gray-200" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                                    Qty
+                                  </th>
+                                  <th 
+                                    className={`px-4 py-3 text-center text-xs font-semibold border-r border-gray-200 ${
+                                      deliveryOption === 'saver' ? 'bg-green-100 text-gray-900' : 'text-gray-700'
+                                    }`}
+                                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                                  >
+                                    Saver
+                                  </th>
+                                  <th 
+                                    className={`px-4 py-3 text-center text-xs font-semibold border-r border-gray-200 ${
+                                      deliveryOption === 'standard' ? 'bg-green-100 text-gray-900' : 'text-gray-700'
+                                    }`}
+                                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                                  >
+                                    Standard
+                                  </th>
+                                  <th 
+                                    className={`px-4 py-3 text-center text-xs font-semibold ${
+                                      deliveryOption === 'express' ? 'bg-green-100 text-gray-900' : 'text-gray-700'
+                                    }`}
+                                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                                  >
+                                    Express
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-200">
+                                {pricingGrid.map((row) => {
+                                  const isSelected = row.qty === quantity && deliveryOption === 'saver';
+                                  return (
+                                    <tr key={row.qty} className="hover:bg-gray-50">
+                                      <td className="px-4 py-3 text-sm text-gray-600 border-r border-gray-200" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                                        {row.qty}
+                                      </td>
+                                      <td 
+                                        className={`px-4 py-3 text-center text-sm border-r border-gray-200 relative cursor-pointer ${
+                                          deliveryOption === 'saver' && row.qty === quantity
+                                            ? 'bg-green-100 font-semibold'
+                                            : 'text-gray-900'
+                                        }`}
+                                        onClick={() => {
+                                          setDeliveryOption('saver');
+                                          setQuantity(row.qty);
+                                        }}
+                                        style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                                      >
+                                        £{row.saver.toFixed(2)}
+                                        {deliveryOption === 'saver' && row.qty === quantity && (
+                                          <svg className="w-4 h-4 text-yellow-500 absolute bottom-1 right-1" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                          </svg>
+                                        )}
+                                      </td>
+                                      <td 
+                                        className={`px-4 py-3 text-center text-sm border-r border-gray-200 cursor-pointer ${
+                                          deliveryOption === 'standard' && row.qty === quantity
+                                            ? 'bg-green-100 font-semibold'
+                                            : 'text-gray-900'
+                                        }`}
+                                        onClick={() => {
+                                          setDeliveryOption('standard');
+                                          setQuantity(row.qty);
+                                        }}
+                                        style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                                      >
+                                        £{row.standard.toFixed(2)}
+                                      </td>
+                                      <td 
+                                        className={`px-4 py-3 text-center text-sm cursor-pointer ${
+                                          deliveryOption === 'express' && row.qty === quantity
+                                            ? 'bg-green-100 font-semibold'
+                                            : 'text-gray-900'
+                                        }`}
+                                        onClick={() => {
+                                          setDeliveryOption('express');
+                                          setQuantity(row.qty);
+                                        }}
+                                        style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                                      >
+                                        £{row.express.toFixed(2)}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                          <div className="bg-gray-50 px-4 py-2 text-center border-t border-gray-200">
+                            <p className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              £0.08 per unit
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Quantity & Actions */}
                 <div className="bg-gray-50 rounded-lg p-4 space-y-4">
                   <div>
@@ -525,10 +883,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                       className="w-full py-3 bg-gray-900 hover:bg-gray-800 text-white rounded-lg font-semibold text-sm transition-colors duration-200 flex items-center justify-center gap-2"
                       style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                      </svg>
-                      Add to Cart
+                      Add to Basket
                     </button>
                   </div>
                 </div>
@@ -578,6 +933,39 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* End strip (product detail only) */}
+      <EndBenefitsStrip />
+
+      {/* Sticky Bill Bar (product detail) */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200">
+        <div className="container mx-auto px-4 lg:px-8 max-w-7xl py-3">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex items-baseline gap-3">
+                <div className="text-lg md:text-xl font-black text-gray-900 whitespace-nowrap">
+                  {isBusinessCard() ? getDeliveryDateLabel() : 'Total'}
+                </div>
+                <div className="text-lg md:text-xl font-black text-gray-900 whitespace-nowrap" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  £{getPriceIncVat().toFixed(2)}
+                  <span className="ml-2 text-xs font-semibold text-gray-700">Inc Vat</span>
+                </div>
+              </div>
+              <div className="text-sm text-gray-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                £{getPriceExVat().toFixed(2)} <span className="text-xs">Ex Vat</span>
+              </div>
+            </div>
+
+            <button
+              onClick={handleAddToCart}
+              className="flex-shrink-0 px-6 md:px-10 py-3 rounded bg-green-500 hover:bg-green-600 text-white font-bold text-sm md:text-base transition-colors w-[55%] md:w-[520px] text-center"
+              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+            >
+              Add To Basket
+            </button>
           </div>
         </div>
       </div>
