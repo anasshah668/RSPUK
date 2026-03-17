@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getRoutePath } from '../config/routes.config';
+import WavyUnderline from './WavyUnderline';
 
 const Hero = () => {
   const navigate = useNavigate();
@@ -30,10 +31,9 @@ const Hero = () => {
                 <br />
                 <span className="text-gray-900 relative inline-block animate-slide-in-left-delay-2">
                   To{' '}
-                  <span className="relative inline-block">
+                  <WavyUnderline thick={true}>
                     Ignore
-                    <span className="absolute bottom-0 left-0 right-0 h-1.5 bg-yellow-400 -z-10 animate-underline-expand"></span>
-                  </span>
+                  </WavyUnderline>
                 </span>
               </h1>
               

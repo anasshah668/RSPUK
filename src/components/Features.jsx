@@ -1,4 +1,5 @@
 import React from 'react';
+import WavyUnderline from './WavyUnderline';
 
 const Features = () => {
   const steps = [
@@ -47,11 +48,8 @@ const Features = () => {
           <h2 
             className="text-3xl md:text-4xl font-bold text-gray-900 mb-3"
           >
-            How It Works
+            How It <WavyUnderline>Works</WavyUnderline>
           </h2>
-          <div className="flex justify-center mb-4">
-            <div className="h-1 bg-yellow-400 w-20"></div>
-          </div>
         </div>
 
         <div className="relative py-4">

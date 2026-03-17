@@ -5,6 +5,7 @@ import { productService } from '../services/productService';
 import { categoryService } from '../services/categoryService';
 import { encryptId, createSlug } from '../utils/encryption';
 import { getRoutePath } from '../config/routes.config';
+import WavyUnderline from './WavyUnderline';
 
 const Products = () => {
   const navigate = useNavigate();
@@ -146,7 +147,7 @@ const Products = () => {
           <h2 
             className="text-4xl md:text-5xl font-bold text-gray-900 mb-4"
           >
-            Our Products
+            Our <WavyUnderline>Products</WavyUnderline>
           </h2>
           <p 
             className="text-lg text-gray-600 max-w-2xl mx-auto mb-8"

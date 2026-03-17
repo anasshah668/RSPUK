@@ -3,10 +3,12 @@ import Hero from '../components/Hero';
 import Services from '../components/Services';
 import Features from '../components/Features';
 import CustomNeonPrinting from '../components/CustomNeonPrinting';
+import Transformation from '../components/Transformation';
 import Products from '../components/Products';
-import About from '../components/About';
+import TrustedBy from '../components/TrustedBy';
+import BuiltForResults from '../components/BuiltForResults';
 import Contact from '../components/Contact';
-import Newsletter from '../components/Newsletter';
+import ReadyToLightUp from '../components/ReadyToLightUp';
 
 const HomePage = () => {
   return (
@@ -17,10 +19,12 @@ const HomePage = () => {
       <Services />
       <Features />
       <CustomNeonPrinting />
+      <Transformation />
       <Products />
-      <About />
+      <TrustedBy />
+      <BuiltForResults />
       <Contact />
-      <Newsletter />
+      <ReadyToLightUp />
     </>
   );
 };

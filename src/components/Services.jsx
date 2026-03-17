@@ -1,4 +1,5 @@
 import React from 'react';
+import WavyUnderline from './WavyUnderline';
 
 const Services = () => {
   const services = [
@@ -57,11 +58,8 @@ const Services = () => {
           <h2 
             className="text-4xl md:text-5xl font-bold text-white mb-4"
           >
-            What We Do
+            What We <WavyUnderline>Do</WavyUnderline>
           </h2>
-          <div className="flex justify-center mb-6">
-            <div className="h-1 bg-yellow-400 w-24"></div>
-          </div>
           <p 
             className="text-lg md:text-xl text-white max-w-3xl mx-auto"
             style={{ fontFamily: 'Lexend Deca, sans-serif' }}
