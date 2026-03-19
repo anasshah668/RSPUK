@@ -11,6 +11,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const { addToCart } = useCart();
   const [designOption, setDesignOption] = useState('custom'); // 'custom' or 'upload'
   const [uploadedImage, setUploadedImage] = useState(null);
+  const [selectedSize, setSelectedSize] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('design');
   const [product, setProduct] = useState(null);
@@ -70,6 +71,9 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         description: product.description || '',
         features: product.features || [],
         specifications: product.specifications || {},
+        uiOptions: product.uiOptions || {},
+        sizeOptions: product.sizeOptions || {},
+        pricingTable: product.pricingTable || {},
       };
     }
     // If we have productProp passed from parent, use it (this prevents image flash)
@@ -83,6 +87,9 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         description: productProp.description || '',
         features: productProp.features || [],
         specifications: productProp.specifications || {},
+        uiOptions: productProp.uiOptions || {},
+        sizeOptions: productProp.sizeOptions || {},
+        pricingTable: productProp.pricingTable || {},
       };
     }
     // Otherwise use hardcoded data based on productType (only if not loading from backend)
@@ -127,17 +134,42 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     }
   ];
 
-  // Pricing grid data for business cards
-  const pricingGrid = [
-    { qty: 250, saver: 20.80, standard: 21.89, express: 24.07 },
-    { qty: 500, saver: 29.18, standard: 30.72, express: 33.79 },
-    { qty: 1000, saver: 37.27, standard: 39.23, express: 43.15 },
-    { qty: 1500, saver: 44.84, standard: 47.21, express: 51.92 },
-    { qty: 2000, saver: 55.52, standard: 58.45, express: 64.30 },
-    { qty: 2500, saver: 65.47, standard: 68.92, express: 75.80 },
-    { qty: 3000, saver: 77.39, standard: 81.46, express: 89.60 },
-    { qty: 3500, saver: 89.27, standard: 93.97, express: 103.37 },
-  ];
+  const getEffectivePricingTable = () => {
+    if (displayProduct?.pricingTable?.enabled && Array.isArray(displayProduct.pricingTable.quantities)) {
+      return displayProduct.pricingTable;
+    }
+
+    // Fallback: hardcoded business card table (legacy)
+    if (isBusinessCard()) {
+      return {
+        enabled: true,
+        quantities: [250, 500, 1000, 1500, 2000, 2500, 3000, 3500],
+        deliveryOptions: [
+          { key: 'saver', label: 'Saver', etaDays: 6, prices: [20.80, 29.18, 37.27, 44.84, 55.52, 65.47, 77.39, 89.27] },
+          { key: 'standard', label: 'Standard', etaDays: 4, prices: [21.89, 30.72, 39.23, 47.21, 58.45, 68.92, 81.46, 93.97] },
+          { key: 'express', label: 'Express', etaDays: 2, prices: [24.07, 33.79, 43.15, 51.92, 64.30, 75.80, 89.60, 103.37] },
+        ],
+      };
+    }
+
+    return { enabled: false, quantities: [], deliveryOptions: [] };
+  };
+
+  const pricingTable = getEffectivePricingTable();
+  const hasDeliveryPricing = !!pricingTable?.enabled;
+  const deliveryOptions = Array.isArray(pricingTable?.deliveryOptions) ? pricingTable.deliveryOptions : [];
+  const saverOpt = deliveryOptions.find(o => o.key === 'saver');
+  const standardOpt = deliveryOptions.find(o => o.key === 'standard');
+  const expressOpt = deliveryOptions.find(o => o.key === 'express');
+
+  // Convert pricing table to legacy-like grid rows for existing UI
+  const pricingGrid = (pricingTable?.quantities || []).map((qty, index) => {
+    const row = { qty };
+    (pricingTable?.deliveryOptions || []).forEach((opt) => {
+      row[opt.key] = opt.prices?.[index];
+    });
+    return row;
+  });
 
   // Get price for current quantity and delivery option
   const getPriceForQuantity = (qty, delivery) => {
@@ -158,10 +190,21 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     return price || 0;
   };
 
+  // Ensure current delivery option exists in pricingTable (when admin config differs)
+  useEffect(() => {
+    if (!hasDeliveryPricing) return;
+    if (deliveryOptions.length === 0) return;
+    const exists = deliveryOptions.some(o => o.key === deliveryOption);
+    if (!exists) {
+      setDeliveryOption(deliveryOptions[0].key);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasDeliveryPricing, pricingTable?.deliveryOptions]);
+
   const VAT_RATE = 0.2;
 
   const getPriceIncVat = () => {
-    return isBusinessCard() ? getCurrentPrice() : (displayProduct?.price || 0);
+    return (isBusinessCard() || hasDeliveryPricing) ? getCurrentPrice() : (displayProduct?.price || 0);
   };
 
   const getPriceExVat = () => {
@@ -171,7 +214,8 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
 
   const getDeliveryDateLabel = () => {
     const now = new Date();
-    const addDays = deliveryOption === 'express' ? 2 : deliveryOption === 'standard' ? 4 : 6;
+    const option = (pricingTable?.deliveryOptions || []).find(o => o.key === deliveryOption);
+    const addDays = option?.etaDays ?? (deliveryOption === 'express' ? 2 : deliveryOption === 'standard' ? 4 : 6);
     const eta = new Date(now);
     eta.setDate(now.getDate() + addDays);
     const weekday = eta.toLocaleDateString(undefined, { weekday: 'short' });
@@ -231,8 +275,21 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   };
 
   const handleAddToCart = () => {
-    // Calculate price for business cards
-    const finalPrice = isBusinessCard() ? getCurrentPrice() : displayProduct.price;
+    const showEditor = displayProduct?.uiOptions?.showEditorButton ?? true;
+    const showUpload = displayProduct?.uiOptions?.showUploadDesignButton ?? true;
+    const sizeEnabled = displayProduct?.sizeOptions?.enabled ?? false;
+    const sizeRequired = displayProduct?.sizeOptions?.required ?? false;
+
+    // If both design options are disabled, ignore any existing state value
+    const effectiveDesignOption = (showEditor || showUpload) ? designOption : null;
+
+    if (sizeEnabled && sizeRequired && !selectedSize) {
+      alert('Please select a size to continue.');
+      return;
+    }
+
+    // Calculate price for business cards and products using a delivery pricing table
+    const finalPrice = (isBusinessCard() || hasDeliveryPricing) ? getCurrentPrice() : displayProduct.price;
     
     const cartProduct = {
       id: product?._id || `${productType}-${Date.now()}`,
@@ -241,8 +298,10 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       price: finalPrice,
       image: displayProduct.image,
       quantity: quantity,
-      designOption: designOption,
+      designOption: effectiveDesignOption,
       uploadedImage: uploadedImage,
+      ...(sizeEnabled && { size: selectedSize }),
+      ...(hasDeliveryPricing && { deliveryOption }),
       // Include business card options if applicable
       ...(isBusinessCard() && {
         material,
@@ -307,8 +366,8 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
               </h1>
             </div>
 
-            {/* Price (hide for business cards because pricing is dynamic) */}
-            {!isBusinessCard() && (
+            {/* Price (hide for business cards / delivery-table products because pricing is dynamic) */}
+            {!(isBusinessCard() || hasDeliveryPricing) && (
               <div className="flex items-center gap-3 pb-2 border-b border-gray-200">
                 <span className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                   £{displayProduct.price.toFixed(2)}
@@ -323,10 +382,174 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
 
             {/* Description - Compact */}
             <div>
-              <p className="text-sm text-gray-600 leading-relaxed" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                {displayProduct.description}
-              </p>
+              <div
+                className="prose prose-sm max-w-none text-gray-700"
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                dangerouslySetInnerHTML={{ __html: displayProduct.description || '' }}
+              />
             </div>
+
+            {/* Delivery pricing table (user side) */}
+            {hasDeliveryPricing && (
+              <div className="bg-white rounded-xl border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      Choose Delivery
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      Prices update by quantity and delivery speed
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      Pricing Grid
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowPricingGrid(!showPricingGrid)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                        showPricingGrid ? 'bg-blue-600' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 ${
+                          showPricingGrid ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {!showPricingGrid ? (
+                  <div className="grid grid-cols-3 gap-3">
+                    {saverOpt && (
+                      <button
+                        type="button"
+                        onClick={() => setDeliveryOption('saver')}
+                        className={`p-4 border-2 rounded-lg text-center transition-all relative ${
+                          deliveryOption === 'saver'
+                            ? 'border-green-400 bg-green-50'
+                            : 'border-gray-300 hover:border-gray-400'
+                        }`}
+                      >
+                        <p className="text-sm font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          {saverOpt.label || 'Saver'}
+                        </p>
+                        <p className="text-base font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          £{(getPriceForQuantity(quantity, 'saver') || 0).toFixed(2)}
+                        </p>
+                      </button>
+                    )}
+                    {standardOpt && (
+                      <button
+                        type="button"
+                        onClick={() => setDeliveryOption('standard')}
+                        className={`p-4 border-2 rounded-lg text-center transition-all ${
+                          deliveryOption === 'standard'
+                            ? 'border-green-400 bg-green-50'
+                            : 'border-gray-300 hover:border-gray-400'
+                        }`}
+                      >
+                        <p className="text-sm font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          {standardOpt.label || 'Standard'}
+                        </p>
+                        <p className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          {(() => {
+                            const base = saverOpt ? (getPriceForQuantity(quantity, 'saver') || 0) : 0;
+                            const p = getPriceForQuantity(quantity, 'standard') || 0;
+                            const diff = p - base;
+                            return diff > 0 ? `+£${diff.toFixed(2)}` : `£${p.toFixed(2)}`;
+                          })()}
+                        </p>
+                      </button>
+                    )}
+                    {expressOpt && (
+                      <button
+                        type="button"
+                        onClick={() => setDeliveryOption('express')}
+                        className={`p-4 border-2 rounded-lg text-center transition-all ${
+                          deliveryOption === 'express'
+                            ? 'border-green-400 bg-green-50'
+                            : 'border-gray-300 hover:border-gray-400'
+                        }`}
+                      >
+                        <p className="text-sm font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          {expressOpt.label || 'Express'}
+                        </p>
+                        <p className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          {(() => {
+                            const base = saverOpt ? (getPriceForQuantity(quantity, 'saver') || 0) : 0;
+                            const p = getPriceForQuantity(quantity, 'express') || 0;
+                            const diff = p - base;
+                            return diff > 0 ? `+£${diff.toFixed(2)}` : `£${p.toFixed(2)}`;
+                          })()}
+                        </p>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 sticky top-0">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 border-r border-gray-200" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              Qty
+                            </th>
+                            <th className={`px-4 py-3 text-center text-xs font-semibold border-r border-gray-200 ${deliveryOption === 'saver' ? 'bg-green-100 text-gray-900' : 'text-gray-700'}`} style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              {saverOpt?.label || 'Saver'}
+                            </th>
+                            <th className={`px-4 py-3 text-center text-xs font-semibold border-r border-gray-200 ${deliveryOption === 'standard' ? 'bg-green-100 text-gray-900' : 'text-gray-700'}`} style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              {standardOpt?.label || 'Standard'}
+                            </th>
+                            <th className={`px-4 py-3 text-center text-xs font-semibold ${deliveryOption === 'express' ? 'bg-green-100 text-gray-900' : 'text-gray-700'}`} style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              {expressOpt?.label || 'Express'}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {pricingGrid.map((row) => (
+                            <tr key={row.qty} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 text-sm text-gray-600 border-r border-gray-200" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                                {row.qty}
+                              </td>
+                              <td
+                                className={`px-4 py-3 text-center text-sm border-r border-gray-200 cursor-pointer ${
+                                  deliveryOption === 'saver' && row.qty === quantity ? 'bg-green-100 font-semibold' : 'text-gray-900'
+                                }`}
+                                onClick={() => { setDeliveryOption('saver'); setQuantity(row.qty); }}
+                                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                              >
+                                £{Number(row.saver || 0).toFixed(2)}
+                              </td>
+                              <td
+                                className={`px-4 py-3 text-center text-sm border-r border-gray-200 cursor-pointer ${
+                                  deliveryOption === 'standard' && row.qty === quantity ? 'bg-green-100 font-semibold' : 'text-gray-900'
+                                }`}
+                                onClick={() => { setDeliveryOption('standard'); setQuantity(row.qty); }}
+                                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                              >
+                                £{Number(row.standard || 0).toFixed(2)}
+                              </td>
+                              <td
+                                className={`px-4 py-3 text-center text-sm cursor-pointer ${
+                                  deliveryOption === 'express' && row.qty === quantity ? 'bg-green-100 font-semibold' : 'text-gray-900'
+                                }`}
+                                onClick={() => { setDeliveryOption('express'); setQuantity(row.qty); }}
+                                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                              >
+                                £{Number(row.express || 0).toFixed(2)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Tabs for Features/Specs */}
             <div className="border-b border-gray-200">
@@ -355,59 +578,125 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
             {/* Tab Content */}
             {activeTab === 'design' && (
               <div className="space-y-4">
+                {/* Optional Size Selection */}
+                {(displayProduct?.sizeOptions?.enabled ?? false) && (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      Size {(displayProduct?.sizeOptions?.required ?? false) ? '*' : ''}
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={selectedSize}
+                        onChange={(e) => setSelectedSize(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white text-sm"
+                        style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                      >
+                        <option value="">Select a size</option>
+                        {(displayProduct?.sizeOptions?.options || []).map((opt) => (
+                          <option key={opt.value || opt.label} value={opt.label || opt.value}>
+                            {opt.label || opt.value}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+                    {(displayProduct?.sizeOptions?.required ?? false) && !selectedSize && (
+                      <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Please select a size before adding to basket.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {/* Design Options */}
                 <div className="space-y-3">
+                  {(() => {
+                    const showEditor = displayProduct?.uiOptions?.showEditorButton ?? true;
+                    const showUpload = displayProduct?.uiOptions?.showUploadDesignButton ?? true;
+
+                    if (!showEditor && !showUpload) {
+                      return (
+                        <div className="p-3 rounded-lg border border-gray-200 bg-gray-50">
+                          <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            No design required
+                          </p>
+                          <p className="text-xs text-gray-600 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            This product doesn’t require a design upload or editor.
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    // Ensure current selection stays valid when one option is disabled
+                    if (!showEditor && designOption === 'custom') {
+                      setTimeout(() => setDesignOption('upload'), 0);
+                    }
+                    if (!showUpload && designOption === 'upload') {
+                      setTimeout(() => setDesignOption('custom'), 0);
+                    }
+
+                    return null;
+                  })()}
+
                   {/* Custom Design Option */}
-                  <label className="flex items-start gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all hover:border-blue-500"
-                    style={{ borderColor: designOption === 'custom' ? '#3b82f6' : '#e5e7eb' }}>
-                    <input
-                      type="radio"
-                      name="designOption"
-                      value="custom"
-                      checked={designOption === 'custom'}
-                      onChange={(e) => setDesignOption(e.target.value)}
-                      className="mt-1"
-                    />
-                    <div className="flex-1">
-                      <div className="font-semibold text-gray-900 text-sm mb-0.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                        Custom Design
+                  {(displayProduct?.uiOptions?.showEditorButton ?? true) && (
+                    <label className="flex items-start gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all hover:border-blue-500"
+                      style={{ borderColor: designOption === 'custom' ? '#3b82f6' : '#e5e7eb' }}>
+                      <input
+                        type="radio"
+                        name="designOption"
+                        value="custom"
+                        checked={designOption === 'custom'}
+                        onChange={(e) => setDesignOption(e.target.value)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-900 text-sm mb-0.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          Custom Design
+                        </div>
+                        <div className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          Create your design using our design tool
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                        Create your design using our design tool
-                      </div>
-                    </div>
-                  </label>
+                    </label>
+                  )}
 
                   {/* Upload Design Option */}
-                  <label className="flex items-start gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all hover:border-blue-500"
-                    style={{ borderColor: designOption === 'upload' ? '#3b82f6' : '#e5e7eb' }}>
-                    <input
-                      type="radio"
-                      name="designOption"
-                      value="upload"
-                      checked={designOption === 'upload'}
-                      onChange={(e) => setDesignOption(e.target.value)}
-                      className="mt-1"
-                    />
-                    <div className="flex-1">
-                      <div className="font-semibold text-gray-900 text-sm mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                        Upload Your Design
-                      </div>
-                      {designOption === 'upload' && (
-                        <div className="space-y-2">
-                          <input
-                            type="file"
-                            accept="image/*,.pdf"
-                            onChange={handleImageUpload}
-                            className="text-xs text-gray-600 w-full"
-                          />
-                          {uploadedImage && (
-                            <img src={uploadedImage} alt="Uploaded design" className="w-24 h-24 object-cover rounded border" />
-                          )}
+                  {(displayProduct?.uiOptions?.showUploadDesignButton ?? true) && (
+                    <label className="flex items-start gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all hover:border-blue-500"
+                      style={{ borderColor: designOption === 'upload' ? '#3b82f6' : '#e5e7eb' }}>
+                      <input
+                        type="radio"
+                        name="designOption"
+                        value="upload"
+                        checked={designOption === 'upload'}
+                        onChange={(e) => setDesignOption(e.target.value)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-900 text-sm mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          Upload Your Design
                         </div>
-                      )}
-                    </div>
-                  </label>
+                        {designOption === 'upload' && (
+                          <div className="space-y-2">
+                            <input
+                              type="file"
+                              accept="image/*,.pdf"
+                              onChange={handleImageUpload}
+                              className="text-xs text-gray-600 w-full"
+                            />
+                            {uploadedImage && (
+                              <img src={uploadedImage} alt="Uploaded design" className="w-24 h-24 object-cover rounded border" />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </label>
+                  )}
                 </div>
 
                 {/* Business Card Configuration Options */}
@@ -623,6 +912,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                     </div>
 
                     {/* Delivery & Pricing Grid */}
+                    {hasDeliveryPricing && (
                     <div className="pt-4 border-t border-gray-200">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -667,7 +957,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                             }`}
                           >
                             <p className="text-sm font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                              Saver
+                              {saverOpt?.label || 'Saver'}
                             </p>
                             <p className="text-base font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                               £{getCurrentPrice().toFixed(2)}
@@ -691,7 +981,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                             }`}
                           >
                             <p className="text-sm font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                              Standard
+                              {standardOpt?.label || 'Standard'}
                             </p>
                             <p className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                               {(() => {
@@ -712,7 +1002,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                             }`}
                           >
                             <p className="text-sm font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                              Express
+                              {expressOpt?.label || 'Express'}
                             </p>
                             <p className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                               {(() => {
@@ -740,7 +1030,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                                     }`}
                                     style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                                   >
-                                    Saver
+                                    {saverOpt?.label || 'Saver'}
                                   </th>
                                   <th 
                                     className={`px-4 py-3 text-center text-xs font-semibold border-r border-gray-200 ${
@@ -748,7 +1038,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                                     }`}
                                     style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                                   >
-                                    Standard
+                                    {standardOpt?.label || 'Standard'}
                                   </th>
                                   <th 
                                     className={`px-4 py-3 text-center text-xs font-semibold ${
@@ -756,7 +1046,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                                     }`}
                                     style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                                   >
-                                    Express
+                                    {expressOpt?.label || 'Express'}
                                   </th>
                                 </tr>
                               </thead>
@@ -829,6 +1119,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                         </div>
                       )}
                     </div>
+                    )}
                   </div>
                 )}
 

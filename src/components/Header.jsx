@@ -12,6 +12,60 @@ const Header = () => {
   const shopRef = useRef(null);
   const userMenuRef = useRef(null);
 
+  const shopMenu = [
+    {
+      title: 'Signs',
+      items: [
+        { label: 'Printed Board', category: 'printed-board' },
+        { label: '2D Box Signage', category: '2d-box-signage' },
+        { label: '3D Built Up Letters', category: '3d-built-up-letters' },
+        { label: 'Flex Face', category: 'flex-face' },
+        { label: 'Lightbox', category: 'lightbox' },
+      ],
+    },
+    {
+      title: 'Printing',
+      items: [
+        { label: 'Posters', category: 'posters' },
+        { label: 'PVC Banners', category: 'pvc-banners' },
+        { label: 'Correx / Foamex / Aluminium Prints', category: 'correx-foamex-aluminium-prints' },
+        { label: 'Backlit Prints', category: 'backlit-prints' },
+        { label: 'Canvas Prints', category: 'canvas-prints' },
+      ],
+    },
+    {
+      title: 'Small Print',
+      items: [
+        { label: 'Business Cards', category: 'business-cards' },
+        { label: 'Flyers', category: 'flyers' },
+        { label: 'Leaflets', category: 'leaflets' },
+        { label: 'Brochures', category: 'brochures' },
+        { label: 'Menus', category: 'menus' },
+        { label: 'Calendars', category: 'calendars' },
+        { label: 'Stickers', category: 'stickers' },
+      ],
+    },
+    {
+      title: 'Window Graphics',
+      items: [
+        { label: 'Printed Vinyl', category: 'printed-vinyl' },
+        { label: 'Frosted Vinyl', category: 'frosted-vinyl' },
+        { label: 'One Way Vision', category: 'one-way-vision' },
+        { label: 'Cut Vinyl', category: 'cut-vinyl' },
+        { label: 'Privacy Films', category: 'privacy-films' },
+      ],
+    },
+    {
+      title: 'Fabrication',
+      items: [
+        { label: 'CNC Router Cutting', category: 'cnc-router-cutting' },
+        { label: 'Fibre Laser Cutting', category: 'fibre-laser-cutting' },
+        { label: 'Fibre Laser Welding', category: 'fibre-laser-welding' },
+      ],
+    },
+   
+  ];
+
   // Map old section names to routes
   const routeMap = {
     'home': '/',
@@ -32,6 +86,13 @@ const Header = () => {
     'shop-sticker': '/#products',
     'shop-business-card': '/#products',
     'shop-brochure': '/#products',
+  };
+
+  const goToShopCategory = (categorySlug) => {
+    // Navigate to dedicated category page
+    navigate(`/category/${categorySlug}`);
+    setMobileMenuOpen(false);
+    setShopOpen(false);
   };
 
   const handleNavClick = (section) => {
@@ -104,104 +165,33 @@ const Header = () => {
                 <div
                   className="absolute top-full left-0 mt-2 w-[600px] bg-white rounded-lg shadow-2xl py-4 border border-gray-100 z-50"
                 >
-                  <div className="grid grid-cols-2 gap-6 px-6">
-                    {/* Left Column */}
-                    <div className="space-y-4">
-                      {/* Large Format Printing */}
-                      <div>
-                        <h3 className="text-blue-600 font-semibold text-sm mb-2">
-                          Large Format Printing
+                  <div className="grid grid-cols-3 gap-6 px-6">
+                    {shopMenu.map((group) => (
+                      <div key={group.title} className="space-y-2">
+                        <h3 className="text-blue-600 font-semibold text-sm">
+                          {group.title}
                         </h3>
                         <ul className="space-y-1">
-                          {['Banners', 'Posters', 'Wall Murals', 'Exhibition Displays', 'Pop-Up Stands'].map((item) => (
-                            <li key={item}>
+                          {group.items.map((item) => (
+                            <li key={`${group.title}-${item.category}`}>
                               <button
-                                onClick={() => {
-                                  handleNavClick('shop');
-                                  setShopOpen(false);
-                                }}
-                                className="block w-full text-left text-gray-600 hover:text-blue-600 transition-colors text-sm"
+                                onClick={() => goToShopCategory(item.category)}
+                                className="group w-full flex items-center justify-between gap-3 text-left text-gray-600 hover:text-blue-600 transition-colors text-sm"
                                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                               >
-                                {item}
+                                <span className="flex items-center gap-2 min-w-0">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-gray-300 group-hover:bg-blue-600 transition-colors flex-shrink-0" />
+                                  <span className="truncate">{item.label}</span>
+                                </span>
+                                <svg className="w-4 h-4 text-gray-300 group-hover:text-blue-600 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
                               </button>
                             </li>
                           ))}
                         </ul>
                       </div>
-
-                      {/* Fabrication */}
-                      <div>
-                        <h3 className="text-blue-600 font-semibold text-sm mb-2">
-                          Fabrication
-                        </h3>
-                        <ul className="space-y-1">
-                          {['3D Letters', 'Channel Letters', 'Metal Signs', 'Acrylic Signs', 'Built-Up Letters'].map((item) => (
-                            <li key={item}>
-                              <button
-                                onClick={() => {
-                                  handleNavClick('shop');
-                                  setShopOpen(false);
-                                }}
-                                className="block w-full text-left text-gray-600 hover:text-blue-600 transition-colors text-sm"
-                                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                              >
-                                {item}
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-
-                    {/* Right Column */}
-                    <div className="space-y-4">
-                      {/* Business Cards */}
-                      <div>
-                        <h3 className="text-blue-600 font-semibold text-sm mb-2">
-                          Business Cards
-                        </h3>
-                        <ul className="space-y-1">
-                          {['Standard Cards', 'Premium Cards', 'Spot UV Cards', 'Foil Cards', 'Recycled Cards'].map((item) => (
-                            <li key={item}>
-                              <button
-                                onClick={() => {
-                                  handleNavClick('shop');
-                                  setShopOpen(false);
-                                }}
-                                className="block w-full text-left text-gray-600 hover:text-blue-600 transition-colors text-sm"
-                                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                              >
-                                {item}
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-
-                      {/* Signage Solutions */}
-                      <div>
-                        <h3 className="text-blue-600 font-semibold text-sm mb-2">
-                          Signage Solutions
-                        </h3>
-                        <ul className="space-y-1">
-                          {['Shop Fronts', 'Wayfinding Signs', 'Safety Signs', 'A-Boards', 'Illuminated Signs'].map((item) => (
-                            <li key={item}>
-                              <button
-                                onClick={() => {
-                                  handleNavClick('shop');
-                                  setShopOpen(false);
-                                }}
-                                className="block w-full text-left text-gray-600 hover:text-blue-600 transition-colors text-sm"
-                                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                              >
-                                {item}
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -377,97 +367,31 @@ const Header = () => {
               </button>
               {shopOpen && (
                 <div className="pl-4 space-y-4 mt-2">
-                  {/* Large Format Printing */}
-                  <div>
-                    <h3 className="text-blue-400 font-semibold text-sm mb-2 px-4">
-                      Large Format Printing
-                    </h3>
-                    <div className="space-y-1">
-                      {['Banners', 'Posters', 'Wall Murals', 'Exhibition Displays', 'Pop-Up Stands'].map((item) => (
-                        <button
-                          key={item}
-                          onClick={() => {
-                            handleNavClick('shop');
-                            setShopOpen(false);
-                            setMobileMenuOpen(false);
-                          }}
-                          className="block w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-all duration-150 text-sm"
-                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                        >
-                          {item}
-                        </button>
-                      ))}
+                  {shopMenu.map((group) => (
+                    <div key={group.title}>
+                      <h3 className="text-blue-400 font-semibold text-sm mb-2 px-4">
+                        {group.title}
+                      </h3>
+                      <div className="space-y-1">
+                        {group.items.map((item) => (
+                          <button
+                            key={`${group.title}-${item.category}`}
+                            onClick={() => goToShopCategory(item.category)}
+                            className="group w-full flex items-center justify-between gap-3 text-left px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-all duration-150 text-sm"
+                            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                          >
+                            <span className="flex items-center gap-2 min-w-0">
+                              <span className="w-1.5 h-1.5 rounded-full bg-gray-500 group-hover:bg-blue-400 transition-colors flex-shrink-0" />
+                              <span className="truncate">{item.label}</span>
+                            </span>
+                            <svg className="w-4 h-4 text-gray-400 group-hover:text-gray-200 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-
-                  {/* Fabrication */}
-                  <div>
-                    <h3 className="text-blue-400 font-semibold text-sm mb-2 px-4">
-                      Fabrication
-                    </h3>
-                    <div className="space-y-1">
-                      {['3D Letters', 'Channel Letters', 'Metal Signs', 'Acrylic Signs', 'Built-Up Letters'].map((item) => (
-                        <button
-                          key={item}
-                          onClick={() => {
-                            handleNavClick('shop');
-                            setShopOpen(false);
-                            setMobileMenuOpen(false);
-                          }}
-                          className="block w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-all duration-150 text-sm"
-                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                        >
-                          {item}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Business Cards */}
-                  <div>
-                    <h3 className="text-blue-400 font-semibold text-sm mb-2 px-4">
-                      Business Cards
-                    </h3>
-                    <div className="space-y-1">
-                      {['Standard Cards', 'Premium Cards', 'Spot UV Cards', 'Foil Cards', 'Recycled Cards'].map((item) => (
-                        <button
-                          key={item}
-                          onClick={() => {
-                            handleNavClick('shop');
-                            setShopOpen(false);
-                            setMobileMenuOpen(false);
-                          }}
-                          className="block w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-all duration-150 text-sm"
-                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                        >
-                          {item}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Signage Solutions */}
-                  <div>
-                    <h3 className="text-blue-400 font-semibold text-sm mb-2 px-4">
-                      Signage Solutions
-                    </h3>
-                    <div className="space-y-1">
-                      {['Shop Fronts', 'Wayfinding Signs', 'Safety Signs', 'A-Boards', 'Illuminated Signs'].map((item) => (
-                        <button
-                          key={item}
-                          onClick={() => {
-                            handleNavClick('shop');
-                            setShopOpen(false);
-                            setMobileMenuOpen(false);
-                          }}
-                          className="block w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-all duration-150 text-sm"
-                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                        >
-                          {item}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  ))}
                 </div>
               )}
             </div>

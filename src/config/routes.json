@@ -9,6 +9,7 @@
     "list": "products",
     "getById": "products",
     "getByCategory": "products/category",
+    "getRecommended": "products/recommended",
     "create": "admin/products",
     "update": "admin/products",
     "delete": "admin/products"

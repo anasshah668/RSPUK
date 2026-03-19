@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import { useAuth } from '../context/AuthContext';
 import { adminService } from '../services/adminService';
 import { productService } from '../services/productService';
@@ -376,6 +378,25 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
     category: '',
     basePrice: '',
     isActive: true,
+    uiOptions: {
+      showEditorButton: true,
+      showUploadDesignButton: true,
+    },
+    sizeOptions: {
+      enabled: false,
+      required: false,
+      options: [], // [{ label, value }]
+    },
+    pricingTable: {
+      enabled: false,
+      quantities: '250,500,1000',
+      saverPrices: '',
+      standardPrices: '',
+      expressPrices: '',
+      saverEtaDays: 6,
+      standardEtaDays: 4,
+      expressEtaDays: 2,
+    },
   });
   const [files, setFiles] = useState([]);
   const [errors, setErrors] = useState({});
@@ -396,6 +417,43 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
         category: product.category || '',
         basePrice: product.basePrice || '',
         isActive: product.isActive !== undefined ? product.isActive : true,
+        uiOptions: {
+          showEditorButton: product.uiOptions?.showEditorButton ?? true,
+          showUploadDesignButton: product.uiOptions?.showUploadDesignButton ?? true,
+        },
+        sizeOptions: {
+          enabled: product.sizeOptions?.enabled ?? false,
+          required: product.sizeOptions?.required ?? false,
+          options: product.sizeOptions?.options ?? [],
+        },
+        pricingTable: {
+          enabled: product.pricingTable?.enabled ?? false,
+          quantities: (product.pricingTable?.quantities || []).join(','),
+          saverPrices: (() => {
+            const opt = (product.pricingTable?.deliveryOptions || []).find(o => o.key === 'saver');
+            return (opt?.prices || []).join(',');
+          })(),
+          standardPrices: (() => {
+            const opt = (product.pricingTable?.deliveryOptions || []).find(o => o.key === 'standard');
+            return (opt?.prices || []).join(',');
+          })(),
+          expressPrices: (() => {
+            const opt = (product.pricingTable?.deliveryOptions || []).find(o => o.key === 'express');
+            return (opt?.prices || []).join(',');
+          })(),
+          saverEtaDays: (() => {
+            const opt = (product.pricingTable?.deliveryOptions || []).find(o => o.key === 'saver');
+            return opt?.etaDays ?? 6;
+          })(),
+          standardEtaDays: (() => {
+            const opt = (product.pricingTable?.deliveryOptions || []).find(o => o.key === 'standard');
+            return opt?.etaDays ?? 4;
+          })(),
+          expressEtaDays: (() => {
+            const opt = (product.pricingTable?.deliveryOptions || []).find(o => o.key === 'express');
+            return opt?.etaDays ?? 2;
+          })(),
+        },
       });
       setFiles([]); // Reset files when editing
     } else {
@@ -406,6 +464,25 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
         category: '',
         basePrice: '',
         isActive: true,
+        uiOptions: {
+          showEditorButton: true,
+          showUploadDesignButton: true,
+        },
+        sizeOptions: {
+          enabled: false,
+          required: false,
+          options: [],
+        },
+        pricingTable: {
+          enabled: false,
+          quantities: '250,500,1000',
+          saverPrices: '',
+          standardPrices: '',
+          expressPrices: '',
+          saverEtaDays: 6,
+          standardEtaDays: 4,
+          expressEtaDays: 2,
+        },
       });
       setFiles([]);
     }
@@ -458,7 +535,10 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
   const validate = () => {
     const newErrors = {};
     if (!formData.name.trim()) newErrors.name = 'Name is required';
-    if (!formData.description.trim()) newErrors.description = 'Description is required';
+
+    const stripHtml = (html) => (html || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+    if (!stripHtml(formData.description)) newErrors.description = 'Description is required';
+
     if (!formData.basePrice || Number.isNaN(Number(formData.basePrice))) {
       newErrors.basePrice = 'Valid price is required';
     }
@@ -474,13 +554,56 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
     setSubmitError('');
 
     try {
+      const parseCsvNumbers = (str) =>
+        String(str || '')
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean)
+          .map(n => Number(n))
+          .filter(n => !Number.isNaN(n));
+
+      const quantities = parseCsvNumbers(formData.pricingTable?.quantities);
+      const saverPrices = parseCsvNumbers(formData.pricingTable?.saverPrices);
+      const standardPrices = parseCsvNumbers(formData.pricingTable?.standardPrices);
+      const expressPrices = parseCsvNumbers(formData.pricingTable?.expressPrices);
+
+      const pricingTablePayload = {
+        enabled: !!formData.pricingTable?.enabled,
+        quantities,
+        deliveryOptions: [
+          {
+            key: 'saver',
+            label: 'Saver',
+            etaDays: Number(formData.pricingTable?.saverEtaDays) || 6,
+            prices: saverPrices,
+          },
+          {
+            key: 'standard',
+            label: 'Standard',
+            etaDays: Number(formData.pricingTable?.standardEtaDays) || 4,
+            prices: standardPrices,
+          },
+          {
+            key: 'express',
+            label: 'Express',
+            etaDays: Number(formData.pricingTable?.expressEtaDays) || 2,
+            prices: expressPrices,
+          },
+        ],
+      };
+
       const payload = {
         name: formData.name,
         description: formData.description,
         category: formData.category,
         basePrice: String(formData.basePrice),
         isActive: String(formData.isActive),
+        uiOptions: formData.uiOptions,
+        sizeOptions: formData.sizeOptions,
+        pricingTable: pricingTablePayload,
       };
+
+      console.log('[Admin] Product payload:', payload);
 
       // Use centralized service
       if (product) {
@@ -499,7 +622,7 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
+      <div className="bg-white rounded-xl shadow-2xl w-[95vw] sm:w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3
             className="text-xl font-bold text-gray-900"
@@ -544,15 +667,22 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Description
             </label>
-            <textarea
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              rows="3"
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.description ? 'border-red-500' : 'border-gray-300'
-              }`}
-            />
+            <div className={`rounded-lg overflow-hidden border ${errors.description ? 'border-red-500' : 'border-gray-300'}`}>
+              <ReactQuill
+                theme="snow"
+                value={formData.description}
+                onChange={(value) => setFormData((prev) => ({ ...prev, description: value }))}
+                modules={{
+                  toolbar: [
+                    [{ header: [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline'],
+                    [{ list: 'ordered' }, { list: 'bullet' }],
+                    ['link'],
+                    ['clean'],
+                  ],
+                }}
+              />
+            </div>
             {errors.description && (
               <p className="mt-1 text-xs text-red-600">{errors.description}</p>
             )}
@@ -614,6 +744,323 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
               />
               {errors.basePrice && (
                 <p className="mt-1 text-xs text-red-600">{errors.basePrice}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Product page toggles + optional size options */}
+          <div className="border-t pt-4">
+            <p className="text-sm font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              Product page options
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="flex items-center gap-2 text-sm text-gray-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                <input
+                  type="checkbox"
+                  checked={!!formData.uiOptions?.showEditorButton}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      uiOptions: { ...(prev.uiOptions || {}), showEditorButton: e.target.checked },
+                    }))
+                  }
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                />
+                Show editor button
+              </label>
+
+              <label className="flex items-center gap-2 text-sm text-gray-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                <input
+                  type="checkbox"
+                  checked={!!formData.uiOptions?.showUploadDesignButton}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      uiOptions: { ...(prev.uiOptions || {}), showUploadDesignButton: e.target.checked },
+                    }))
+                  }
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                />
+                Show upload design button
+              </label>
+            </div>
+
+            <div className="mt-4">
+              <label className="flex items-center gap-2 text-sm text-gray-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                <input
+                  type="checkbox"
+                  checked={!!formData.sizeOptions?.enabled}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      sizeOptions: { ...(prev.sizeOptions || {}), enabled: e.target.checked },
+                    }))
+                  }
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                />
+                Enable size selection
+              </label>
+
+              {formData.sizeOptions?.enabled && (
+                <div className="mt-3 space-y-3">
+                  <label className="flex items-center gap-2 text-sm text-gray-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    <input
+                      type="checkbox"
+                      checked={!!formData.sizeOptions?.required}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          sizeOptions: { ...(prev.sizeOptions || {}), required: e.target.checked },
+                        }))
+                      }
+                      className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                    />
+                    Size required before add to basket
+                  </label>
+
+                  <div className="space-y-2">
+                    {(formData.sizeOptions?.options || []).map((opt, idx) => (
+                      <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          value={opt?.widthMM ?? ''}
+                          placeholder="Width (mm)"
+                          className="col-span-6 sm:col-span-3 px-3 py-2 border border-gray-300 rounded-lg text-sm w-full"
+                          onChange={(e) => {
+                            const widthMM = e.target.value === '' ? '' : Number(e.target.value);
+                            const next = [...(formData.sizeOptions?.options || [])];
+                            const current = next[idx] || {};
+                            next[idx] = { ...current, widthMM };
+                            // Auto label/value for mm sizes
+                            const h = (next[idx]?.heightMM ?? '');
+                            if (widthMM && h) {
+                              next[idx].label = `${widthMM}mm x ${h}mm`;
+                              next[idx].value = `${widthMM}x${h}`;
+                            }
+                            setFormData((prev) => ({
+                              ...prev,
+                              sizeOptions: { ...(prev.sizeOptions || {}), options: next },
+                            }));
+                          }}
+                        />
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          value={opt?.heightMM ?? ''}
+                          placeholder="Height (mm)"
+                          className="col-span-6 sm:col-span-3 px-3 py-2 border border-gray-300 rounded-lg text-sm w-full"
+                          onChange={(e) => {
+                            const heightMM = e.target.value === '' ? '' : Number(e.target.value);
+                            const next = [...(formData.sizeOptions?.options || [])];
+                            const current = next[idx] || {};
+                            next[idx] = { ...current, heightMM };
+                            // Auto label/value for mm sizes
+                            const w = (next[idx]?.widthMM ?? '');
+                            if (w && heightMM) {
+                              next[idx].label = `${w}mm x ${heightMM}mm`;
+                              next[idx].value = `${w}x${heightMM}`;
+                            }
+                            setFormData((prev) => ({
+                              ...prev,
+                              sizeOptions: { ...(prev.sizeOptions || {}), options: next },
+                            }));
+                          }}
+                        />
+                        <input
+                          type="text"
+                          value={opt?.label || ''}
+                          readOnly
+                          placeholder="200mm x 300mm"
+                          className="col-span-9 sm:col-span-5 px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-sm text-gray-700 w-full"
+                        />
+                        <button
+                          type="button"
+                          className="col-span-3 sm:col-span-1 px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 w-full flex items-center justify-center"
+                          onClick={() => {
+                            const next = (formData.sizeOptions?.options || []).filter((_, i) => i !== idx);
+                            setFormData((prev) => ({
+                              ...prev,
+                              sizeOptions: { ...(prev.sizeOptions || {}), options: next },
+                            }));
+                          }}
+                          aria-label="Remove size"
+                          title="Remove size"
+                        >
+                          <svg className="w-4 h-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+
+                    <button
+                      type="button"
+                      className="px-4 py-2 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                      onClick={() =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          sizeOptions: {
+                            ...(prev.sizeOptions || {}),
+                            options: [...((prev.sizeOptions?.options) || []), { widthMM: '', heightMM: '', label: '', value: '' }],
+                          },
+                        }))
+                      }
+                    >
+                      + Add size
+                    </button>
+                    <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      Enter size in millimeters. It will be stored as e.g. "200mm x 300mm".
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Delivery Pricing Table */}
+            <div className="mt-6 border-t pt-4">
+              <label className="flex items-center gap-2 text-sm text-gray-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                <input
+                  type="checkbox"
+                  checked={!!formData.pricingTable?.enabled}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      pricingTable: { ...(prev.pricingTable || {}), enabled: e.target.checked },
+                    }))
+                  }
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                />
+                Enable delivery pricing table
+              </label>
+
+              {formData.pricingTable?.enabled && (
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      Quantities (comma separated)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.pricingTable?.quantities || ''}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          pricingTable: { ...(prev.pricingTable || {}), quantities: e.target.value },
+                        }))
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      placeholder="250, 500, 1000, 1500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="border border-gray-200 rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Saver</p>
+                        <input
+                          type="number"
+                          value={formData.pricingTable?.saverEtaDays ?? 6}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              pricingTable: { ...(prev.pricingTable || {}), saverEtaDays: e.target.value },
+                            }))
+                          }
+                          className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-xs"
+                          title="ETA days"
+                        />
+                      </div>
+                      <label className="block text-xs text-gray-600 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Prices (comma separated)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.pricingTable?.saverPrices || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            pricingTable: { ...(prev.pricingTable || {}), saverPrices: e.target.value },
+                          }))
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        placeholder="20.80, 29.18, 37.27"
+                      />
+                    </div>
+
+                    <div className="border border-gray-200 rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Standard</p>
+                        <input
+                          type="number"
+                          value={formData.pricingTable?.standardEtaDays ?? 4}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              pricingTable: { ...(prev.pricingTable || {}), standardEtaDays: e.target.value },
+                            }))
+                          }
+                          className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-xs"
+                          title="ETA days"
+                        />
+                      </div>
+                      <label className="block text-xs text-gray-600 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Prices (comma separated)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.pricingTable?.standardPrices || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            pricingTable: { ...(prev.pricingTable || {}), standardPrices: e.target.value },
+                          }))
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        placeholder="21.89, 30.72, 39.23"
+                      />
+                    </div>
+
+                    <div className="border border-gray-200 rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Express</p>
+                        <input
+                          type="number"
+                          value={formData.pricingTable?.expressEtaDays ?? 2}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              pricingTable: { ...(prev.pricingTable || {}), expressEtaDays: e.target.value },
+                            }))
+                          }
+                          className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-xs"
+                          title="ETA days"
+                        />
+                      </div>
+                      <label className="block text-xs text-gray-600 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Prices (comma separated)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.pricingTable?.expressPrices || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            pricingTable: { ...(prev.pricingTable || {}), expressPrices: e.target.value },
+                          }))
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        placeholder="24.07, 33.79, 43.15"
+                      />
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    Quantities count must match each prices list count (same order).
+                  </p>
+                </div>
               )}
             </div>
           </div>

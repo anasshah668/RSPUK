@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { productService } from '../services/productService';
 import { categoryService } from '../services/categoryService';
@@ -9,6 +10,7 @@ import WavyUnderline from './WavyUnderline';
 
 const Products = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [hoveredProduct, setHoveredProduct] = useState(null);
   const [imageErrors, setImageErrors] = useState({});
   const [allProducts, setAllProducts] = useState([]);
@@ -18,12 +20,35 @@ const Products = () => {
   const [loading, setLoading] = useState(true);
   const { addToCart } = useCart();
 
+  // Static categories that should always appear
+  const staticCategories = [
+    { name: 'printed-board', displayName: 'Printed Board' },
+    { name: '2d-box-signage', displayName: '2D Box Signage' },
+    { name: '3d-built-up-letters', displayName: '3D Built Up Letters' },
+    { name: 'flex-face', displayName: 'Flex Face' },
+    { name: 'lightbox', displayName: 'Lightbox' },
+  ];
+
   useEffect(() => {
     const loadData = async () => {
       await fetchCategories();
     };
     loadData();
   }, []);
+
+  // Allow deep-linking to a pre-selected category via `/?category=<slug>`
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const categoryParam = params.get('category');
+    if (categoryParam) {
+      setSelectedCategory(categoryParam);
+    }
+    // If param is removed, fall back to All
+    if (!categoryParam && selectedCategory !== 'All') {
+      setSelectedCategory('All');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
 
   useEffect(() => {
     // Fetch products after categories are loaded (only once)
@@ -157,7 +182,7 @@ const Products = () => {
           </p>
 
           {/* Categories Filter - Right after the description */}
-          {categories.length > 0 && (
+          {(categories.length > 0 || staticCategories.length > 0) && (
             <div className="flex flex-wrap justify-center gap-3 mb-12">
               <button
                 onClick={() => handleCategoryClick('All')}
@@ -170,6 +195,21 @@ const Products = () => {
               >
                 All Products
               </button>
+              {/* Static categories */}
+              {staticCategories.map((cat) => (
+                <button
+                  key={cat.name}
+                  onClick={() => {
+                    // Navigate to category page instead of filtering
+                    navigate(`/category/${cat.name}`);
+                  }}
+                  className="px-6 py-3 rounded-full font-semibold text-sm transition-all duration-200 bg-white text-gray-700 hover:bg-gray-100 shadow-md hover:shadow-lg"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  {cat.displayName}
+                </button>
+              ))}
+              {/* Backend categories */}
               {categories.map((category) => (
                 <button
                   key={category._id}

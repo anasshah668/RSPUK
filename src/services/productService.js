@@ -20,6 +20,13 @@ const getByCategory = (category) => {
   );
 };
 
+const getRecommended = (params = {}) => {
+  return httpClient.get(
+    `${apiRoutes.products.getRecommended}`,
+    params
+  );
+};
+
 const create = (payload, files = []) => {
   const formData = new FormData();
   
@@ -66,6 +73,7 @@ export const productService = {
   list,
   getById,
   getByCategory,
+  getRecommended,
   create,
   update,
   delete: deleteProduct,

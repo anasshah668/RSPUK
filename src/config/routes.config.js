@@ -12,6 +12,7 @@ const NeonTextBuilder = lazy(() => import('../pages/NeonTextBuilder'));
 const CustomNeonBuilder = lazy(() => import('../pages/CustomNeonBuilder'));
 const AdminLogin = lazy(() => import('../pages/AdminLogin'));
 const AdminDashboard = lazy(() => import('../pages/AdminDashboard'));
+const CategoryProducts = lazy(() => import('../pages/CategoryProducts'));
 
 // Route configuration
 export const routes = [
@@ -55,6 +56,12 @@ export const routes = [
   {
     path: '/product-designer',
     component: ProductDesigner,
+    layout: 'default',
+  },
+  // Category products route: /category/:categorySlug
+  {
+    path: '/category/:categorySlug',
+    component: CategoryProducts,
     layout: 'default',
   },
   // Product detail route: /category/productname/encryptedId
