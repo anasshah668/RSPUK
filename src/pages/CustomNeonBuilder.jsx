@@ -1,7 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import NeonText from '../components/NeonText';
 import { useCart } from '../context/CartContext';
 import { toPng } from 'html-to-image';
+import { quoteService } from '../services/quoteService';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 import { useNavigate } from 'react-router-dom';
 
@@ -10,6 +13,7 @@ const CustomNeonBuilder = () => {
   const { addToCart } = useCart();
   const previewRef = useRef(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [builderMode, setBuilderMode] = useState('design-light');
   const [currentStep, setCurrentStep] = useState(1); // 1: Design, 2: Size, 3: Checkout
   const [neonConfig, setNeonConfig] = useState({
     text: 'NEON TEXT',
@@ -27,6 +31,42 @@ const CustomNeonBuilder = () => {
     phone: '',
     address: ''
   });
+  const [countries, setCountries] = useState([{ code: 'GB', name: 'United Kingdom' }]);
+  const [quoteSubmitting, setQuoteSubmitting] = useState(false);
+  const [logoQuoteForm, setLogoQuoteForm] = useState({
+    name: '',
+    country: 'United Kingdom',
+    phone: '',
+    email: '',
+    additionalInfo: '',
+    idealSignWidth: '',
+    quantity: '1',
+    artwork: null,
+  });
+  const artworkInputRef = useRef(null);
+
+  useEffect(() => {
+    const loadCountries = async () => {
+      try {
+        const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
+        const data = await res.json();
+        const list = (data || [])
+          .map((item) => ({
+            code: item.cca2,
+            name: item?.name?.common,
+          }))
+          .filter((item) => item.code && item.name)
+          .sort((a, b) => a.name.localeCompare(b.name));
+        if (list.length > 0) {
+          setCountries(list);
+        }
+      } catch (error) {
+        console.error('Failed to load countries:', error);
+      }
+    };
+
+    loadCountries();
+  }, []);
 
   const neonSizes = [
     { id: 'small', label: 'Small', width: '30cm', height: '20cm', price: 99.99, description: 'Perfect for indoor spaces' },
@@ -65,7 +105,7 @@ const CustomNeonBuilder = () => {
       quantity: 1
     };
     addToCart(order, 1);
-    alert('Order added to cart!');
+    toast.success('Order added to cart!');
     navigate('/');
   };
 
@@ -88,7 +128,58 @@ const CustomNeonBuilder = () => {
       link.click();
     } catch (error) {
       console.error('Export failed:', error);
-      alert('Failed to export image. Please try again.');
+      toast.error('Failed to export image. Please try again.');
+    }
+  };
+
+  const handleLogoQuoteSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!logoQuoteForm.name || !logoQuoteForm.email || !logoQuoteForm.phone) {
+      toast.error('Please fill in Name, Email, and Phone.');
+      return;
+    }
+
+    if (!logoQuoteForm.artwork) {
+      toast.error('Please upload your logo/artwork/design.');
+      return;
+    }
+
+    try {
+      setQuoteSubmitting(true);
+      await quoteService.createLogoArtworkQuote({
+        name: logoQuoteForm.name,
+        country: logoQuoteForm.country || 'United Kingdom',
+        phone: logoQuoteForm.phone,
+        email: logoQuoteForm.email,
+        projectType: 'Logo & Artwork Quote',
+        quoteType: 'logo-artwork',
+        idealSignWidth: logoQuoteForm.idealSignWidth,
+        quantity: logoQuoteForm.quantity,
+        additionalInfo: logoQuoteForm.additionalInfo,
+        message: logoQuoteForm.additionalInfo,
+        artwork: logoQuoteForm.artwork,
+      });
+
+      toast.success('Quote request submitted successfully. We will beat any price and get back to you soon.');
+      setLogoQuoteForm({
+        name: '',
+        country: 'United Kingdom',
+        phone: '',
+        email: '',
+        additionalInfo: '',
+        idealSignWidth: '',
+        quantity: '1',
+        artwork: null,
+      });
+      if (artworkInputRef.current) {
+        artworkInputRef.current.value = '';
+      }
+    } catch (error) {
+      console.error('Quote submission failed:', error);
+      toast.error(error.message || 'Failed to submit quote. Please try again.');
+    } finally {
+      setQuoteSubmitting(false);
     }
   };
 
@@ -406,6 +497,44 @@ const CustomNeonBuilder = () => {
           </h1>
         </div>
 
+        {/* Mode Selector */}
+        <div className="bg-white rounded-xl shadow-sm p-3 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setBuilderMode('design-light')}
+              className={`w-full rounded-lg px-4 py-3 text-left transition-colors ${
+                builderMode === 'design-light'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+              }`}
+              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+            >
+              <p className="font-semibold">Design a Light</p>
+              <p className={`text-xs mt-1 ${builderMode === 'design-light' ? 'text-white/90' : 'text-gray-600'}`}>
+                Build and customize your neon sign live.
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setBuilderMode('submit-artwork')}
+              className={`w-full rounded-lg px-4 py-3 text-left transition-colors ${
+                builderMode === 'submit-artwork'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+              }`}
+              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+            >
+              <p className="font-semibold">Submit a Logo / Artwork</p>
+              <p className={`text-xs mt-1 ${builderMode === 'submit-artwork' ? 'text-white/90' : 'text-gray-600'}`}>
+                Request a tailored quote with your design file.
+              </p>
+            </button>
+          </div>
+        </div>
+
+        {builderMode === 'design-light' ? (
+          <>
         {/* Stepper */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
@@ -510,6 +639,123 @@ const CustomNeonBuilder = () => {
             </button>
           )}
         </div>
+          </>
+        ) : (
+          <div className="bg-white rounded-xl shadow-lg p-6 md:p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              LOGO &amp; ARTWORK QUOTE
+            </h2>
+            <p className="text-gray-600 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              Fill in the form below, providing details about the sign that you'd like to create. Upload an image or logo to request a quote.
+            </p>
+            <p className="text-sm font-semibold text-blue-700 mb-6" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              We Will Beat Any Price (GET A FREE QUOTE)
+            </p>
+
+            <form onSubmit={handleLogoQuoteSubmit} className="grid md:grid-cols-2 gap-4">
+              <input
+                type="text"
+                placeholder="Name"
+                value={logoQuoteForm.name}
+                onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, name: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                required
+              />
+              <select
+                value={logoQuoteForm.country}
+                onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, country: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+              >
+                {countries.map((country) => (
+                  <option key={country.code} value={country.name}>
+                    {country.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="tel"
+                placeholder="Phone"
+                value={logoQuoteForm.phone}
+                onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, phone: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                required
+              />
+              <input
+                type="email"
+                placeholder="Email"
+                value={logoQuoteForm.email}
+                onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, email: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                required
+              />
+              <input
+                type="text"
+                placeholder="Ideal sign width (e.g. 120cm)"
+                value={logoQuoteForm.idealSignWidth}
+                onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, idealSignWidth: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+              />
+              <input
+                type="number"
+                min="1"
+                placeholder="Quantity"
+                value={logoQuoteForm.quantity}
+                onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, quantity: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+              />
+              <div className="md:col-span-2">
+                <textarea
+                  rows="4"
+                  placeholder="Any other information we should know before quoting?"
+                  value={logoQuoteForm.additionalInfo}
+                  onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, additionalInfo: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label
+                  className="block text-sm font-semibold text-gray-900 mb-2"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  Upload your logo / artwork / design
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  ref={artworkInputRef}
+                  onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, artwork: e.target.files?.[0] || null })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  required
+                />
+                {logoQuoteForm.artwork && (
+                  <p className="text-xs text-gray-600 mt-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    Selected file: {logoQuoteForm.artwork.name}
+                  </p>
+                )}
+              </div>
+              <div className="md:col-span-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={quoteSubmitting}
+                  className={`px-6 py-3 rounded-lg font-semibold text-white transition-colors ${
+                    quoteSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  {quoteSubmitting ? 'Submitting...' : 'Get a Tailored Quote'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
       </div>
 
       {/* Preview Modal */}
@@ -562,6 +808,7 @@ const CustomNeonBuilder = () => {
           </div>
         </div>
       )}
+      <ToastContainer position="top-right" autoClose={2500} hideProgressBar={false} newestOnTop closeOnClick pauseOnHover />
     </div>
   );
 };

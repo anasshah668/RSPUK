@@ -8,6 +8,20 @@ const create = (payload) => {
   );
 };
 
+const createLogoArtworkQuote = (payload) => {
+  const formData = new FormData();
+  Object.entries(payload || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      formData.append(key, value);
+    }
+  });
+
+  return httpClient.post(
+    `${apiRoutes.quotes.create}`,
+    formData
+  );
+};
+
 const list = (params = {}) => {
   return httpClient.get(
     `${apiRoutes.quotes.list}`,
@@ -28,11 +42,20 @@ const update = (quoteId, payload) => {
   );
 };
 
+const sendQuotationEmail = (quoteId, payload = {}) => {
+  return httpClient.post(
+    `${apiRoutes.quotes.sendEmail}/${quoteId}/send-email`,
+    payload
+  );
+};
+
 export const quoteService = {
   create,
+  createLogoArtworkQuote,
   list,
   getById,
   update,
+  sendQuotationEmail,
 };
 
 export default quoteService;

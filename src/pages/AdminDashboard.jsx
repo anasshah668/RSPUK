@@ -1181,6 +1181,22 @@ const QuotesTab = ({ quotes, onResponse }) => {
   const [responseText, setResponseText] = useState('');
   const [quotedPrice, setQuotedPrice] = useState('');
 
+  const handleQuoteSelect = async (quote) => {
+    setSelectedQuote(quote);
+    setResponseText(quote?.adminResponse || '');
+    setQuotedPrice(quote?.quotedPrice || '');
+
+    // Mark quote as opened/read by moving from "new" to "contacted"
+    if (quote.status === 'new') {
+      try {
+        await onResponse(quote._id, { status: 'contacted' });
+        setSelectedQuote((prev) => (prev?._id === quote._id ? { ...prev, status: 'contacted' } : prev));
+      } catch (error) {
+        console.error('Error marking quote as contacted:', error);
+      }
+    }
+  };
+
   const handleSubmitResponse = () => {
     onResponse(selectedQuote._id, {
       status: 'quoted',
@@ -1190,6 +1206,28 @@ const QuotesTab = ({ quotes, onResponse }) => {
     setSelectedQuote(null);
     setResponseText('');
     setQuotedPrice('');
+  };
+
+  const handleSendQuotationEmail = () => {
+    if (!selectedQuote?._id) return;
+    quoteService
+      .sendQuotationEmail(selectedQuote._id, {
+        status: 'quoted',
+        adminResponse: responseText,
+        quotedPrice: quotedPrice ? parseFloat(quotedPrice) : undefined,
+      })
+      .then(() => {
+        alert('Quotation email sent to customer successfully.');
+        onResponse(selectedQuote._id, {
+          status: 'quoted',
+          adminResponse: responseText,
+          quotedPrice: quotedPrice ? parseFloat(quotedPrice) : undefined,
+        });
+      })
+      .catch((error) => {
+        console.error('Error sending quotation email:', error);
+        alert(error.message || 'Failed to send quotation email.');
+      });
   };
 
   return (
@@ -1204,7 +1242,7 @@ const QuotesTab = ({ quotes, onResponse }) => {
             {quotes.map((quote) => (
               <div
                 key={quote._id}
-                onClick={() => setSelectedQuote(quote)}
+                onClick={() => handleQuoteSelect(quote)}
                 className={`p-4 cursor-pointer hover:bg-gray-50 ${
                   selectedQuote?._id === quote._id ? 'bg-blue-50' : ''
                 }`}
@@ -1234,6 +1272,16 @@ const QuotesTab = ({ quotes, onResponse }) => {
               Quote Details
             </h3>
             <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Status</p>
+                  <p className="font-medium capitalize">{selectedQuote.status}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Received</p>
+                  <p className="font-medium">{new Date(selectedQuote.createdAt).toLocaleString()}</p>
+                </div>
+              </div>
               <div>
                 <p className="text-sm text-gray-500">Name</p>
                 <p className="font-medium">{selectedQuote.name}</p>
@@ -1247,13 +1295,64 @@ const QuotesTab = ({ quotes, onResponse }) => {
                 <p className="font-medium">{selectedQuote.phone}</p>
               </div>
               <div>
+                <p className="text-sm text-gray-500">Country</p>
+                <p className="font-medium">{selectedQuote.country || 'United Kingdom'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Company</p>
+                <p className="font-medium">{selectedQuote.company || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Preferred Contact</p>
+                <p className="font-medium capitalize">{selectedQuote.preferredContact || 'email'}</p>
+              </div>
+              <div>
                 <p className="text-sm text-gray-500">Project Type</p>
                 <p className="font-medium">{selectedQuote.projectType}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Quote Type</p>
+                <p className="font-medium capitalize">{(selectedQuote.quoteType || 'standard').replace('-', ' ')}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Ideal Sign Width</p>
+                <p className="font-medium">{selectedQuote.idealSignWidth || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Quantity</p>
+                <p className="font-medium">{selectedQuote.quantity || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Message</p>
                 <p className="font-medium">{selectedQuote.message || 'N/A'}</p>
               </div>
+              <div>
+                <p className="text-sm text-gray-500">Additional Info</p>
+                <p className="font-medium">{selectedQuote.additionalInfo || 'N/A'}</p>
+              </div>
+
+              <div>
+                <p className="text-sm text-gray-500 mb-2">Uploaded Artwork</p>
+                {selectedQuote.artworkUrl ? (
+                  <a href={selectedQuote.artworkUrl} target="_blank" rel="noreferrer" className="inline-block">
+                    <img
+                      src={selectedQuote.artworkUrl}
+                      alt="Uploaded artwork"
+                      className="w-28 h-28 object-cover rounded-lg border border-gray-200"
+                    />
+                    <p className="text-xs text-blue-600 mt-1">Open full image</p>
+                  </a>
+                ) : (
+                  <p className="font-medium">N/A</p>
+                )}
+              </div>
+
+              {selectedQuote.respondedAt && (
+                <div>
+                  <p className="text-sm text-gray-500">Last Responded At</p>
+                  <p className="font-medium">{new Date(selectedQuote.respondedAt).toLocaleString()}</p>
+                </div>
+              )}
 
               <div className="pt-4 border-t">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1279,6 +1378,12 @@ const QuotesTab = ({ quotes, onResponse }) => {
                   className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   Submit Response
+                </button>
+                <button
+                  onClick={handleSendQuotationEmail}
+                  className="mt-3 ml-3 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                >
+                  Send Quotation by Email
                 </button>
               </div>
             </div>

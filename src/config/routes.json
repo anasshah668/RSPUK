@@ -33,7 +33,8 @@
     "create": "quotes",
     "list": "quotes",
     "getById": "quotes",
-    "update": "quotes"
+    "update": "quotes",
+    "sendEmail": "quotes"
   },
   "admin": {
     "analytics": "admin/analytics",
