@@ -5,8 +5,9 @@ import { encryptId, createSlug } from '../utils/encryption';
 import { getRoutePath } from '../config/routes.config';
 import WavyUnderline from '../components/WavyUnderline';
 
-const CategoryProducts = () => {
-  const { categorySlug } = useParams();
+const CategoryProducts = ({ categorySlugOverride } = {}) => {
+  const params = useParams();
+  const categorySlug = categorySlugOverride ?? params.categorySlug;
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [recommendedProducts, setRecommendedProducts] = useState([]);
@@ -155,7 +156,20 @@ const CategoryProducts = () => {
     hasLightToggle: false
   };
 
-  const isBuiltUpLetters = String(categorySlug || '').toLowerCase() === '3d-built-up-letters';
+  const isBuiltUpLetters = [
+    '3d-built-up-letters',
+    '2d-box-signage',
+    'flex-face',
+    'lightbox',
+    'printed-board',
+  ].includes(String(categorySlug || '').toLowerCase());
+  const featuredCategoryHeroImage = {
+    '3d-built-up-letters': `${import.meta.env.BASE_URL}threeD.png`,
+    '2d-box-signage': `${import.meta.env.BASE_URL}sign.jpg`,
+    'flex-face': `${import.meta.env.BASE_URL}hero.jpg`,
+    'lightbox': `${import.meta.env.BASE_URL}neon-sign.jpg`,
+    'printed-board': `${import.meta.env.BASE_URL}hero.jpg`,
+  }[String(categorySlug || '').toLowerCase()] || `${import.meta.env.BASE_URL}threeD.png`;
 
   useEffect(() => {
     fetchProducts();
@@ -346,7 +360,7 @@ const CategoryProducts = () => {
                 <div className="bg-white/90 rounded-3xl shadow-2xl p-6 ring-1 ring-black/5">
                   <div className="relative overflow-hidden rounded-2xl bg-white">
                     <img
-                      src={`${import.meta.env.BASE_URL}threeD.png`}
+                      src={featuredCategoryHeroImage}
                       alt={categoryInfo.label}
                       className="w-full h-[420px] object-contain bg-white"
                       draggable={false}

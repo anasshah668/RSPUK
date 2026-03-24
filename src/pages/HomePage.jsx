@@ -3,6 +3,8 @@ import Hero from '../components/Hero';
 import Services from '../components/Services';
 import Features from '../components/Features';
 import WhyChooseUs from '../components/WhyChooseUs';
+import StartDesigningPrint from '../components/StartDesigningPrint';
+import FeaturedSignageProducts from '../components/FeaturedSignageProducts';
 import CustomNeonPrinting from '../components/CustomNeonPrinting';
 import Transformation from '../components/Transformation';
 import Products from '../components/Products';
@@ -18,9 +20,11 @@ const HomePage = () => {
         <Hero />
       </div>
       <Services />
+      <FeaturedSignageProducts />
       <Features />
       <CustomNeonPrinting />
       <WhyChooseUs />
+      <StartDesigningPrint />
       <Transformation />
       <Products />
       <TrustedBy />

@@ -13,6 +13,11 @@ const CustomNeonBuilder = lazy(() => import('../pages/CustomNeonBuilder'));
 const AdminLogin = lazy(() => import('../pages/AdminLogin'));
 const AdminDashboard = lazy(() => import('../pages/AdminDashboard'));
 const CategoryProducts = lazy(() => import('../pages/CategoryProducts'));
+const FeaturedPrintedBoardPage = lazy(() => import('../pages/FeaturedPrintedBoardPage'));
+const Featured2DBoxSignagePage = lazy(() => import('../pages/Featured2DBoxSignagePage'));
+const Featured3DBuiltUpLettersPage = lazy(() => import('../pages/Featured3DBuiltUpLettersPage'));
+const FeaturedFlexFacePage = lazy(() => import('../pages/FeaturedFlexFacePage'));
+const FeaturedLightboxPage = lazy(() => import('../pages/FeaturedLightboxPage'));
 
 // Route configuration
 export const routes = [
@@ -56,6 +61,32 @@ export const routes = [
   {
     path: '/product-designer',
     component: ProductDesigner,
+    layout: 'default',
+  },
+  // Featured signage dedicated pages
+  {
+    path: '/featured/printed-board',
+    component: FeaturedPrintedBoardPage,
+    layout: 'default',
+  },
+  {
+    path: '/featured/2d-box-signage',
+    component: Featured2DBoxSignagePage,
+    layout: 'default',
+  },
+  {
+    path: '/featured/3d-built-up-letters',
+    component: Featured3DBuiltUpLettersPage,
+    layout: 'default',
+  },
+  {
+    path: '/featured/flex-face',
+    component: FeaturedFlexFacePage,
+    layout: 'default',
+  },
+  {
+    path: '/featured/lightbox',
+    component: FeaturedLightboxPage,
     layout: 'default',
   },
   // Category products route: /category/:categorySlug

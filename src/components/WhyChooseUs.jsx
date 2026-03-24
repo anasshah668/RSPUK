@@ -7,12 +7,12 @@ const WhyChooseUs = () => {
       title: 'In-House UK Production',
       description:
         'From print to fabrication, your work is produced in-house for consistent quality and faster turnaround.',
-      iconWrap: 'from-blue-50 to-indigo-50 ring-blue-100',
-      iconColor: 'text-blue-700',
+      iconWrap: 'bg-slate-50 ring-slate-200',
+      iconColor: 'text-slate-700',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 8h18M7 3v5m10-5v5M5 11h14v9H5v-9z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 15h2m4 0h-2" />
+          <rect x="4" y="8" width="16" height="12" rx="1.5" strokeWidth={1.9} />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M4 12h16M8 4v4m8-4v4" />
         </svg>
       ),
     },
@@ -20,12 +20,12 @@ const WhyChooseUs = () => {
       title: 'Transparent Pricing',
       description:
         'Clear, competitive rates with no hidden surprises. We focus on value, quality, and long-term reliability.',
-      iconWrap: 'from-emerald-50 to-teal-50 ring-emerald-100',
-      iconColor: 'text-emerald-700',
+      iconWrap: 'bg-slate-50 ring-slate-200',
+      iconColor: 'text-slate-700',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 7.5v9m-3.5-6.5c0-1 1.5-2 3.5-2s3.5 1 3.5 2-1.5 2-3.5 2-3.5 1-3.5 2 1.5 2 3.5 2 3.5-1 3.5-2" />
-          <circle cx="12" cy="12" r="9" strokeWidth={1.8} />
+          <circle cx="12" cy="12" r="9" strokeWidth={1.9} />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M12 7.5v9m-3-6c0-1.1 1.3-1.9 3-1.9s3 .8 3 1.9-1.3 1.9-3 1.9-3 .8-3 1.9 1.3 1.9 3 1.9 3-.8 3-1.9" />
         </svg>
       ),
     },
@@ -33,13 +33,13 @@ const WhyChooseUs = () => {
       title: 'Fast UK-Wide Delivery',
       description:
         'Reliable dispatch and delivery options to keep your project timelines on track across the UK.',
-      iconWrap: 'from-amber-50 to-yellow-50 ring-amber-100',
-      iconColor: 'text-amber-700',
+      iconWrap: 'bg-slate-50 ring-slate-200',
+      iconColor: 'text-slate-700',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 7h11v8H3V7zm11 2h4l3 3v3h-7V9z" />
-          <circle cx="8" cy="17" r="2" strokeWidth={1.8} />
-          <circle cx="18" cy="17" r="2" strokeWidth={1.8} />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M3 8h11v7H3V8zm11 2h4l3 3v2h-7v-5z" />
+          <circle cx="8" cy="17" r="2" strokeWidth={1.9} />
+          <circle cx="18" cy="17" r="2" strokeWidth={1.9} />
         </svg>
       ),
     },
@@ -47,13 +47,13 @@ const WhyChooseUs = () => {
       title: 'Expert Support',
       description:
         'Our team helps with material selection, artwork prep, and production guidance from quote to install.',
-      iconWrap: 'from-violet-50 to-fuchsia-50 ring-violet-100',
-      iconColor: 'text-violet-700',
+      iconWrap: 'bg-slate-50 ring-slate-200',
+      iconColor: 'text-slate-700',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="9" strokeWidth={1.8} />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 10h6M9 13.5h4" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 17v0" />
+          <circle cx="12" cy="12" r="9" strokeWidth={1.9} />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M9 10h6M9 13.5h5" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M12 17h.01" />
         </svg>
       ),
     },
@@ -74,7 +74,7 @@ const WhyChooseUs = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {points.map((point) => (
             <article key={point.title} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
-              <div className={`w-11 h-11 rounded-full bg-gradient-to-br ${point.iconWrap} ring-1 flex items-center justify-center mb-3 ${point.iconColor}`}>
+              <div className={`w-11 h-11 rounded-full ${point.iconWrap} ring-1 flex items-center justify-center mb-3 ${point.iconColor}`}>
                 {point.icon}
               </div>
               <h3 className="text-base font-bold text-gray-900 mb-2">{point.title}</h3>
