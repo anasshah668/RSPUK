@@ -36,6 +36,10 @@
     "update": "quotes"
   },
   "admin": {
-    "analytics": "admin/analytics"
+    "analytics": "admin/analytics",
+    "topAnnouncement": "settings/top-announcement"
+  },
+  "settings": {
+    "topAnnouncement": "settings/top-announcement"
   }
 }

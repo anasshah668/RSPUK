@@ -7,8 +7,23 @@ const analytics = () => {
   );
 };
 
+const getTopAnnouncement = () => {
+  return httpClient.get(
+    `${apiRoutes.admin.topAnnouncement}`
+  );
+};
+
+const updateTopAnnouncement = (payload) => {
+  return httpClient.put(
+    `${apiRoutes.admin.topAnnouncement}`,
+    payload
+  );
+};
+
 export const adminService = {
   analytics,
+  getTopAnnouncement,
+  updateTopAnnouncement,
 };
 
 export default adminService;

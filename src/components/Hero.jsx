@@ -49,10 +49,20 @@ const Hero = () => {
               <div className="flex flex-col sm:flex-row gap-3 pt-2 animate-fade-in-up-delay-3">
                 <button
                   onClick={() => navigate(getRoutePath('productDesigner'))}
-                  className="group bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-all duration-300 font-semibold text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-lg hover:shadow-blue-500/50 transform hover:-translate-y-0.5 hover:scale-105"
+                  className="group bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg transition-all duration-300 font-semibold text-xs md:text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-lg hover:shadow-blue-500/50 transform hover:-translate-y-0.5 hover:scale-105"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
                   Start Designing
+                  <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => navigate(getRoutePath('getQuote'))}
+                  className="group bg-yellow-400 hover:bg-yellow-500 text-gray-900 px-5 py-2 rounded-lg transition-all duration-300 font-semibold text-xs md:text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  Get a Free Quote
                   <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
@@ -67,7 +77,7 @@ const Hero = () => {
                       }
                     }, 100);
                   }}
-                  className="group bg-white hover:bg-gray-50 border-2 border-blue-600 text-blue-600 hover:text-blue-700 px-6 py-2.5 rounded-lg transition-all duration-300 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+                  className="group bg-white hover:bg-gray-50 border-2 border-blue-600 text-blue-600 hover:text-blue-700 px-5 py-2 rounded-lg transition-all duration-300 font-semibold text-xs md:text-sm flex items-center justify-center gap-2 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
                   Explore Services

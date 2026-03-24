@@ -138,7 +138,7 @@ const AdminDashboard = () => {
       <div className="bg-white border-b">
         <div className="container mx-auto px-4">
           <div className="flex gap-1">
-            {['overview', 'products', 'categories', 'orders', 'quotes'].map((tab) => (
+            {['overview', 'products', 'categories', 'orders', 'quotes', 'settings'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -175,6 +175,7 @@ const AdminDashboard = () => {
             {activeTab === 'quotes' && (
               <QuotesTab quotes={quotes} onResponse={handleQuoteResponse} />
             )}
+            {activeTab === 'settings' && <SettingsTab />}
           </>
         )}
       </div>
@@ -1625,6 +1626,132 @@ const CategoryModal = ({ category, API_BASE_URL, onClose, onSaved }) => {
               {isSubmitting ? 'Saving...' : category ? 'Update Category' : 'Add Category'}
             </button>
           </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const SettingsTab = () => {
+  const [formData, setFormData] = useState({
+    enabled: true,
+    prefix: 'Top Announcement',
+    message: 'Price Promise | UK wide delivery',
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        const data = await adminService.getTopAnnouncement();
+        if (data) {
+          setFormData({
+            enabled: data.enabled !== false,
+            prefix: data.prefix || 'Top Announcement',
+            message: data.message || 'Price Promise | UK wide delivery',
+          });
+        }
+      } catch (e) {
+        setError(e?.message || 'Failed to load settings');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setNotice('');
+    setError('');
+    try {
+      await adminService.updateTopAnnouncement(formData);
+      setNotice('Top announcement updated successfully.');
+    } catch (e) {
+      setError(e?.message || 'Failed to save settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center py-12">
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold text-gray-900">Site Settings</h2>
+
+      <div className="bg-white rounded-xl shadow p-6 max-w-3xl">
+        <h3 className="text-lg font-bold text-gray-900 mb-2">Top Announcement Bar</h3>
+        <p className="text-sm text-gray-600 mb-6" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+          Control the message displayed directly below the main header.
+        </p>
+
+        {notice ? (
+          <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+            {notice}
+          </div>
+        ) : null}
+        {error ? (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
+
+        <form onSubmit={handleSave} className="space-y-4">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={formData.enabled}
+              onChange={(e) => setFormData((prev) => ({ ...prev, enabled: e.target.checked }))}
+              className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+            />
+            <span className="text-sm text-gray-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              Show top announcement
+            </span>
+          </label>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Prefix</label>
+            <input
+              type="text"
+              value={formData.prefix}
+              onChange={(e) => setFormData((prev) => ({ ...prev, prefix: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Top Announcement"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+            <input
+              type="text"
+              value={formData.message}
+              onChange={(e) => setFormData((prev) => ({ ...prev, message: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Price Promise | UK wide delivery"
+            />
+            <p className="mt-1 text-xs text-gray-500">Tip: Use "|" to split segments.</p>
+          </div>
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm disabled:opacity-50"
+            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+          >
+            {saving ? 'Saving...' : 'Save Settings'}
+          </button>
         </form>
       </div>
     </div>
