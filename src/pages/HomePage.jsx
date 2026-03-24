@@ -2,6 +2,7 @@ import React from 'react';
 import Hero from '../components/Hero';
 import Services from '../components/Services';
 import Features from '../components/Features';
+import WhyChooseUs from '../components/WhyChooseUs';
 import CustomNeonPrinting from '../components/CustomNeonPrinting';
 import Transformation from '../components/Transformation';
 import Products from '../components/Products';
@@ -19,6 +20,7 @@ const HomePage = () => {
       <Services />
       <Features />
       <CustomNeonPrinting />
+      <WhyChooseUs />
       <Transformation />
       <Products />
       <TrustedBy />
