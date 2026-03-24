@@ -1411,7 +1411,7 @@ const ProductDesigner = () => {
     canvas.renderAll();
     
     // Wait a moment for canvas to fully render before exporting
-    setTimeout(() => {
+    setTimeout(async () => {
       try {
         // Export with transparency preserved
         // Use toDataURL with format 'png' to preserve transparency
