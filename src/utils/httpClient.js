@@ -1,3 +1,4 @@
+import { getBrowserClientId } from './clientIdentity';
 let configData = null;
 
 // Load config from public folder
@@ -54,6 +55,7 @@ class HttpClient {
     const headers = {
       ...(!isFormData && { 'Content-Type': 'application/json' }),
       ...(token && { Authorization: `Bearer ${token}` }),
+      ...(getBrowserClientId() && { 'X-Client-Id': getBrowserClientId() }),
       ...options.headers,
     };
 
