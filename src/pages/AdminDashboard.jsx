@@ -9,6 +9,7 @@ import { quoteService } from '../services/quoteService';
 import { categoryService } from '../services/categoryService';
 
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -57,18 +58,22 @@ const AdminDashboard = () => {
   const handleOrderStatusUpdate = async (orderId, newStatus) => {
     try {
       await orderService.updateStatus(orderId, newStatus);
+      toast.success('Order status updated');
       fetchData();
     } catch (error) {
       console.error('Error updating order:', error);
+      toast.error(error.message || 'Failed to update order');
     }
   };
 
   const handleQuoteResponse = async (quoteId, response) => {
     try {
       await quoteService.update(quoteId, response);
+      toast.success('Quote updated');
       fetchData();
     } catch (error) {
       console.error('Error responding to quote:', error);
+      toast.error(error.message || 'Failed to update quote');
     }
   };
 
@@ -122,6 +127,7 @@ const AdminDashboard = () => {
               <button
                 onClick={() => {
                   logout();
+                  toast.info('Logged out');
                   navigate('/admin/login');
                 }}
                 className="px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-semibold transition-colors"
@@ -253,11 +259,12 @@ const ProductsTab = ({ products, onRefresh }) => {
   const handleDelete = async (productId) => {
     try {
       await productService.delete(productId);
+      toast.success('Product deleted');
       setDeleteConfirm(null);
       onRefresh && onRefresh();
     } catch (error) {
       console.error('Error deleting product:', error);
-      alert(error.message || 'Failed to delete product');
+      toast.error(error.message || 'Failed to delete product');
     }
   };
 
@@ -1217,7 +1224,7 @@ const QuotesTab = ({ quotes, onResponse }) => {
         quotedPrice: quotedPrice ? parseFloat(quotedPrice) : undefined,
       })
       .then(() => {
-        alert('Quotation email sent to customer successfully.');
+        toast.success('Quotation email sent to customer');
         onResponse(selectedQuote._id, {
           status: 'quoted',
           adminResponse: responseText,
@@ -1226,7 +1233,7 @@ const QuotesTab = ({ quotes, onResponse }) => {
       })
       .catch((error) => {
         console.error('Error sending quotation email:', error);
-        alert(error.message || 'Failed to send quotation email.');
+        toast.error(error.message || 'Failed to send quotation email.');
       });
   };
 

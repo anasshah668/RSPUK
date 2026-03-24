@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'react-toastify';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { productService } from '../services/productService';
@@ -284,7 +285,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     const effectiveDesignOption = (showEditor || showUpload) ? designOption : null;
 
     if (sizeEnabled && sizeRequired && !selectedSize) {
-      alert('Please select a size to continue.');
+      toast.error('Please select a size to continue.');
       return;
     }
 
@@ -312,8 +313,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       })
     };
     addToCart(cartProduct, quantity);
-    // Show success message (you could use a toast library here)
-    alert(`${displayProduct.name} added to cart!`);
+    toast.success(`${displayProduct.name} added to cart!`);
   };
 
   return (

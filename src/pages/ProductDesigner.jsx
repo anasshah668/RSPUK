@@ -1448,7 +1448,7 @@ const ProductDesigner = () => {
         canvas.setZoom(currentZoom);
         canvas.setViewportTransform(currentVpt);
         canvas.renderAll();
-        alert('Error exporting design. Please try again.');
+        try { const { toast } = await import('react-toastify'); toast.error('Error exporting design. Please try again.'); } catch(_) {}
       }
     }, 100);
   };

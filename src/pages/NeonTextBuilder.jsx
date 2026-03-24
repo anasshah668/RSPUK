@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { toast } from 'react-toastify';
 import NeonText from '../components/NeonText';
 import { toPng } from 'html-to-image';
 
@@ -41,7 +42,7 @@ const NeonTextBuilder = () => {
       link.click();
     } catch (error) {
       console.error('Export failed:', error);
-      alert('Failed to export image. Please try again.');
+      toast.error('Failed to export image. Please try again.');
     }
   };
 
