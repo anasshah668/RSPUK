@@ -4,6 +4,13 @@ import { getRoutePath } from '../config/routes.config';
 
 const Footer = () => {
   const navigate = useNavigate();
+  const paymentLogos = [
+    { name: 'Visa', src: '/payment-logos/visa.png', logoClass: 'h-9 md:h-10' },
+    { name: 'American Express', src: '/payment-logos/american-express.png', logoClass: 'h-8 md:h-9' },
+    { name: 'Maestro', src: '/payment-logos/maestro.png', logoClass: 'h-8 md:h-9' },
+    { name: 'Mastercard', src: '/payment-logos/mastercard.png', logoClass: 'h-8 md:h-9' },
+    { name: 'PayPal', src: '/payment-logos/paypal.png', logoClass: 'h-9 md:h-10' },
+  ];
 
   const handleNavClick = (section) => {
     const routeMap = {
@@ -220,6 +227,41 @@ const Footer = () => {
                 </button>
               </li>
             </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* Secure payment strip */}
+      <div className="bg-[#4f6872] border-t border-[#66818c]">
+        <div className="container mx-auto px-4 lg:px-8 py-4">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 md:flex-nowrap md:justify-start">
+            <div className="inline-flex items-center gap-2 text-white/95 pr-2 md:pr-4 md:border-r md:border-white/20">
+              <svg className="w-5 h-5 text-white" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fillRule="evenodd" d="M5 8V6a5 5 0 1110 0v2h1a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2v-6a2 2 0 012-2h1zm2 0h6V6a3 3 0 10-6 0v2z" clipRule="evenodd" />
+              </svg>
+              <span className="text-sm md:text-base font-semibold tracking-wide uppercase" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                <span className="text-white">Secure </span>
+                <span className="text-blue-200">Payments</span>
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-4 md:gap-5">
+              {paymentLogos.map((logo) => (
+                <div
+                  key={logo.name}
+                  className={`flex items-center justify-center ${logo.pill ? 'bg-white rounded-md px-2.5 py-1.5 shadow-sm' : ''}`}
+                  title={logo.name}
+                >
+                  <img
+                    src={logo.src}
+                    alt={logo.name}
+                    className={`${logo.logoClass} w-auto object-contain`}
+                    style={{ imageRendering: 'auto' }}
+                    loading="lazy"
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

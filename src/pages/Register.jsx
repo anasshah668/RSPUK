@@ -109,6 +109,15 @@ const Register = () => {
     }
   };
 
+  const handleGoogleSignUp = async () => {
+    try {
+      const googleAuthUrl = await authService.getGoogleAuthUrl();
+      window.location.href = googleAuthUrl;
+    } catch (error) {
+      setErrors({ submit: 'Unable to start Google sign-up. Please try again.' });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
@@ -358,6 +367,7 @@ const Register = () => {
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
+                onClick={handleGoogleSignUp}
                 className="w-full inline-flex justify-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >

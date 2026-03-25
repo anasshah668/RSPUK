@@ -1,6 +1,21 @@
 import httpClient from '../utils/httpClient';
 import { apiRoutes } from '../config/routes';
 
+const getApiBaseUrl = async () => {
+  try {
+    const response = await fetch('/config.json');
+    const config = await response.json();
+    return config?.api?.baseUrl || import.meta.env.VITE_API_URL || 'http://localhost:5002/api';
+  } catch (error) {
+    return import.meta.env.VITE_API_URL || 'http://localhost:5002/api';
+  }
+};
+
+const getGoogleAuthUrl = async () => {
+  const baseUrl = await getApiBaseUrl();
+  return `${baseUrl}/auth/google`;
+};
+
 const login = (payload) => {
   return httpClient.post(
     `${apiRoutes.authentication.login}`,
@@ -33,6 +48,7 @@ export const authService = {
   register,
   getProfile,
   forgotPassword,
+  getGoogleAuthUrl,
 };
 
 export default authService;

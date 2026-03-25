@@ -6,6 +6,7 @@ const AboutUs = lazy(() => import('../pages/AboutUs'));
 const GetQuote = lazy(() => import('../pages/GetQuote'));
 const Login = lazy(() => import('../pages/Login'));
 const Register = lazy(() => import('../pages/Register'));
+const OAuthCallback = lazy(() => import('../pages/OAuthCallback'));
 const ProductDetail = lazy(() => import('../pages/ProductDetail'));
 const ProductDesigner = lazy(() => import('../pages/ProductDesigner'));
 const NeonTextBuilder = lazy(() => import('../pages/NeonTextBuilder'));
@@ -47,6 +48,11 @@ export const routes = [
     path: '/register',
     component: Register,
     layout: 'default',
+  },
+  {
+    path: '/oauth-callback',
+    component: OAuthCallback,
+    layout: 'minimal',
   },
   {
     path: '/neon-builder',
