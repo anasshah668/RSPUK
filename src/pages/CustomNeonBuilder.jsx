@@ -14,15 +14,28 @@ const CustomNeonBuilder = () => {
   const previewRef = useRef(null);
   const [showPreview, setShowPreview] = useState(false);
   const [builderMode, setBuilderMode] = useState('design-light');
-  const [currentStep, setCurrentStep] = useState(1); // 1: Design, 2: Size, 3: Checkout
+  const [currentStep, setCurrentStep] = useState(1); // 1: Design + Size, 2: Checkout
+  const [showEffects, setShowEffects] = useState(false);
+  const [showBuildOptions, setShowBuildOptions] = useState(false);
   const [neonConfig, setNeonConfig] = useState({
-    text: 'NEON TEXT',
+    text: 'Start Typing',
     font: 'Pacifico',
     color: '#ff4df0',
-    size: 80,
-    glowIntensity: 15,
+    size: 40,
+    glowIntensity: 8,
     letterSpacing: 2,
-    flicker: false
+    flicker: false,
+
+    // New "Design a Light" options
+    environment: 'indoor', // indoor | outdoor
+    jacket: 'coloured', // coloured | white
+    backgroundStyle: 'cut-to-shape', // cut-to-shape
+    backgroundColor: 'white', // white | black | silver | yellow
+    mountingOption: 'wall-mounting-screws', // wall-mounting-screws
+    addOnShape: 'none', // none | heart | star
+    tubeThickness: 'bold', // classic | bold
+    remoteDimmer: 'yes', // yes | no
+    powerMode: 'power-adaptor', // battery-operated | power-adaptor
   });
   const [selectedSize, setSelectedSize] = useState(null);
   const [customerInfo, setCustomerInfo] = useState({
@@ -68,13 +81,22 @@ const CustomNeonBuilder = () => {
     loadCountries();
   }, []);
 
-  const neonSizes = [
-    { id: 'small', label: 'Small', width: '30cm', height: '20cm', price: 99.99, description: 'Perfect for indoor spaces' },
-    { id: 'medium', label: 'Medium', width: '60cm', height: '40cm', price: 199.99, description: 'Ideal for retail stores' },
-    { id: 'large', label: 'Large', width: '90cm', height: '60cm', price: 299.99, description: 'Great for large displays' },
-    { id: 'xlarge', label: 'Extra Large', width: '120cm', height: '80cm', price: 449.99, description: 'For maximum impact' },
-    { id: 'custom', label: 'Custom Size', width: 'Custom', height: 'Custom', price: 0, description: 'Contact us for pricing' }
+  const neonSizeWidths = [
+    { widthCm: 40, widthFt: '1.3ft', lettersPerLine: 4 },
+    { widthCm: 60, widthFt: '2ft', lettersPerLine: 10 },
+    { widthCm: 80, widthFt: '2.6ft', lettersPerLine: 13 },
+    { widthCm: 100, widthFt: '3.3ft', lettersPerLine: 16 },
+    { widthCm: 120, widthFt: '4.1ft', lettersPerLine: 20 },
+    { widthCm: 140, widthFt: '4.6ft', lettersPerLine: 24 },
+    { widthCm: 160, widthFt: '5.2ft', lettersPerLine: 26 },
+    { widthCm: 180, widthFt: '5.9ft', lettersPerLine: 30 },
+    { widthCm: 200, widthFt: '6.5ft', lettersPerLine: 34 },
+    { widthCm: 300, widthFt: '9.8ft', lettersPerLine: 34 },
+    { widthCm: 350, widthFt: '11.4ft', lettersPerLine: 34 },
   ];
+
+  // Height options (cm) - customer can choose after selecting width
+  const neonHeightOptionsCm = [8, 12, 16, 20, 24, 28, 32, 36, 40];
 
   const fonts = [
     { name: 'Pacifico', label: 'Pacifico' },
@@ -84,7 +106,7 @@ const CustomNeonBuilder = () => {
   ];
 
   const handleNext = () => {
-    if (currentStep < 3) {
+    if (currentStep < 2) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -96,6 +118,10 @@ const CustomNeonBuilder = () => {
   };
 
   const handleCheckout = () => {
+    if (!selectedSize) {
+      toast.error('Please select a size to continue.');
+      return;
+    }
     const order = {
       id: `neon-${Date.now()}`,
       type: 'neon-sign',
@@ -193,9 +219,9 @@ const CustomNeonBuilder = () => {
                 Customize Your Neon Sign
               </h3>
               
-              <div className="grid lg:grid-cols-3 gap-6">
+              <div className="space-y-6">
                 {/* Preview - Larger and More Prominent */}
-                <div className="lg:col-span-2">
+                <div>
                   <div className="bg-gray-900 rounded-xl p-8 min-h-[400px] flex items-center justify-center relative overflow-hidden">
                     {/* Dark background with subtle pattern */}
                     <div className="absolute inset-0 opacity-10 z-0" style={{
@@ -204,7 +230,7 @@ const CustomNeonBuilder = () => {
                     }}></div>
                     <div className="relative z-10 w-full" id="neon-preview-export">
                       <NeonText
-                        text={neonConfig.text}
+                        text={`${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♥' : neonConfig.addOnShape === 'star' ? ' ★' : ''}`}
                         font={neonConfig.font}
                         color={neonConfig.color}
                         size={neonConfig.size}
@@ -214,14 +240,21 @@ const CustomNeonBuilder = () => {
                       />
                     </div>
                     {/* Preview label */}
-                    <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm text-white px-3 py-1.5 rounded text-xs font-semibold z-20" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      Live Preview
+                    <div className="absolute top-4 left-4 z-20 space-y-2">
+                      <div className="bg-black/70 backdrop-blur-sm text-white px-3 py-1.5 rounded text-xs font-semibold inline-flex" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Live Preview
+                      </div>
+                      {selectedSize?.width && selectedSize?.height ? (
+                        <div className="bg-black/60 backdrop-blur-sm text-white/90 px-3 py-1.5 rounded text-[11px] font-semibold inline-flex border border-white/10" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          {selectedSize.width} wide {selectedSize.widthFt ? `(${selectedSize.widthFt})` : ''} • {selectedSize.height} height
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </div>
 
-                {/* Controls */}
-                <div className="space-y-4 lg:col-span-1">
+                {/* Controls (now shown under the preview) */}
+                <div className="space-y-4">
                   {/* Text Input */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -266,63 +299,455 @@ const CustomNeonBuilder = () => {
                     />
                   </div>
 
-                  {/* Size Slider */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      Text Size: {neonConfig.size}px
-                    </label>
-                    <input
-                      type="range"
-                      min="40"
-                      max="120"
-                      value={neonConfig.size}
-                      onChange={(e) => setNeonConfig({ ...neonConfig, size: parseInt(e.target.value) })}
-                      className="w-full"
-                    />
+                  {/* Select Size (moved here: right after color) */}
+                  <div className="rounded-xl border border-gray-200 bg-white p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Select Size
+                      </p>
+                      {selectedSize?.width && selectedSize?.height ? (
+                        <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          {selectedSize.width} × {selectedSize.height}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-full" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          Choose a size
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {neonSizeWidths.map((size) => (
+                        <button
+                          key={size.widthCm}
+                          type="button"
+                          onClick={() =>
+                            setSelectedSize({
+                              id: `w-${size.widthCm}`,
+                              label: `${size.widthCm}cm wide`,
+                              width: `${size.widthCm}cm`,
+                              height: `${neonHeightOptionsCm[0]}cm`,
+                              widthFt: size.widthFt,
+                              lettersPerLine: size.lettersPerLine,
+                              // Pricing is quote-based for these sizes unless you provide a price table
+                              price: 0,
+                            })
+                          }
+                          className={`p-3 rounded-lg border text-left transition-colors ${
+                            selectedSize?.width === `${size.widthCm}cm`
+                              ? 'border-blue-600 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300 bg-white'
+                          }`}
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-900">{size.widthCm}cm wide</p>
+                              <p className="text-xs text-gray-600 mt-0.5">
+                                ({size.widthFt}) • {size.lettersPerLine} letters per line
+                              </p>
+                            </div>
+                            <p className="text-xs font-bold text-gray-600 whitespace-nowrap">Quote</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Height selection */}
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold text-gray-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          Select Height
+                        </p>
+                        <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          {selectedSize?.height ? `Height: ${selectedSize.height}` : 'Select a width first'}
+                        </p>
+                      </div>
+                      <div className="mt-2 grid grid-cols-5 gap-2">
+                        {neonHeightOptionsCm.map((h) => {
+                          const heightValue = `${h}cm`;
+                          const disabled = !selectedSize?.width;
+                          const active = selectedSize?.height === heightValue;
+                          return (
+                            <button
+                              key={h}
+                              type="button"
+                              disabled={disabled}
+                              onClick={() => setSelectedSize((prev) => (prev ? { ...prev, height: heightValue } : prev))}
+                              className={`px-2 py-2 rounded-lg border text-[11px] font-semibold transition-colors ${
+                                disabled
+                                  ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                  : active
+                                    ? 'bg-blue-50 text-blue-700 border-blue-600'
+                                    : 'bg-white text-gray-800 border-gray-200 hover:border-gray-300'
+                              }`}
+                              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                            >
+                              {h}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Height in cm. (Example: 8, 12, 16…)
+                      </p>
+                    </div>
                   </div>
 
-                  {/* Glow Intensity */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      Glow Intensity: {neonConfig.glowIntensity}
-                    </label>
-                    <input
-                      type="range"
-                      min="5"
-                      max="30"
-                      value={neonConfig.glowIntensity}
-                      onChange={(e) => setNeonConfig({ ...neonConfig, glowIntensity: parseInt(e.target.value) })}
-                      className="w-full"
-                    />
+                  {/* Text & Effects (collapsed by default to reduce scrolling) */}
+                  <div className="rounded-xl border border-gray-200 bg-white">
+                    <button
+                      type="button"
+                      onClick={() => setShowEffects((v) => !v)}
+                      className="w-full px-4 py-3 flex items-center justify-between gap-3"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    >
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-gray-900">Text & Effects</p>
+                        <p className="text-xs text-gray-600 mt-0.5">Text size, glow, spacing, flicker</p>
+                      </div>
+                      <span className="text-gray-500 text-sm">{showEffects ? '−' : '+'}</span>
+                    </button>
+                    {showEffects ? (
+                      <div className="px-4 pb-4 space-y-4">
+                        {/* Fixed defaults (no sliders) */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="p-3 rounded-lg border border-gray-200 bg-gray-50">
+                            <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Text size</p>
+                            <p className="text-sm font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>{neonConfig.size}px</p>
+                          </div>
+                          <div className="p-3 rounded-lg border border-gray-200 bg-gray-50">
+                            <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Glow intensity</p>
+                            <p className="text-sm font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>{neonConfig.glowIntensity}</p>
+                          </div>
+                        </div>
+
+                        {/* Letter Spacing */}
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            Letter Spacing: {neonConfig.letterSpacing}px
+                          </label>
+                          <input
+                            type="range"
+                            min="0"
+                            max="10"
+                            value={neonConfig.letterSpacing}
+                            onChange={(e) => setNeonConfig({ ...neonConfig, letterSpacing: parseInt(e.target.value) })}
+                            className="w-full"
+                          />
+                        </div>
+
+                        {/* Flicker Toggle */}
+                        <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                          <input
+                            type="checkbox"
+                            id="flicker"
+                            checked={neonConfig.flicker}
+                            onChange={(e) => setNeonConfig({ ...neonConfig, flicker: e.target.checked })}
+                            className="w-4 h-4 text-blue-600"
+                          />
+                          <label htmlFor="flicker" className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            Enable Flicker Effect
+                          </label>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
 
-                  {/* Letter Spacing */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      Letter Spacing: {neonConfig.letterSpacing}px
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="10"
-                      value={neonConfig.letterSpacing}
-                      onChange={(e) => setNeonConfig({ ...neonConfig, letterSpacing: parseInt(e.target.value) })}
-                      className="w-full"
-                    />
-                  </div>
+                  {/* Build Options (collapsed by default to reduce scrolling) */}
+                  <div className="rounded-xl border border-gray-200 bg-white">
+                    <button
+                      type="button"
+                      onClick={() => setShowBuildOptions((v) => !v)}
+                      className="w-full px-4 py-3 flex items-center justify-between gap-3"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    >
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-gray-900">Build Options</p>
+                        <p className="text-xs text-gray-600 mt-0.5">Indoor/outdoor, jacket, background, dimmer…</p>
+                      </div>
+                      <span className="text-gray-500 text-sm">{showBuildOptions ? '−' : '+'}</span>
+                    </button>
 
-                  {/* Flicker Toggle */}
-                  <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                    <input
-                      type="checkbox"
-                      id="flicker"
-                      checked={neonConfig.flicker}
-                      onChange={(e) => setNeonConfig({ ...neonConfig, flicker: e.target.checked })}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <label htmlFor="flicker" className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      Enable Flicker Effect
-                    </label>
+                    {showBuildOptions ? (
+                      <div className="px-4 pb-4 space-y-4">
+
+                    {/* Indoor / Outdoor */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Indoor or Outdoor
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setNeonConfig({ ...neonConfig, environment: 'indoor' })}
+                          className={`p-3 rounded-lg border text-left transition-colors ${
+                            neonConfig.environment === 'indoor'
+                              ? 'border-blue-600 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        >
+                          <p className="text-sm font-semibold text-gray-900">Indoor</p>
+                          <p className="text-xs text-gray-600 mt-0.5">For indoor use only</p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNeonConfig({ ...neonConfig, environment: 'outdoor' })}
+                          className={`p-3 rounded-lg border text-left transition-colors ${
+                            neonConfig.environment === 'outdoor'
+                              ? 'border-blue-600 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        >
+                          <p className="text-sm font-semibold text-gray-900">Outdoor</p>
+                          <p className="text-xs text-gray-600 mt-0.5">IP67 Waterproof technology</p>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Jacket */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Choose a Jacket
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setNeonConfig({ ...neonConfig, jacket: 'coloured' })}
+                          className={`p-3 rounded-lg border text-left transition-colors ${
+                            neonConfig.jacket === 'coloured'
+                              ? 'border-blue-600 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        >
+                          <p className="text-sm font-semibold text-gray-900">Coloured Jacket</p>
+                          <p className="text-xs text-gray-600 mt-0.5">Off-state matches selected color</p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNeonConfig({ ...neonConfig, jacket: 'white' })}
+                          className={`p-3 rounded-lg border text-left transition-colors ${
+                            neonConfig.jacket === 'white'
+                              ? 'border-blue-600 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        >
+                          <p className="text-sm font-semibold text-gray-900">White Jacket</p>
+                          <p className="text-xs text-gray-600 mt-0.5">Off-state is white</p>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Background */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Choose Background
+                      </label>
+                      <div className="p-3 rounded-lg border border-gray-200 bg-gray-50">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              Cut to shape
+                            </p>
+                            <p className="text-xs text-gray-600 mt-0.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              Acrylic background that follows the shape of your sign
+                            </p>
+                          </div>
+                          <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            Selected
+                          </span>
+                        </div>
+                        <div className="mt-3">
+                          <p className="text-xs font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            Background color
+                          </p>
+                          <div className="grid grid-cols-4 gap-2">
+                            {[
+                              { key: 'white', label: 'White', swatch: '#ffffff', ring: 'ring-gray-200' },
+                              { key: 'black', label: 'Black', swatch: '#0b1220', ring: 'ring-gray-300' },
+                              { key: 'silver', label: 'Silver', swatch: '#cbd5e1', ring: 'ring-gray-200' },
+                              { key: 'yellow', label: 'Yellow', swatch: '#facc15', ring: 'ring-yellow-200' },
+                            ].map((c) => (
+                              <button
+                                key={c.key}
+                                type="button"
+                                onClick={() => setNeonConfig({ ...neonConfig, backgroundStyle: 'cut-to-shape', backgroundColor: c.key })}
+                                className={`rounded-lg border px-2 py-2 text-center transition-colors ${
+                                  neonConfig.backgroundColor === c.key
+                                    ? 'border-blue-600 bg-blue-50'
+                                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                                }`}
+                                title={c.label}
+                                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                              >
+                                <span className={`mx-auto block w-6 h-6 rounded-full border border-gray-200 ring-1 ${c.ring}`} style={{ backgroundColor: c.swatch }} />
+                                <span className="block text-[11px] font-semibold text-gray-700 mt-1">{c.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Mounting */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Mounting Option
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setNeonConfig({ ...neonConfig, mountingOption: 'wall-mounting-screws' })}
+                        className="w-full p-3 rounded-lg border border-blue-600 bg-blue-50 text-left"
+                        style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                      >
+                        <p className="text-sm font-semibold text-gray-900">Wall mounting screws</p>
+                        <p className="text-xs text-gray-600 mt-0.5">Comes with pre drilled mounting holes and wall screws</p>
+                      </button>
+                    </div>
+
+                    {/* Add a Heart or Star */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Add a Heart or Star (Optional)
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { key: 'none', label: 'None', icon: '—' },
+                          { key: 'heart', label: 'Heart', icon: '♥' },
+                          { key: 'star', label: 'Star', icon: '★' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setNeonConfig({ ...neonConfig, addOnShape: opt.key })}
+                            className={`p-2.5 rounded-lg border transition-colors ${
+                              neonConfig.addOnShape === opt.key
+                                ? 'border-blue-600 bg-blue-50'
+                                : 'border-gray-200 hover:border-gray-300 bg-white'
+                            }`}
+                            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                          >
+                            <div className="text-lg leading-none">{opt.icon}</div>
+                            <div className="text-[11px] font-semibold text-gray-700 mt-1">{opt.label}</div>
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Adds the selected symbol to the end of your text in the preview.
+                      </p>
+                    </div>
+
+                    {/* Tube Thickness */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Neon Tube Thickness
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setNeonConfig({ ...neonConfig, tubeThickness: 'classic' })}
+                          className={`p-3 rounded-lg border text-left transition-colors ${
+                            neonConfig.tubeThickness === 'classic'
+                              ? 'border-blue-600 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        >
+                          <p className="text-sm font-semibold text-gray-900">Classic Tube</p>
+                          <p className="text-xs text-gray-600 mt-0.5">6mm</p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNeonConfig({ ...neonConfig, tubeThickness: 'bold' })}
+                          className={`p-3 rounded-lg border text-left transition-colors ${
+                            neonConfig.tubeThickness === 'bold'
+                              ? 'border-blue-600 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        >
+                          <p className="text-sm font-semibold text-gray-900">Bold Tube</p>
+                          <p className="text-xs text-gray-600 mt-0.5">8mm (free upgrade)</p>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Remote Dimmer */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Remote Dimmer
+                      </label>
+                      <div className="p-3 rounded-lg border border-gray-200 bg-gray-50">
+                        <p className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          Set your sign to any brightness or turn it on/off at the touch of a button
+                        </p>
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setNeonConfig({ ...neonConfig, remoteDimmer: 'yes' })}
+                            className={`p-2.5 rounded-lg border font-semibold text-sm transition-colors ${
+                              neonConfig.remoteDimmer === 'yes'
+                                ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                : 'border-gray-200 bg-white text-gray-800 hover:border-gray-300'
+                            }`}
+                            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                          >
+                            Yes
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setNeonConfig({ ...neonConfig, remoteDimmer: 'no' })}
+                            className={`p-2.5 rounded-lg border font-semibold text-sm transition-colors ${
+                              neonConfig.remoteDimmer === 'no'
+                                ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                : 'border-gray-200 bg-white text-gray-800 hover:border-gray-300'
+                            }`}
+                            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                          >
+                            No
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Power Mode */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Power Mode
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setNeonConfig({ ...neonConfig, powerMode: 'battery-operated' })}
+                          className={`p-3 rounded-lg border text-left transition-colors ${
+                            neonConfig.powerMode === 'battery-operated'
+                              ? 'border-blue-600 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        >
+                          <p className="text-sm font-semibold text-gray-900">Battery operated</p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNeonConfig({ ...neonConfig, powerMode: 'power-adaptor' })}
+                          className={`p-3 rounded-lg border text-left transition-colors ${
+                            neonConfig.powerMode === 'power-adaptor'
+                              ? 'border-blue-600 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        >
+                          <p className="text-sm font-semibold text-gray-900">Power adaptor</p>
+                        </button>
+                      </div>
+                    </div>
+                    </div>
+                    ) : null}
                   </div>
 
                   {/* Quick Info */}
@@ -337,51 +762,7 @@ const CustomNeonBuilder = () => {
           </div>
         );
 
-      case 2: // Size Selection Step
-        return (
-          <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">
-                Select Size
-              </h3>
-              
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {neonSizes.map((size) => (
-                  <button
-                    key={size.id}
-                    onClick={() => setSelectedSize(size)}
-                    className={`p-4 border-2 rounded-lg text-left transition-all ${
-                      selectedSize?.id === size.id
-                        ? 'border-blue-600 bg-blue-50'
-                        : 'border-gray-200 hover:border-blue-300'
-                    }`}
-                  >
-                    <div className="font-bold text-gray-900 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {size.label}
-                    </div>
-                    <div className="text-sm text-gray-600 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {size.width} × {size.height}
-                    </div>
-                    <div className="text-sm text-gray-500 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {size.description}
-                    </div>
-                    {size.price > 0 ? (
-                      <div className="text-lg font-bold text-blue-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                        £{size.price.toFixed(2)}
-                      </div>
-                    ) : (
-                      <div className="text-sm text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                        Contact for quote
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        );
-
-      case 3: // Checkout Step
+      case 2: // Checkout Step
         return (
           <div className="space-y-6">
             <div className="bg-white rounded-xl shadow-lg p-6">
@@ -398,13 +779,29 @@ const CustomNeonBuilder = () => {
                   <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Text:</span>
-                      <span className="font-semibold text-gray-900">{neonConfig.text}</span>
+                      <span className="font-semibold text-gray-900">
+                        {`${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♥' : neonConfig.addOnShape === 'star' ? ' ★' : ''}`}
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Size:</span>
                       <span className="font-semibold text-gray-900">
                         {selectedSize ? `${selectedSize.width} × ${selectedSize.height}` : 'Not selected'}
                       </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Width:</span>
+                      <span className="font-semibold text-gray-900">
+                        {selectedSize?.width ? `${selectedSize.width}${selectedSize.widthFt ? ` (${selectedSize.widthFt})` : ''}` : '—'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Height:</span>
+                      <span className="font-semibold text-gray-900">{selectedSize?.height || '—'}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Letters per line:</span>
+                      <span className="font-semibold text-gray-900">{selectedSize?.lettersPerLine ?? '—'}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Color:</span>
@@ -414,6 +811,36 @@ const CustomNeonBuilder = () => {
                           style={{ backgroundColor: neonConfig.color }}
                         ></div>
                         <span className="font-semibold text-gray-900">{neonConfig.color}</span>
+                      </div>
+                    </div>
+                    <div className="border-t border-gray-200 pt-3 mt-3 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Indoor/Outdoor:</span>
+                        <span className="font-semibold text-gray-900">{neonConfig.environment === 'outdoor' ? 'Outdoor (IP67)' : 'Indoor'}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Jacket:</span>
+                        <span className="font-semibold text-gray-900">{neonConfig.jacket === 'white' ? 'White jacket' : 'Coloured jacket'}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Background:</span>
+                        <span className="font-semibold text-gray-900">{`Cut to shape • ${neonConfig.backgroundColor}`}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Mounting:</span>
+                        <span className="font-semibold text-gray-900">Wall mounting screws</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Tube thickness:</span>
+                        <span className="font-semibold text-gray-900">{neonConfig.tubeThickness === 'classic' ? 'Classic (6mm)' : 'Bold (8mm)'}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Remote dimmer:</span>
+                        <span className="font-semibold text-gray-900">{neonConfig.remoteDimmer === 'yes' ? 'Yes' : 'No'}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Power mode:</span>
+                        <span className="font-semibold text-gray-900">{neonConfig.powerMode === 'battery-operated' ? 'Battery operated' : 'Power adaptor'}</span>
                       </div>
                     </div>
                     <div className="border-t border-gray-200 pt-3 mt-3">
@@ -540,8 +967,7 @@ const CustomNeonBuilder = () => {
           <div className="flex items-center justify-between">
             {[
               { step: 1, label: 'Custom Design', icon: '✏️' },
-              { step: 2, label: 'Select Size', icon: '📏' },
-              { step: 3, label: 'Checkout', icon: '🛒' }
+              { step: 2, label: 'Checkout', icon: '🛒' }
             ].map((item, index) => (
               <React.Fragment key={item.step}>
                 <div className="flex items-center">
@@ -558,7 +984,7 @@ const CustomNeonBuilder = () => {
                     </span>
                   </div>
                 </div>
-                {index < 2 && (
+                {index < 1 && (
                   <div className={`flex-1 h-0.5 mx-4 ${currentStep > item.step ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
                 )}
               </React.Fragment>
@@ -611,14 +1037,11 @@ const CustomNeonBuilder = () => {
             </div>
           )}
           
-          {currentStep < 3 ? (
+          {currentStep < 2 ? (
             <button
               onClick={handleNext}
-              disabled={currentStep === 2 && !selectedSize}
               className={`px-6 py-3 rounded-lg font-semibold text-white transition-colors ${
-                currentStep === 2 && !selectedSize
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700'
+                'bg-blue-600 hover:bg-blue-700'
               }`}
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >

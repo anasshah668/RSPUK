@@ -1188,6 +1188,14 @@ const QuotesTab = ({ quotes, onResponse }) => {
   const [responseText, setResponseText] = useState('');
   const [quotedPrice, setQuotedPrice] = useState('');
 
+  const getStatusPillClasses = (status) => {
+    const s = (status || '').toLowerCase();
+    if (s === 'new') return 'bg-red-50 text-red-700 ring-red-600/10';
+    if (s === 'quoted') return 'bg-blue-50 text-blue-700 ring-blue-600/10';
+    if (s === 'contacted') return 'bg-amber-50 text-amber-700 ring-amber-600/10';
+    return 'bg-emerald-50 text-emerald-700 ring-emerald-600/10';
+  };
+
   const handleQuoteSelect = async (quote) => {
     setSelectedQuote(quote);
     setResponseText(quote?.adminResponse || '');
@@ -1274,124 +1282,189 @@ const QuotesTab = ({ quotes, onResponse }) => {
         </div>
 
         {selectedQuote && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">
-              Quote Details
-            </h3>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-500">Status</p>
-                  <p className="font-medium capitalize">{selectedQuote.status}</p>
+          <div className="bg-white rounded-xl shadow overflow-hidden border border-gray-100">
+            <div className="px-6 py-4 border-b bg-white">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <h3 className="text-xl font-bold text-gray-900 truncate" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {selectedQuote?.name || 'Quote Details'}
+                  </h3>
+                  <div className="text-sm text-gray-600 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    <span className="truncate">{selectedQuote?.email || '—'}</span>
+                    {selectedQuote?.phone ? <span> • {selectedQuote.phone}</span> : null}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    Received: {selectedQuote?.createdAt ? new Date(selectedQuote.createdAt).toLocaleString() : '—'}
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-500">Received</p>
-                  <p className="font-medium">{new Date(selectedQuote.createdAt).toLocaleString()}</p>
+
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${getStatusPillClasses(selectedQuote?.status)}`}
+                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  >
+                    {(selectedQuote?.status || 'unknown').toString()}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedQuote(null)}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50"
+                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  >
+                    Close
+                  </button>
                 </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Name</p>
-                <p className="font-medium">{selectedQuote.name}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Email</p>
-                <p className="font-medium">{selectedQuote.email}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Phone</p>
-                <p className="font-medium">{selectedQuote.phone}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Country</p>
-                <p className="font-medium">{selectedQuote.country || 'United Kingdom'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Company</p>
-                <p className="font-medium">{selectedQuote.company || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Preferred Contact</p>
-                <p className="font-medium capitalize">{selectedQuote.preferredContact || 'email'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Project Type</p>
-                <p className="font-medium">{selectedQuote.projectType}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Quote Type</p>
-                <p className="font-medium capitalize">{(selectedQuote.quoteType || 'standard').replace('-', ' ')}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Ideal Sign Width</p>
-                <p className="font-medium">{selectedQuote.idealSignWidth || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Quantity</p>
-                <p className="font-medium">{selectedQuote.quantity || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Message</p>
-                <p className="font-medium">{selectedQuote.message || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Additional Info</p>
-                <p className="font-medium">{selectedQuote.additionalInfo || 'N/A'}</p>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="rounded-lg border border-gray-100 p-4">
+                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Project Type</p>
+                  <p className="font-semibold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {selectedQuote.projectType || '—'}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-100 p-4">
+                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Quote Type</p>
+                  <p className="font-semibold text-gray-900 mt-1 capitalize" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {(selectedQuote.quoteType || 'standard').replace('-', ' ')}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-100 p-4">
+                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Company</p>
+                  <p className="font-semibold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {selectedQuote.company || 'N/A'}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-100 p-4">
+                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Preferred Contact</p>
+                  <p className="font-semibold text-gray-900 mt-1 capitalize" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {selectedQuote.preferredContact || 'email'}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-100 p-4">
+                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Country</p>
+                  <p className="font-semibold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {selectedQuote.country || 'United Kingdom'}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-100 p-4">
+                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Quantity</p>
+                  <p className="font-semibold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {selectedQuote.quantity || 'N/A'}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-100 p-4">
+                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Ideal Sign Width</p>
+                  <p className="font-semibold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {selectedQuote.idealSignWidth || 'N/A'}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-100 p-4">
+                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Last Responded</p>
+                  <p className="font-semibold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {selectedQuote.respondedAt ? new Date(selectedQuote.respondedAt).toLocaleString() : '—'}
+                  </p>
+                </div>
               </div>
 
-              <div>
-                <p className="text-sm text-gray-500 mb-2">Uploaded Artwork</p>
+              <div className="grid gap-4">
+                <div className="rounded-xl border border-gray-100 p-4 bg-gray-50">
+                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Message</p>
+                  <p className="font-medium text-gray-900 mt-2 whitespace-pre-wrap" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {selectedQuote.message || 'N/A'}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-gray-100 p-4">
+                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Additional Info</p>
+                  <p className="font-medium text-gray-900 mt-2 whitespace-pre-wrap" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {selectedQuote.additionalInfo || 'N/A'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-gray-100 p-4">
+                <p className="text-xs text-gray-500 mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Uploaded Artwork</p>
                 {selectedQuote.artworkUrl ? (
-                  <a href={selectedQuote.artworkUrl} target="_blank" rel="noreferrer" className="inline-block">
+                  <a
+                    href={selectedQuote.artworkUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-4 hover:bg-gray-50 rounded-lg p-2 -m-2"
+                  >
                     <img
                       src={selectedQuote.artworkUrl}
                       alt="Uploaded artwork"
-                      className="w-28 h-28 object-cover rounded-lg border border-gray-200"
+                      className="w-24 h-24 object-cover rounded-lg border border-gray-200 bg-white"
                     />
-                    <p className="text-xs text-blue-600 mt-1">Open full image</p>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        View full image
+                      </p>
+                      <p className="text-xs text-blue-600 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Opens in a new tab
+                      </p>
+                    </div>
                   </a>
                 ) : (
-                  <p className="font-medium">N/A</p>
+                  <p className="font-medium text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>N/A</p>
                 )}
               </div>
 
-              {selectedQuote.respondedAt && (
-                <div>
-                  <p className="text-sm text-gray-500">Last Responded At</p>
-                  <p className="font-medium">{new Date(selectedQuote.respondedAt).toLocaleString()}</p>
-                </div>
-              )}
-
               <div className="pt-4 border-t">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Response
-                </label>
-                <textarea
-                  value={responseText}
-                  onChange={(e) => setResponseText(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  rows="4"
-                />
-                <label className="block text-sm font-medium text-gray-700 mb-2 mt-4">
-                  Quoted Price (£)
-                </label>
-                <input
-                  type="number"
-                  value={quotedPrice}
-                  onChange={(e) => setQuotedPrice(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-                <button
-                  onClick={handleSubmitResponse}
-                  className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Submit Response
-                </button>
-                <button
-                  onClick={handleSendQuotationEmail}
-                  className="mt-3 ml-3 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
-                >
-                  Send Quotation by Email
-                </button>
+                <div className="grid gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      Response
+                    </label>
+                    <textarea
+                      value={responseText}
+                      onChange={(e) => setResponseText(e.target.value)}
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-300"
+                      rows="5"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                      placeholder="Write a customer-friendly response..."
+                    />
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-4 items-end">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Quoted Price (£)
+                      </label>
+                      <input
+                        type="number"
+                        value={quotedPrice}
+                        onChange={(e) => setQuotedPrice(e.target.value)}
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-300"
+                        style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        placeholder="e.g. 199.99"
+                        min="0"
+                        step="0.01"
+                      />
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+                      <button
+                        onClick={handleSubmitResponse}
+                        className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
+                        style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        type="button"
+                      >
+                        Submit Response
+                      </button>
+                      <button
+                        onClick={handleSendQuotationEmail}
+                        className="px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold"
+                        style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        type="button"
+                      >
+                        Send Quotation by Email
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

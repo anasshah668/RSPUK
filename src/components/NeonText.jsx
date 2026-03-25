@@ -70,7 +70,7 @@ const NeonText = ({
     color: '#ffffff', // White core for realistic neon tube
     letterSpacing: `${letterSpacing}px`,
     textShadow: generateNeonGlow(color, glowIntensity),
-    fontWeight: 'bold',
+    fontWeight: 300,
     textAlign: 'center',
     animation: flicker ? 'flicker 3s infinite' : 'none',
     textRendering: 'optimizeLegibility',
