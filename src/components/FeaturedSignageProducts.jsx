@@ -1,42 +1,15 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import WavyUnderline from './WavyUnderline';
+import { featuredSignageItems } from '../data/featuredSignageData';
 
 const FeaturedSignageProducts = () => {
   const navigate = useNavigate();
 
-  const items = [
-    {
-      title: '3D Built-up Letters',
-      route: '/featured/3d-built-up-letters',
-      image: '/threeD.png',
-      description: 'Premium dimensional lettering with standout visual impact.',
-    },
-    {
-      title: '2D Box Signage',
-      route: '/featured/2d-box-signage',
-      image: '/sign.jpg',
-      description: 'Clean and modern box signage for retail and commercial fronts.',
-    },
-    {
-      title: 'Flex Face Sign',
-      route: '/featured/flex-face',
-      image: '/hero.jpg',
-      description: 'Large format illuminated sign systems built for visibility.',
-    },
-    {
-      title: 'Lightbox Sign',
-      route: '/featured/lightbox',
-      image: '/neon-sign.jpg',
-      description: 'Bright, even illumination for day-and-night brand presence.',
-    },
-    {
-      title: 'Printed Board Sign',
-      route: '/featured/printed-board',
-      image: '/hero.jpg',
-      description: 'Durable, high-quality printed signage for indoor and outdoor use.',
-    },
-  ];
+  const items = featuredSignageItems.map((item) => ({
+    ...item,
+    image: item.images?.[0] || '',
+  }));
 
   return (
     <section className="py-12 md:py-14 bg-gray-50">

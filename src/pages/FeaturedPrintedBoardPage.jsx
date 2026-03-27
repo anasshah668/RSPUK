@@ -1,8 +1,8 @@
 import React from 'react';
-import CategoryProducts from './CategoryProducts';
+import FeaturedSignageCategoryPage from '../components/FeaturedSignageCategoryPage';
 
 const FeaturedPrintedBoardPage = () => {
-  return <CategoryProducts categorySlugOverride="printed-board" />;
+  return <FeaturedSignageCategoryPage categorySlug="printed-board" />;
 };
 
 export default FeaturedPrintedBoardPage;

@@ -1,8 +1,8 @@
 import React from 'react';
-import CategoryProducts from './CategoryProducts';
+import FeaturedSignageCategoryPage from '../components/FeaturedSignageCategoryPage';
 
 const Featured2DBoxSignagePage = () => {
-  return <CategoryProducts categorySlugOverride="2d-box-signage" />;
+  return <FeaturedSignageCategoryPage categorySlug="2d-box-signage" />;
 };
 
 export default Featured2DBoxSignagePage;

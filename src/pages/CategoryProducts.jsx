@@ -4,6 +4,7 @@ import { productService } from '../services/productService';
 import { encryptId, createSlug } from '../utils/encryption';
 import { getRoutePath } from '../config/routes.config';
 import WavyUnderline from '../components/WavyUnderline';
+import { getFeaturedSignageBySlug } from '../data/featuredSignageData';
 
 const CategoryProducts = ({ categorySlugOverride } = {}) => {
   const params = useParams();
@@ -163,13 +164,9 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
     'lightbox',
     'printed-board',
   ].includes(String(categorySlug || '').toLowerCase());
-  const featuredCategoryHeroImage = {
-    '3d-built-up-letters': `${import.meta.env.BASE_URL}threeD.png`,
-    '2d-box-signage': `${import.meta.env.BASE_URL}sign.jpg`,
-    'flex-face': `${import.meta.env.BASE_URL}hero.jpg`,
-    'lightbox': `${import.meta.env.BASE_URL}neon-sign.jpg`,
-    'printed-board': `${import.meta.env.BASE_URL}hero.jpg`,
-  }[String(categorySlug || '').toLowerCase()] || `${import.meta.env.BASE_URL}threeD.png`;
+  const featuredSignageItem = getFeaturedSignageBySlug(categorySlug);
+  const featuredCategoryHeroImage =
+    featuredSignageItem?.images?.[0] || `${import.meta.env.BASE_URL}threeD.png`;
 
   useEffect(() => {
     fetchProducts();
@@ -233,7 +230,7 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
           name: `${categoryInfo.label} - Bespoke Quote`,
           category: categorySlug,
           price: 0,
-          image: '',
+          image: featuredSignageItem?.images?.[1] || featuredSignageItem?.images?.[0] || '',
           _id: null,
           source: 'static',
           badge: 'Curated',
@@ -244,7 +241,7 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
           name: `${categoryInfo.label} - Premium Finish`,
           category: categorySlug,
           price: 0,
-          image: '',
+          image: featuredSignageItem?.images?.[0] || '',
           _id: null,
           source: 'static',
           badge: 'Curated',
@@ -264,7 +261,7 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
           name: `${categoryInfo.label} - Bespoke Quote`,
           category: categorySlug,
           price: 0,
-          image: '',
+          image: featuredSignageItem?.images?.[1] || featuredSignageItem?.images?.[0] || '',
           _id: null,
           source: 'static',
           badge: 'Curated',
@@ -275,7 +272,7 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
           name: `${categoryInfo.label} - Premium Finish`,
           category: categorySlug,
           price: 0,
-          image: '',
+          image: featuredSignageItem?.images?.[0] || '',
           _id: null,
           source: 'static',
           badge: 'Curated',

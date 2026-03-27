@@ -4,7 +4,8 @@ import { apiRoutes } from '../config/routes';
 const create = (payload) => {
   return httpClient.post(
     `${apiRoutes.orders.create}`,
-    payload
+    payload,
+    { skipAuth: true }
   );
 };
 

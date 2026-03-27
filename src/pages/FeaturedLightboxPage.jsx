@@ -1,8 +1,8 @@
 import React from 'react';
-import CategoryProducts from './CategoryProducts';
+import FeaturedSignageCategoryPage from '../components/FeaturedSignageCategoryPage';
 
 const FeaturedLightboxPage = () => {
-  return <CategoryProducts categorySlugOverride="lightbox" />;
+  return <FeaturedSignageCategoryPage categorySlug="lightbox" />;
 };
 
 export default FeaturedLightboxPage;

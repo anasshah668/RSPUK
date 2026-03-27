@@ -48,19 +48,22 @@ class HttpClient {
     await this.init();
     
     const token = localStorage.getItem('token');
+    const shouldSkipAuth = Boolean(options.skipAuth);
     
     // Determine if this is a file upload (FormData)
     const isFormData = options.body instanceof FormData;
     
     const headers = {
       ...(!isFormData && { 'Content-Type': 'application/json' }),
-      ...(token && { Authorization: `Bearer ${token}` }),
+      ...(!shouldSkipAuth && token && { Authorization: `Bearer ${token}` }),
       ...(getBrowserClientId() && { 'X-Client-Id': getBrowserClientId() }),
       ...options.headers,
     };
 
+    const { skipAuth, ...restOptions } = options;
+
     return {
-      ...options,
+      ...restOptions,
       headers,
     };
   }

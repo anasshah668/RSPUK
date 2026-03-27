@@ -1,8 +1,8 @@
 import React from 'react';
-import CategoryProducts from './CategoryProducts';
+import FeaturedSignageCategoryPage from '../components/FeaturedSignageCategoryPage';
 
 const FeaturedFlexFacePage = () => {
-  return <CategoryProducts categorySlugOverride="flex-face" />;
+  return <FeaturedSignageCategoryPage categorySlug="flex-face" />;
 };
 
 export default FeaturedFlexFacePage;

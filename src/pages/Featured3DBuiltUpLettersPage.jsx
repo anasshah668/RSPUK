@@ -1,8 +1,8 @@
 import React from 'react';
-import CategoryProducts from './CategoryProducts';
+import FeaturedSignageCategoryPage from '../components/FeaturedSignageCategoryPage';
 
 const Featured3DBuiltUpLettersPage = () => {
-  return <CategoryProducts categorySlugOverride="3d-built-up-letters" />;
+  return <FeaturedSignageCategoryPage categorySlug="3d-built-up-letters" />;
 };
 
 export default Featured3DBuiltUpLettersPage;

@@ -19,6 +19,7 @@ const Featured2DBoxSignagePage = lazy(() => import('../pages/Featured2DBoxSignag
 const Featured3DBuiltUpLettersPage = lazy(() => import('../pages/Featured3DBuiltUpLettersPage'));
 const FeaturedFlexFacePage = lazy(() => import('../pages/FeaturedFlexFacePage'));
 const FeaturedLightboxPage = lazy(() => import('../pages/FeaturedLightboxPage'));
+const FeaturedQuoteRequestPage = lazy(() => import('../pages/FeaturedQuoteRequestPage'));
 
 // Route configuration
 export const routes = [
@@ -93,6 +94,16 @@ export const routes = [
   {
     path: '/featured/lightbox',
     component: FeaturedLightboxPage,
+    layout: 'default',
+  },
+  {
+    path: '/featured/:categorySlug/quote',
+    component: FeaturedQuoteRequestPage,
+    layout: 'default',
+  },
+  {
+    path: '/featured/:categorySlug/requirements',
+    component: FeaturedQuoteRequestPage,
     layout: 'default',
   },
   // Category products route: /category/:categorySlug

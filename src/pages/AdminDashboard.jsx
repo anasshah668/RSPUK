@@ -1131,6 +1131,7 @@ const OrdersTab = ({ orders, onStatusUpdate }) => {
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order ID</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
@@ -1145,9 +1146,20 @@ const OrdersTab = ({ orders, onStatusUpdate }) => {
                     #{order._id.toString().slice(-8)}
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-6 py-4">
                   <div className="text-sm text-gray-900">{order.user?.name || 'N/A'}</div>
                   <div className="text-sm text-gray-500">{order.user?.email || ''}</div>
+                </td>
+                <td className="px-6 py-4">
+                  <div className="text-sm font-medium text-gray-900">
+                    {order.productType || order.globalInputs?.productType || order.orderItems?.[0]?.name || 'General Order'}
+                  </div>
+                  {order.globalInputs?.width && order.globalInputs?.height ? (
+                    <div className="text-xs text-gray-500">
+                      {order.globalInputs.width} x {order.globalInputs.height} {order.globalInputs.unit || ''}
+                      {order.globalInputs?.quantity ? `  • Qty ${order.globalInputs.quantity}` : ''}
+                    </div>
+                  ) : null}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900">£{order.total}</div>
