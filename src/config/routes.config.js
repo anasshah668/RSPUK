@@ -19,6 +19,16 @@ const Featured2DBoxSignagePage = lazy(() => import('../pages/Featured2DBoxSignag
 const Featured3DBuiltUpLettersPage = lazy(() => import('../pages/Featured3DBuiltUpLettersPage'));
 const FeaturedFlexFacePage = lazy(() => import('../pages/FeaturedFlexFacePage'));
 const FeaturedLightboxPage = lazy(() => import('../pages/FeaturedLightboxPage'));
+const FeaturedPostersPage = lazy(() => import('../pages/FeaturedPostersPage'));
+const FeaturedPvcBannersPage = lazy(() => import('../pages/FeaturedPvcBannersPage'));
+const FeaturedCorrexFoamexAluminiumPrintsPage = lazy(() => import('../pages/FeaturedCorrexFoamexAluminiumPrintsPage'));
+const FeaturedBacklitPrintsPage = lazy(() => import('../pages/FeaturedBacklitPrintsPage'));
+const FeaturedCanvasPrintsPage = lazy(() => import('../pages/FeaturedCanvasPrintsPage'));
+const FeaturedPrintedVinylPage = lazy(() => import('../pages/FeaturedPrintedVinylPage'));
+const FeaturedFrostedVinylPage = lazy(() => import('../pages/FeaturedFrostedVinylPage'));
+const FeaturedOneWayVisionPage = lazy(() => import('../pages/FeaturedOneWayVisionPage'));
+const FeaturedCutVinylPage = lazy(() => import('../pages/FeaturedCutVinylPage'));
+const FeaturedPrivacyFilmsPage = lazy(() => import('../pages/FeaturedPrivacyFilmsPage'));
 const FeaturedQuoteRequestPage = lazy(() => import('../pages/FeaturedQuoteRequestPage'));
 
 // Route configuration
@@ -94,6 +104,56 @@ export const routes = [
   {
     path: '/featured/lightbox',
     component: FeaturedLightboxPage,
+    layout: 'default',
+  },
+  {
+    path: '/featured/posters',
+    component: FeaturedPostersPage,
+    layout: 'default',
+  },
+  {
+    path: '/featured/pvc-banners',
+    component: FeaturedPvcBannersPage,
+    layout: 'default',
+  },
+  {
+    path: '/featured/correx-foamex-aluminium-prints',
+    component: FeaturedCorrexFoamexAluminiumPrintsPage,
+    layout: 'default',
+  },
+  {
+    path: '/featured/backlit-prints',
+    component: FeaturedBacklitPrintsPage,
+    layout: 'default',
+  },
+  {
+    path: '/featured/canvas-prints',
+    component: FeaturedCanvasPrintsPage,
+    layout: 'default',
+  },
+  {
+    path: '/featured/printed-vinyl',
+    component: FeaturedPrintedVinylPage,
+    layout: 'default',
+  },
+  {
+    path: '/featured/frosted-vinyl',
+    component: FeaturedFrostedVinylPage,
+    layout: 'default',
+  },
+  {
+    path: '/featured/one-way-vision',
+    component: FeaturedOneWayVisionPage,
+    layout: 'default',
+  },
+  {
+    path: '/featured/cut-vinyl',
+    component: FeaturedCutVinylPage,
+    layout: 'default',
+  },
+  {
+    path: '/featured/privacy-films',
+    component: FeaturedPrivacyFilmsPage,
     layout: 'default',
   },
   {

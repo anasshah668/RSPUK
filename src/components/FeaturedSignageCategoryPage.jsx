@@ -62,6 +62,7 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
   const [previewPayload, setPreviewPayload] = useState(null);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [designFile, setDesignFile] = useState(null);
+  const [expandedFaqIndex, setExpandedFaqIndex] = useState(null);
 
   const signageItem = getFeaturedSignageBySlug(categorySlug);
   const pageCopy = {
@@ -100,6 +101,55 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
   }, [categorySlug]);
 
   const galleryImages = useMemo(() => signageItem?.images || [], [signageItem]);
+
+  const usesList = useMemo(() => {
+    if (Array.isArray(signageItem?.uses) && signageItem.uses.length > 0) return signageItem.uses;
+    const byCategory = {
+      '3d-built-up-letters': ['Shopfront identity', 'Office reception branding', 'Retail fascia upgrades', 'Hospitality and venues'],
+      '2d-box-signage': ['Retail fascia panels', 'Mall units', 'Compact brand panels', 'Tenant signage'],
+      'flex-face': ['Large fascia runs', 'Showrooms and depots', 'Retail parks', 'Billboard-style displays'],
+      'lightbox': ['Menu boards', 'Wayfinding', 'Retail brand panels', 'POS displays'],
+      'printed-board': ['Point of sale', 'Event branding', 'Wayfinding and safety', 'Outdoor temporary signage'],
+      'posters': ['Campaigns and offers', 'Events and gigs', 'Window displays', 'Internal comms'],
+      'pvc-banners': ['Outdoor promotions', 'Events and fairs', 'Construction hoardings', 'Temporary branding'],
+      'correx-foamex-aluminium-prints': ['Estate boards', 'Wall branding', 'Directional signage', 'Premium displays'],
+      'backlit-prints': ['Lightboxes', 'Transport hubs', 'Hospitality menus', 'Retail displays'],
+      'canvas-prints': ['Office decor', 'Studios and galleries', 'Hospitality interiors', 'Retail ambience'],
+      'printed-vinyl': ['Window graphics', 'Wall wraps', 'Promotional decals', 'Brand takeovers'],
+      'frosted-vinyl': ['Office privacy', 'Meeting rooms', 'Reception glazing', 'Brand motifs'],
+      'one-way-vision': ['Storefront glazing', 'Vehicle windows', 'Public-facing glass', 'Transport ads'],
+      'cut-vinyl': ['Opening hours', 'Logos and lettering', 'Directional text', 'Minimal branding'],
+      'privacy-films': ['Partition glazing', 'Clinics and treatment rooms', 'Meeting suites', 'Reception areas'],
+    };
+    return byCategory[String(categorySlug || '').toLowerCase()] || [
+      'Retail and commercial spaces',
+      'Events and exhibitions',
+      'Wayfinding and brand panels',
+      'Short and long-term installs',
+    ];
+  }, [signageItem?.uses, categorySlug]);
+
+  const faqsList = useMemo(() => {
+    if (Array.isArray(signageItem?.faqs) && signageItem.faqs.length > 0) return signageItem.faqs;
+    return [
+      {
+        q: 'How do I choose the right material or specification?',
+        a: 'Tell us where the sign will live, how long it should last, and your target look. We’ll recommend material, finish and mounting options tailored to your environment and budget.',
+      },
+      {
+        q: 'Do you offer design assistance or templates?',
+        a: 'Yes. We can supply artwork templates and provide design assistance if required. For complex builds, our team will help translate your brand into production-ready artwork.',
+      },
+      {
+        q: 'What are the typical lead times?',
+        a: 'Standard lead times vary by product and quantity. As a guide, smaller print jobs are typically 2–5 working days, with larger fabricated signage taking longer. Rush options may be available.',
+      },
+      {
+        q: 'Can you handle installation or shipping?',
+        a: 'We can ship UK-wide and can coordinate installation for many signage types. Share your location and access constraints so we can advise the best route.',
+      },
+    ];
+  }, [signageItem?.faqs]);
 
   useEffect(() => {
     setActiveHeroImage(galleryImages[0] || `${import.meta.env.BASE_URL}hero.jpg`);
@@ -496,7 +546,7 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
             </div>
           )}
 
-          {loading ? (
+          {/* {loading ? (
             <div className="text-center py-12">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
               <p className="mt-3 text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -550,7 +600,87 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
                 </article>
               ))}
             </div>
-          )}
+          )} */}
+        </div>
+      </section>
+
+      {/* Uses Section */}
+      <section className="bg-white py-12 md:py-14 border-t border-gray-200">
+        <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
+          <div className="mb-6">
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Common uses</h2>
+            <p className="text-base text-gray-600 mt-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              Where {pageCopy.heading.toLowerCase()} is most effective.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {usesList.map((useItem, idx) => (
+              <div key={`${useItem}-${idx}`} className="rounded-xl border border-gray-200 p-4 bg-gray-50 hover:bg-white hover:shadow-sm transition">
+                <div className="flex items-start gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.207-10.707a1 1 0 00-1.414-1.414L9 8.586 7.707 7.293a1 1 0 00-1.414 1.414L9 11.414l4.207-4.121z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-900">{useItem}</p>
+                    <p className="text-xs text-gray-600 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      Practical application where this product delivers strong results.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section className="bg-gray-50 py-12 md:py-14 border-t border-gray-200">
+        <div className="container mx-auto px-4 lg:px-8 max-w-5xl">
+          <div className="mb-6 text-center">
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Frequently asked questions</h2>
+            <p className="text-base text-gray-600 mt-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              Everything you need to know about {pageCopy.heading.toLowerCase()}.
+            </p>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm divide-y divide-gray-200 overflow-hidden">
+            {faqsList.map((item, idx) => {
+              const isOpen = expandedFaqIndex === idx;
+              return (
+                <div key={`${item.q}-${idx}`} className="p-4 md:p-5">
+                  <button
+                    type="button"
+                    className="w-full flex items-start justify-between gap-4 text-left"
+                    onClick={() => setExpandedFaqIndex(isOpen ? null : idx)}
+                    aria-expanded={isOpen}
+                  >
+                    <span className="font-semibold text-gray-900">{item.q}</span>
+                    <span className={`flex-shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full border transition ${isOpen ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300 text-gray-700'}`}>
+                      <svg
+                        className={`w-4 h-4 transform transition ${isOpen ? 'rotate-45' : ''}`}
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M10 4a1 1 0 011 1v4h4a1 1 0 110 2h-4v4a1 1 0 11-2 0v-4H5a1 1 0 110-2h4V5a1 1 0 011-1z" />
+                      </svg>
+                    </span>
+                  </button>
+                  <div
+                    className={`mt-2 text-sm text-gray-700 overflow-hidden transition-all duration-300 ${
+                      isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                    }`}
+                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  >
+                    {item.a}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </section>
 

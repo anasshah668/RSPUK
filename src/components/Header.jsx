@@ -6,6 +6,7 @@ import { getRoutePath } from '../config/routes.config';
 const Header = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user, logout, getUserInitial } = useAuth();
+  const [isVatInclusive, setIsVatInclusive] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -89,8 +90,26 @@ const Header = () => {
   };
 
   const goToShopCategory = (categorySlug) => {
-    // Navigate to dedicated category page
-    navigate(`/category/${categorySlug}`);
+    const featuredRouteMap = {
+      '3d-built-up-letters': '/featured/3d-built-up-letters',
+      '2d-box-signage': '/featured/2d-box-signage',
+      'flex-face': '/featured/flex-face',
+      'lightbox': '/featured/lightbox',
+      'printed-board': '/featured/printed-board',
+      'posters': '/featured/posters',
+      'pvc-banners': '/featured/pvc-banners',
+      'correx-foamex-aluminium-prints': '/featured/correx-foamex-aluminium-prints',
+      'backlit-prints': '/featured/backlit-prints',
+      'canvas-prints': '/featured/canvas-prints',
+      'printed-vinyl': '/featured/printed-vinyl',
+      'frosted-vinyl': '/featured/frosted-vinyl',
+      'one-way-vision': '/featured/one-way-vision',
+      'cut-vinyl': '/featured/cut-vinyl',
+      'privacy-films': '/featured/privacy-films',
+    };
+
+    // Navigate featured categories to their dedicated pages, fallback to generic category route.
+    navigate(featuredRouteMap[categorySlug] || `/category/${categorySlug}`);
     setMobileMenuOpen(false);
     setShopOpen(false);
   };
@@ -129,6 +148,20 @@ const Header = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  // Persist VAT mode globally for pricing views.
+  useEffect(() => {
+    const savedVatMode = localStorage.getItem('vatMode');
+    if (savedVatMode === 'ex') {
+      setIsVatInclusive(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const vatMode = isVatInclusive ? 'inc' : 'ex';
+    localStorage.setItem('vatMode', vatMode);
+    window.dispatchEvent(new CustomEvent('vat-mode-changed', { detail: { mode: vatMode } }));
+  }, [isVatInclusive]);
 
   const handleLogout = () => {
     logout();
@@ -236,6 +269,27 @@ const Header = () => {
 
           {/* Right Navigation */}
           <div className="hidden lg:flex items-center space-x-6">
+            <div className="flex items-center gap-2 text-gray-300">
+              <span className="text-xs font-semibold text-white" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                VAT
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsVatInclusive((prev) => !prev)}
+                className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${
+                  isVatInclusive ? 'bg-blue-600' : 'bg-gray-500'
+                }`}
+                aria-label="Toggle VAT mode"
+                title={`Showing ${isVatInclusive ? 'Inc VAT' : 'Ex VAT'} prices`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    isVatInclusive ? 'translate-x-5' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
             <button
               onClick={() => handleNavClick('quote')}
               className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
@@ -445,6 +499,28 @@ const Header = () => {
             </button>
 
             {/* Auth Buttons / User Icon - Mobile */}
+            <div className="px-4 py-3 border-t border-gray-700 flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-300" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                VAT
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsVatInclusive((prev) => !prev)}
+                  className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${
+                    isVatInclusive ? 'bg-blue-600' : 'bg-gray-500'
+                  }`}
+                  aria-label="Toggle VAT mode"
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      isVatInclusive ? 'translate-x-5' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
             {!isAuthenticated() ? (
               <>
                 <button
