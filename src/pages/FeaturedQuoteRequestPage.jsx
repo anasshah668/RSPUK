@@ -58,6 +58,7 @@ const FeaturedQuoteRequestPage = () => {
   const signageItem = getFeaturedSignageBySlug(categorySlug);
   const [step, setStep] = useState('form'); // form | preview | success
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [artwork, setArtwork] = useState(null);
   const [formData, setFormData] = useState(() => getInitialFormState(signageItem?.title || ''));
 
   const heading = signageItem?.heading || signageItem?.title || 'Featured Signage';
@@ -231,7 +232,14 @@ ${JSON.stringify(orderPayload?.productSpecificInputs || {}, null, 2)}
 Notes:
 ${orderPayload?.notes || ''}`,
       };
-      await quoteService.create(composed);
+      if (artwork) {
+        await quoteService.createLogoArtworkQuote({
+          ...composed,
+          artwork, // form-data field consumed by backend
+        });
+      } else {
+        await quoteService.create(composed);
+      }
       setStep('success');
       toast.success('Thanks! We will share your quote via your given email.');
     } catch (error) {
@@ -318,6 +326,20 @@ ${orderPayload?.notes || ''}`,
                       style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                     />
                   </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      Reference Image (optional)
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setArtwork(e.target.files?.[0] || null)}
+                      className="w-full text-sm text-gray-700"
+                    />
+                    <p className="mt-1 text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      You can upload a reference image to help us understand your requirements.
+                    </p>
+                  </div>
                 </div>
               </section>
 
@@ -360,12 +382,16 @@ ${orderPayload?.notes || ''}`,
                 <div className="mt-4 bg-white border border-gray-100 rounded-lg p-4">
                   <p className="text-xs text-gray-500 mb-2">Product Specific Details</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
-                    {Object.entries(orderPayload.productSpecificInputs || {}).map(([key, value]) => (
-                      <div key={key} className="text-sm text-gray-800">
-                        <span className="text-gray-500 capitalize">{key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')}:</span>{' '}
-                        <span>{value === '' || value === null || value === undefined ? 'N/A' : String(value)}</span>
-                      </div>
-                    ))}
+                    {Object.entries(orderPayload.productSpecificInputs || {})
+                      .filter(([, value]) => !(value === '' || value === null || value === undefined))
+                      .map(([key, value]) => (
+                        <div key={key} className="text-sm text-gray-800">
+                          <span className="text-gray-500 capitalize">
+                            {key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')}:
+                          </span>{' '}
+                          <span>{String(value)}</span>
+                        </div>
+                      ))}
                   </div>
                 </div>
 

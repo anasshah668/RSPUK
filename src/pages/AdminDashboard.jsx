@@ -1443,12 +1443,7 @@ const QuotesTab = ({ quotes, onResponse }) => {
                     {selectedQuote.message || 'N/A'}
                   </p>
                 </div>
-                <div className="rounded-xl border border-gray-100 p-4">
-                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Additional Info</p>
-                  <p className="font-medium text-gray-900 mt-2 whitespace-pre-wrap" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                    {selectedQuote.additionalInfo || 'N/A'}
-                  </p>
-                </div>
+                <PrettyAdditionalInfo info={selectedQuote.additionalInfo} />
               </div>
 
               <div className="rounded-xl border border-gray-100 p-4">
@@ -2011,3 +2006,69 @@ const SettingsTab = () => {
 };
 
 export default AdminDashboard;
+
+// Helper: pretty render "Additional Info" which may include JSON sections
+const PrettyAdditionalInfo = ({ info }) => {
+  const raw = String(info || '');
+  const safe = (v) => (v === '' || v === null || v === undefined ? 'N/A' : String(v));
+
+  const extractJson = (label) => {
+    const marker = `${label}:`;
+    if (!raw.includes(marker)) return null;
+    const after = raw.split(marker)[1] || '';
+    // stop at next blank line or next label
+    const untilNext = after.split('\n\n')[0] || after;
+    try {
+      return JSON.parse(untilNext);
+    } catch {
+      return null;
+    }
+  };
+
+  const globalInputs = extractJson('Global Inputs');
+  const details = extractJson('Details');
+
+  return (
+    <div className="rounded-xl border border-gray-100 p-4">
+      <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Additional Info</p>
+
+      {globalInputs ? (
+        <div className="mt-3">
+          <p className="text-xs text-gray-500 mb-1">Global Inputs</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+            {Object.entries(globalInputs)
+              .filter(([, v]) => !(v === '' || v === null || v === undefined))
+              .map(([k, v]) => (
+                <div key={k} className="text-sm text-gray-800">
+                  <span className="text-gray-500 capitalize">{k.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')}:</span>{' '}
+                  <span className="font-medium">{safe(v)}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+      ) : null}
+
+      {details ? (
+        <div className="mt-4">
+          <p className="text-xs text-gray-500 mb-1">Details</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+            {Object.entries(details)
+              .filter(([, v]) => !(v === '' || v === null || v === undefined))
+              .map(([k, v]) => (
+                <div key={k} className="text-sm text-gray-800">
+                  <span className="text-gray-500 capitalize">{k.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')}:</span>{' '}
+                  <span className="font-medium">{safe(v)}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+      ) : null}
+
+      {!globalInputs && !details ? (
+        <p className="font-medium text-gray-900 mt-2 whitespace-pre-wrap" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+          {raw || 'N/A'}
+        </p>
+      ) : null}
+    </div>
+  );
+};
