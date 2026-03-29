@@ -1199,6 +1199,8 @@ const QuotesTab = ({ quotes, onResponse }) => {
   const [selectedQuote, setSelectedQuote] = useState(null);
   const [responseText, setResponseText] = useState('');
   const [quotedPrice, setQuotedPrice] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const getStatusPillClasses = (status) => {
     const s = (status || '').toLowerCase();
@@ -1257,16 +1259,62 @@ const QuotesTab = ({ quotes, onResponse }) => {
       });
   };
 
+  const parseFeatured = (q) => {
+    const note = String(q?.additionalInfo || '');
+    const marker = 'Featured Request • ';
+    if (note.includes(marker)) {
+      const slug = note.split(marker)[1]?.split('\n')[0]?.trim();
+      return slug || true;
+    }
+    return null;
+  };
+
+  const filteredQuotes = quotes.filter((q) => {
+    const matchStatus = filterStatus === 'all' ? true : (String(q.status || '').toLowerCase() === filterStatus);
+    const s = searchTerm.trim().toLowerCase();
+    const matchSearch = !s
+      ? true
+      : [q.name, q.email, q.phone, q.projectType, q.additionalInfo]
+          .filter(Boolean)
+          .some((v) => String(v).toLowerCase().includes(s));
+    return matchStatus && matchSearch;
+  });
+
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-900">
         Quote Requests
       </h2>
 
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-700">Status</label>
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          >
+            <option value="all">All</option>
+            <option value="new">New</option>
+            <option value="contacted">Contacted</option>
+            <option value="quoted">Quoted</option>
+          </select>
+        </div>
+        <div className="flex-1">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full sm:max-w-xs px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            placeholder="Search name, email, project..."
+          />
+        </div>
+      </div>
+
       <div className="grid md:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="divide-y divide-gray-200">
-            {quotes.map((quote) => (
+            {filteredQuotes.map((quote) => (
               <div
                 key={quote._id}
                 onClick={() => handleQuoteSelect(quote)}
@@ -1278,7 +1326,14 @@ const QuotesTab = ({ quotes, onResponse }) => {
                   <div>
                     <p className="font-semibold text-gray-900">{quote.name}</p>
                     <p className="text-sm text-gray-500">{quote.email}</p>
-                    <p className="text-sm text-gray-600 mt-1">{quote.projectType}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-sm text-gray-600">{quote.projectType}</p>
+                      {parseFeatured(quote) ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800">
+                          Featured
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                   <span className={`px-2 py-1 text-xs rounded-full ${
                     quote.status === 'new' ? 'bg-red-100 text-red-800' :

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { productService } from '../services/productService';
-import { orderService } from '../services/orderService';
+import { quoteService } from '../services/quoteService';
 import { encryptId, createSlug } from '../utils/encryption';
 import { getRoutePath } from '../config/routes.config';
 import { getFeaturedSignageBySlug } from '../data/featuredSignageData';
@@ -63,6 +63,9 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [designFile, setDesignFile] = useState(null);
   const [expandedFaqIndex, setExpandedFaqIndex] = useState(null);
+  const [contactOpen, setContactOpen] = useState(false);
+  const [contactSubmitting, setContactSubmitting] = useState(false);
+  const [contact, setContact] = useState({ name: '', email: '', phone: '' });
 
   const signageItem = getFeaturedSignageBySlug(categorySlug);
   const pageCopy = {
@@ -327,39 +330,8 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
       return;
     }
 
-    setIsSubmittingOrder(true);
-    try {
-      if (designFile) {
-        const multipart = new FormData();
-        multipart.append('designUpload', designFile);
-        multipart.append('payload', JSON.stringify(orderPayload));
-        Object.entries(orderPayload).forEach(([key, value]) => {
-          if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-            multipart.append(key, String(value));
-          }
-        });
-
-        try {
-          await orderService.create(multipart);
-        } catch (uploadError) {
-          // Fallback to JSON in case order endpoint does not accept multipart.
-          await orderService.create(orderPayload);
-        }
-      } else {
-        await orderService.create(orderPayload);
-      }
-
-      toast.success('Order request submitted successfully.');
-      setOrderFlowStep('success');
-      setFormData(getInitialFormState(signageItem?.title || pageCopy.heading));
-      setDesignFile(null);
-      setPreviewPayload(orderPayload);
-    } catch (error) {
-      console.error('Error creating featured order:', error);
-      toast.error(error.message || 'Unable to submit order. Please try again.');
-    } finally {
-      setIsSubmittingOrder(false);
-    }
+    // For quotes (Let's go), collect minimal contact then submit as quote (no login required)
+    setContactOpen(true);
   };
 
   const renderSelect = (name, label, options) => (
@@ -498,6 +470,103 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
           </div>
         </div>
       </section>
+
+      {/* Contact modal for quote submission */}
+      {contactOpen && (
+        <section className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="px-5 py-4 border-b bg-gray-50 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900">Your contact details</h3>
+              <button
+                type="button"
+                className="text-gray-500 hover:text-gray-700"
+                onClick={() => setContactOpen(false)}
+                disabled={contactSubmitting}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={contact.name}
+                  onChange={(e) => setContact((p) => ({ ...p, name: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  placeholder="Your full name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={contact.email}
+                  onChange={(e) => setContact((p) => ({ ...p, email: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  placeholder="you@example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <input
+                  type="tel"
+                  value={contact.phone}
+                  onChange={(e) => setContact((p) => ({ ...p, phone: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  placeholder="Mobile number"
+                />
+              </div>
+            </div>
+            <div className="px-5 py-4 border-t bg-gray-50 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setContactOpen(false)}
+                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
+                disabled={contactSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="px-5 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-60"
+                disabled={contactSubmitting || !contact.name || !contact.email || !contact.phone}
+                onClick={async () => {
+                  const orderPayload = previewPayload || buildOrderPayload();
+                  if (!orderPayload) return;
+                  const composed = {
+                    name: contact.name,
+                    email: contact.email,
+                    phone: contact.phone,
+                    projectType: pageCopy.heading,
+                    quantity: orderPayload?.globalInputs?.quantity,
+                    idealSignWidth: orderPayload?.globalInputs?.width,
+                    country: 'United Kingdom',
+                    additionalInfo: `Featured Request • ${categorySlug}\n\nGlobal Inputs:\n${JSON.stringify(orderPayload?.globalInputs || {}, null, 2)}\n\nDetails:\n${JSON.stringify(orderPayload?.productSpecificInputs || {}, null, 2)}\n\nAdvanced:\n${JSON.stringify(orderPayload?.advancedInputs || {}, null, 2)}\n\nNotes:\n${orderPayload?.notes || ''}`,
+                  };
+                  try {
+                    setContactSubmitting(true);
+                    await quoteService.create(composed);
+                    setContactOpen(false);
+                    setOrderFlowStep('success');
+                    toast.success('Thanks! We will share your quote via your given email.');
+                    setFormData(getInitialFormState(signageItem?.title || pageCopy.heading));
+                    setDesignFile(null);
+                    setPreviewPayload(orderPayload);
+                  } catch (err) {
+                    toast.error(err?.message || 'Unable to submit quote. Please try again.');
+                  } finally {
+                    setContactSubmitting(false);
+                  }
+                }}
+              >
+                Submit quote
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
 
       <section id="featured-projects-section" className="py-10 md:py-12">
         <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
