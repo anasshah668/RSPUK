@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { orderService } from '../services/orderService';
+import { quoteService } from '../services/quoteService';
 import { getFeaturedSignageBySlug } from '../data/featuredSignageData';
 
 const getInitialFormState = (productType) => ({
@@ -212,11 +212,31 @@ const FeaturedQuoteRequestPage = () => {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      await orderService.create(orderPayload);
+      const composed = {
+        name: formData.customerName,
+        email: formData.customerEmail,
+        phone: formData.customerPhone,
+        projectType: orderPayload.productType,
+        quantity: orderPayload.globalInputs?.quantity,
+        idealSignWidth: orderPayload.globalInputs?.width,
+        country: 'United Kingdom',
+        additionalInfo: `Featured Request • ${categorySlug}
+        
+Global Inputs:
+${JSON.stringify(orderPayload?.globalInputs || {}, null, 2)}
+
+Details:
+${JSON.stringify(orderPayload?.productSpecificInputs || {}, null, 2)}
+
+Notes:
+${orderPayload?.notes || ''}`,
+      };
+      await quoteService.create(composed);
       setStep('success');
+      toast.success('Thanks! We will share your quote via your given email.');
     } catch (error) {
-      console.error('Error creating featured order:', error);
-      toast.error(error.message || 'Unable to place order.');
+      console.error('Error creating featured quote:', error);
+      toast.error(error.message || 'Unable to submit quote.');
     } finally {
       setIsSubmitting(false);
     }
@@ -227,7 +247,7 @@ const FeaturedQuoteRequestPage = () => {
       <div className="container mx-auto px-4 lg:px-8 max-w-5xl">
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
           <div className="px-6 py-5 border-b">
-            <h1 className="text-2xl font-bold text-gray-900">Place a Order</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Request a Quote</h1>
             <p className="text-sm text-gray-600 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
               {heading} — share your requirement and we will contact you shortly.
             </p>
@@ -359,7 +379,7 @@ const FeaturedQuoteRequestPage = () => {
               <div className="flex justify-end gap-3">
                 <button type="button" onClick={() => setStep('form')} className="px-5 py-2.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50">Back to Edit</button>
                 <button type="button" onClick={handleSubmit} className="px-6 py-2.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-60" disabled={isSubmitting}>
-                  {isSubmitting ? 'Placing...' : 'Place Order'}
+                  {isSubmitting ? 'Submitting...' : 'Submit Quote'}
                 </button>
               </div>
             </div>
@@ -368,9 +388,9 @@ const FeaturedQuoteRequestPage = () => {
           {step === 'success' && (
             <div className="p-10 text-center">
               <div className="mx-auto w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-2xl">✓</div>
-              <h3 className="mt-4 text-2xl font-bold text-gray-900">Order Placed</h3>
+              <h3 className="mt-4 text-2xl font-bold text-gray-900">Quote Submitted</h3>
               <p className="mt-2 text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                We will contact you shortly.
+                Thanks! We will share your quote via your given email.
               </p>
               <button type="button" onClick={() => navigate(`/featured/${categorySlug}`)} className="mt-6 px-6 py-2.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700">
                 Back to Product Page
