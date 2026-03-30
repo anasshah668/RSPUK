@@ -82,7 +82,7 @@ const FeaturedQuoteRequestPage = () => {
     </div>
   );
 
-  const renderSelect = (name, label, options) => (
+  const renderSelect = (name, label, options, disabled = false) => (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
         {label}
@@ -90,7 +90,8 @@ const FeaturedQuoteRequestPage = () => {
       <select
         value={formData[name]}
         onChange={(e) => setFormData((prev) => ({ ...prev, [name]: e.target.value }))}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2.5 bg-white"
+        className={`w-full border rounded-lg px-3 py-2.5 ${disabled ? 'bg-gray-100 text-gray-600 cursor-not-allowed border-gray-200' : 'bg-white border-gray-200'}`}
+        disabled={disabled}
         style={{ fontFamily: 'Lexend Deca, sans-serif' }}
       >
         {options.map((opt) => (
@@ -156,6 +157,24 @@ const FeaturedQuoteRequestPage = () => {
 
   const orderPayload = useMemo(() => {
     const quantityNum = Math.max(1, Number(formData.quantity) || 1);
+    const globalInputsRaw = {
+      productType: formData.productType || heading,
+      width: formData.width,
+      height: formData.height,
+      unit: formData.unit,
+      quantity: quantityNum,
+      usage: formData.usage,
+      installationRequired: formData.installationRequired === 'yes',
+      deliveryRequired: formData.deliveryRequired === 'yes',
+    };
+    // prune empty/null/undefined
+    const globalInputs = Object.fromEntries(
+      Object.entries(globalInputsRaw).filter(([, v]) => !(v === '' || v === null || v === undefined))
+    );
+    const productInputsPruned = Object.fromEntries(
+      Object.entries(productSpecificInputs || {}).filter(([, v]) => !(v === '' || v === null || v === undefined))
+    );
+
     return {
       source: 'featured-signage-order',
       category: categorySlug,
@@ -167,17 +186,8 @@ const FeaturedQuoteRequestPage = () => {
         address: formData.customerAddress,
         company: formData.customerCompany,
       },
-      globalInputs: {
-        productType: formData.productType || heading,
-        width: formData.width,
-        height: formData.height,
-        unit: formData.unit,
-        quantity: quantityNum,
-        usage: formData.usage,
-        installationRequired: formData.installationRequired === 'yes',
-        deliveryRequired: formData.deliveryRequired === 'yes',
-      },
-      productSpecificInputs,
+      globalInputs,
+      productSpecificInputs: productInputsPruned,
       notes: formData.notes || '',
       orderItems: [{ name: `${heading} - Custom`, qty: quantityNum, price: 0, image: heroImage }],
       itemsPrice: 0,
@@ -218,11 +228,11 @@ const FeaturedQuoteRequestPage = () => {
         email: formData.customerEmail,
         phone: formData.customerPhone,
         projectType: orderPayload.productType,
-        quantity: orderPayload.globalInputs?.quantity,
-        idealSignWidth: orderPayload.globalInputs?.width,
+        quantity: orderPayload.globalInputs?.quantity ?? undefined,
+        idealSignWidth: orderPayload.globalInputs?.width ?? undefined,
         country: 'United Kingdom',
         additionalInfo: `Featured Request • ${categorySlug}
-        
+
 Global Inputs:
 ${JSON.stringify(orderPayload?.globalInputs || {}, null, 2)}
 
@@ -230,7 +240,7 @@ Details:
 ${JSON.stringify(orderPayload?.productSpecificInputs || {}, null, 2)}
 
 Notes:
-${orderPayload?.notes || ''}`,
+${(orderPayload?.notes || '').trim()}`.trim(),
       };
       if (artwork) {
         await quoteService.createLogoArtworkQuote({
@@ -293,6 +303,27 @@ ${orderPayload?.notes || ''}`,
                     {renderInput('letterHeight', 'Letter Height', 'number')}
                     {renderInput('letterDepth', 'Letter Depth', 'number')}
                     {renderInput('numberOfLetters', 'Number of Letters', 'number')}
+                    {renderSelect('material', 'Material', [
+                      { value: 'acrylic', label: 'Acrylic' },
+                      { value: 'metal', label: 'Metal' },
+                      { value: 'aluminum', label: 'Aluminum' },
+                    ], true)}
+                    {renderSelect('lightingType', 'Lighting Type', [
+                      { value: 'frontlit', label: 'Frontlit' },
+                      { value: 'backlit', label: 'Backlit' },
+                      { value: 'halo', label: 'Halo' },
+                      { value: 'none', label: 'None' },
+                    ], true)}
+                    {renderSelect('ledColor', 'LED Color', [
+                      { value: 'white', label: 'White' },
+                      { value: 'warm', label: 'Warm' },
+                      { value: 'rgb', label: 'RGB' },
+                    ], true)}
+                    {renderSelect('mountingType', 'Mounting Type', [
+                      { value: 'wall', label: 'Wall' },
+                      { value: 'raceway', label: 'Raceway' },
+                      { value: 'hanging', label: 'Hanging' },
+                    ], true)}
                   </>)}
                   {categorySlug === '2d-box-signage' && (<>
                     {renderInput('depth', 'Depth', 'number')}
@@ -368,14 +399,28 @@ ${orderPayload?.notes || ''}`,
                   <div className="bg-white border border-gray-100 rounded-lg p-4">
                     <p className="text-xs text-gray-500 mb-2">Project</p>
                     <p className="text-sm font-medium text-gray-900">{orderPayload.productType}</p>
-                    <p className="text-sm text-gray-700 mt-1">
-                      {orderPayload.globalInputs.width} x {orderPayload.globalInputs.height} {orderPayload.globalInputs.unit}
-                    </p>
-                    <p className="text-sm text-gray-700">Quantity: {orderPayload.globalInputs.quantity}</p>
-                    <p className="text-sm text-gray-700 capitalize">Use: {orderPayload.globalInputs.usage}</p>
-                    <p className="text-sm text-gray-700">
-                      Installation: {orderPayload.globalInputs.installationRequired ? 'Yes' : 'No'} • Delivery: {orderPayload.globalInputs.deliveryRequired ? 'Yes' : 'No'}
-                    </p>
+                    {orderPayload.globalInputs.width && orderPayload.globalInputs.height && (
+                      <p className="text-sm text-gray-700 mt-1">
+                        {orderPayload.globalInputs.width} x {orderPayload.globalInputs.height} {orderPayload.globalInputs.unit || ''}
+                      </p>
+                    )}
+                    {orderPayload.globalInputs.quantity !== undefined && (
+                      <p className="text-sm text-gray-700">Quantity: {orderPayload.globalInputs.quantity}</p>
+                    )}
+                    {orderPayload.globalInputs.usage && (
+                      <p className="text-sm text-gray-700 capitalize">Use: {orderPayload.globalInputs.usage}</p>
+                    )}
+                    {(orderPayload.globalInputs.installationRequired !== undefined || orderPayload.globalInputs.deliveryRequired !== undefined) && (
+                      <p className="text-sm text-gray-700">
+                        {orderPayload.globalInputs.installationRequired !== undefined && (
+                          <>Installation: {orderPayload.globalInputs.installationRequired ? 'Yes' : 'No'}</>
+                        )}
+                        {orderPayload.globalInputs.installationRequired !== undefined && orderPayload.globalInputs.deliveryRequired !== undefined && ' • '}
+                        {orderPayload.globalInputs.deliveryRequired !== undefined && (
+                          <>Delivery: {orderPayload.globalInputs.deliveryRequired ? 'Yes' : 'No'}</>
+                        )}
+                      </p>
+                    )}
                   </div>
                 </div>
 

@@ -1443,7 +1443,7 @@ const QuotesTab = ({ quotes, onResponse }) => {
                     {selectedQuote.message || 'N/A'}
                   </p>
                 </div>
-                <PrettyAdditionalInfo info={selectedQuote.additionalInfo} />
+                <AdditionalInfoPanel info={selectedQuote.additionalInfo} />
               </div>
 
               <div className="rounded-xl border border-gray-100 p-4">
@@ -2007,64 +2007,86 @@ const SettingsTab = () => {
 
 export default AdminDashboard;
 
-// Helper: pretty render "Additional Info" which may include JSON sections
-const PrettyAdditionalInfo = ({ info }) => {
+// Pretty panel for Additional Info text containing labeled JSON sections
+const AdditionalInfoPanel = ({ info }) => {
   const raw = String(info || '');
-  const safe = (v) => (v === '' || v === null || v === undefined ? 'N/A' : String(v));
+  const lines = raw.split('\n').map(l => l.trim());
+  const featuredLine = lines.find(l => l.startsWith('Featured Request'));
 
-  const extractJson = (label) => {
-    const marker = `${label}:`;
-    if (!raw.includes(marker)) return null;
-    const after = raw.split(marker)[1] || '';
-    // stop at next blank line or next label
-    const untilNext = after.split('\n\n')[0] || after;
+  const extractJsonBlock = (label) => {
+    const startIndex = raw.indexOf(`${label}:`);
+    if (startIndex === -1) return null;
+    const after = raw.slice(startIndex + label.length + 1).trimStart();
+    // Capture the first {...} block after the label
+    const open = after.indexOf('{');
+    if (open === -1) return null;
+    // naive brace matching
+    let depth = 0;
+    let end = -1;
+    for (let i = open; i < after.length; i++) {
+      if (after[i] === '{') depth++;
+      if (after[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+    }
+    if (end === -1) return null;
+    const jsonStr = after.slice(open, end + 1);
     try {
-      return JSON.parse(untilNext);
+      return JSON.parse(jsonStr);
     } catch {
       return null;
     }
   };
 
-  const globalInputs = extractJson('Global Inputs');
-  const details = extractJson('Details');
+  const globalInputs = extractJsonBlock('Global Inputs');
+  const details = extractJsonBlock('Details');
+  const notesIndex = raw.indexOf('Notes:');
+  const notes = notesIndex !== -1 ? raw.slice(notesIndex + 'Notes:'.length).trim() : '';
+
+  const renderPairs = (obj) => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+      {Object.entries(obj || {})
+        .filter(([, v]) => !(v === '' || v === null || v === undefined))
+        .map(([k, v]) => (
+          <div key={k} className="text-sm text-gray-800">
+            <span className="text-gray-500 capitalize">{k.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')}:</span>{' '}
+            <span className="font-medium">{String(v)}</span>
+          </div>
+        ))}
+    </div>
+  );
 
   return (
     <div className="rounded-xl border border-gray-100 p-4">
       <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Additional Info</p>
-
+      {featuredLine ? (
+        <p className="mt-2 text-xs font-semibold inline-flex items-center gap-1 rounded-full bg-indigo-50 text-indigo-700 px-2 py-0.5">
+          {featuredLine}
+        </p>
+      ) : null}
       {globalInputs ? (
         <div className="mt-3">
           <p className="text-xs text-gray-500 mb-1">Global Inputs</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
-            {Object.entries(globalInputs)
-              .filter(([, v]) => !(v === '' || v === null || v === undefined))
-              .map(([k, v]) => (
-                <div key={k} className="text-sm text-gray-800">
-                  <span className="text-gray-500 capitalize">{k.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')}:</span>{' '}
-                  <span className="font-medium">{safe(v)}</span>
-                </div>
-              ))}
-          </div>
+          {renderPairs(globalInputs)}
         </div>
       ) : null}
-
       {details ? (
-        <div className="mt-4">
+        <div className="mt-3">
           <p className="text-xs text-gray-500 mb-1">Details</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
-            {Object.entries(details)
-              .filter(([, v]) => !(v === '' || v === null || v === undefined))
-              .map(([k, v]) => (
-                <div key={k} className="text-sm text-gray-800">
-                  <span className="text-gray-500 capitalize">{k.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')}:</span>{' '}
-                  <span className="font-medium">{safe(v)}</span>
-                </div>
-              ))}
-          </div>
+          {renderPairs(details)}
         </div>
       ) : null}
-
-      {!globalInputs && !details ? (
+      {notes ? (
+        <div className="mt-3">
+          <p className="text-xs text-gray-500 mb-1">Notes</p>
+          <p className="text-sm text-gray-800 whitespace-pre-wrap">{notes}</p>
+        </div>
+      ) : null}
+      {!featuredLine && !globalInputs && !details && !notes ? (
         <p className="font-medium text-gray-900 mt-2 whitespace-pre-wrap" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
           {raw || 'N/A'}
         </p>

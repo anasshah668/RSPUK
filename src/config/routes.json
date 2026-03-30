@@ -42,5 +42,10 @@
   },
   "settings": {
     "topAnnouncement": "settings/top-announcement"
+  },
+  "thirdParty": {
+    "authLogin": "third-party/auth/login",
+    "authToken": "third-party/auth/token",
+    "productAttributes": "third-party/products/attributes"
   }
 }

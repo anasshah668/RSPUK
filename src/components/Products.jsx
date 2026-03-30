@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { productService } from '../services/productService';
+import { thirdPartyService } from '../services/thirdPartyService';
 import { categoryService } from '../services/categoryService';
 import { encryptId, createSlug } from '../utils/encryption';
 import { getRoutePath } from '../config/routes.config';
@@ -86,10 +87,26 @@ const Products = () => {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      // Use centralized service
-      const data = await productService.list();
-      
-      if (data.products && data.products.length > 0) {
+      // Load local products and third-party products in parallel.
+      const [localResult, thirdPartyResult] = await Promise.allSettled([
+        productService.list(),
+        thirdPartyService.getProductAttributes(),
+      ]);
+
+      const data = localResult.status === 'fulfilled' ? localResult.value : { products: [] };
+      const thirdPartyData = thirdPartyResult.status === 'fulfilled' ? thirdPartyResult.value : { products: [] };
+
+      if (localResult.status === 'rejected') {
+        console.error('Error fetching local products:', localResult.reason);
+      }
+      if (thirdPartyResult.status === 'rejected') {
+        console.error('Error fetching third-party products:', thirdPartyResult.reason);
+      }
+
+      const localProducts = Array.isArray(data.products) ? data.products : [];
+      const partnerProducts = Array.isArray(thirdPartyData.products) ? thirdPartyData.products : [];
+
+      if (localProducts.length > 0 || partnerProducts.length > 0) {
         // Get category mapping from current categories state
         const categoryMap = {};
         if (categories.length > 0) {
@@ -99,7 +116,7 @@ const Products = () => {
         }
 
         // Transform backend products to match frontend format
-        const transformedProducts = data.products.map(product => {
+        const transformedLocalProducts = localProducts.map(product => {
           const categorySlug = product.category;
           const categoryDisplayName = categoryMap[categorySlug] || 
             categorySlug.charAt(0).toUpperCase() + categorySlug.slice(1).replace('-', ' ');
@@ -120,6 +137,26 @@ const Products = () => {
             productData: product, // Store full product data for navigation
           };
         });
+
+        const transformedThirdPartyProducts = partnerProducts.map((product, index) => ({
+          id: `tp-${product.productKey || index}`,
+          name: product.name || 'Third-party Product',
+          category: 'Partner Products',
+          categorySlug: 'partner-products',
+          categoryDisplayName: 'Partner Products',
+          price: 0,
+          originalPrice: null,
+          image: '',
+          badge: 'Partner',
+          rating: 4.5,
+          reviews: 0,
+          _id: `thirdparty:${product.productKey || index}`,
+          productData: product,
+          source: 'third-party',
+        }));
+
+        const transformedProducts = [...transformedLocalProducts, ...transformedThirdPartyProducts];
+
         setAllProducts(transformedProducts);
         // Apply current filter
         if (selectedCategory === 'All') {
@@ -155,6 +192,10 @@ const Products = () => {
   };
 
   const handleProductClick = (product) => {
+    if (product?.source === 'third-party') {
+      return;
+    }
+
     // Navigate to product detail page with encrypted ID
     const productId = product._id || product.id;
     const encryptedId = encryptId(productId);
