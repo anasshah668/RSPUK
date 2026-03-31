@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { productService } from '../services/productService';
+import { thirdPartyService } from '../services/thirdPartyService';
 import { decryptId } from '../utils/encryption';
 import EndBenefitsStrip from '../components/EndBenefitsStrip';
 
@@ -25,6 +26,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const [roundCorners, setRoundCorners] = useState('no');
   const [deliveryOption, setDeliveryOption] = useState('saver');
   const [showPricingGrid, setShowPricingGrid] = useState(false);
+  const [thirdPartySelections, setThirdPartySelections] = useState({});
 
   // Initialize with productProp if available, then fetch from URL params or productId
   useEffect(() => {
@@ -43,6 +45,38 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const fetchProduct = async (id) => {
     try {
       setLoading(true);
+      if (String(id).startsWith('thirdparty:')) {
+        const productNameFromId = String(id).replace('thirdparty:', '');
+        const thirdPartyData = await thirdPartyService.getProductAttributesByName(productNameFromId);
+        const thirdPartyProduct = thirdPartyData?.product || {};
+        const attrs = thirdPartyProduct?.attributes || {};
+        const initialSelections = Object.fromEntries(
+          Object.entries(attrs).map(([key, values]) => [key, Array.isArray(values) && values.length ? values[0] : ''])
+        );
+        setThirdPartySelections(initialSelections);
+        setProduct({
+          _id: id,
+          name: productNameFromId,
+          category: 'third-party',
+          basePrice: 0,
+          description: '',
+          images: [],
+          features: [],
+          specifications: {},
+          uiOptions: {
+            showEditorButton: false,
+            showUploadDesignButton: false,
+          },
+          sizeOptions: { enabled: false, required: false, options: [] },
+          pricingTable: { enabled: false, quantities: [], deliveryOptions: [] },
+          source: 'third-party',
+          thirdParty: {
+            productKey: thirdPartyProduct.productKey || '',
+            attributes: attrs,
+          },
+        });
+        return;
+      }
       // Use centralized service
       const data = await productService.getById(id);
       // Backend returns product directly, not wrapped
@@ -75,6 +109,8 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         uiOptions: product.uiOptions || {},
         sizeOptions: product.sizeOptions || {},
         pricingTable: product.pricingTable || {},
+        source: product.source || null,
+        thirdParty: product.thirdParty || null,
       };
     }
     // If we have productProp passed from parent, use it (this prevents image flash)
@@ -91,6 +127,8 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         uiOptions: productProp.uiOptions || {},
         sizeOptions: productProp.sizeOptions || {},
         pricingTable: productProp.pricingTable || {},
+        source: productProp.source || null,
+        thirdParty: productProp.thirdParty || null,
       };
     }
     // Otherwise use hardcoded data based on productType (only if not loading from backend)
@@ -100,6 +138,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   };
 
   const displayProduct = getProduct();
+  const isThirdPartyProduct = displayProduct?.source === 'third-party';
 
   // Check if this is a business card product
   const isBusinessCard = () => {
@@ -303,6 +342,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       uploadedImage: uploadedImage,
       ...(sizeEnabled && { size: selectedSize }),
       ...(hasDeliveryPricing && { deliveryOption }),
+      ...(isThirdPartyProduct && { thirdPartySelections }),
       // Include business card options if applicable
       ...(isBusinessCard() && {
         material,
@@ -698,6 +738,44 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                     </label>
                   )}
                 </div>
+
+                {/* Third-Party Attribute Selection */}
+                {isThirdPartyProduct && (
+                  <div className="space-y-6 pt-4 border-t border-gray-200">
+                    {displayProduct?.thirdParty?.productKey ? (
+                      <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                        <p className="text-xs text-blue-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          Product Key: <span className="font-semibold">{displayProduct.thirdParty.productKey}</span>
+                        </p>
+                      </div>
+                    ) : null}
+                    {Object.entries(displayProduct?.thirdParty?.attributes || {}).map(([attrName, options]) => (
+                      <div key={attrName}>
+                        <label className="block text-sm font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          {attrName}
+                        </label>
+                        <div className="grid grid-cols-2 gap-3">
+                          {(Array.isArray(options) ? options : []).map((optionValue) => (
+                            <button
+                              key={`${attrName}-${optionValue}`}
+                              type="button"
+                              onClick={() => setThirdPartySelections((prev) => ({ ...prev, [attrName]: optionValue }))}
+                              className={`p-4 border-2 rounded-lg transition-all text-center ${
+                                thirdPartySelections[attrName] === optionValue
+                                  ? 'border-green-500 bg-green-50'
+                                  : 'border-gray-300 hover:border-gray-400'
+                              }`}
+                            >
+                              <p className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                                {optionValue}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* Business Card Configuration Options */}
                 {isBusinessCard() && (

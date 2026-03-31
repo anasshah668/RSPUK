@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { productService } from '../services/productService';
-import { thirdPartyService } from '../services/thirdPartyService';
 import { categoryService } from '../services/categoryService';
 import { encryptId, createSlug } from '../utils/encryption';
 import { getRoutePath } from '../config/routes.config';
@@ -20,9 +19,6 @@ const Products = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(10);
-  const [selectedThirdPartyProduct, setSelectedThirdPartyProduct] = useState(null);
-  const [thirdPartyAttributes, setThirdPartyAttributes] = useState(null);
-  const [thirdPartyLoading, setThirdPartyLoading] = useState(false);
   const { addToCart } = useCart();
 
   // Static categories that should always appear
@@ -200,27 +196,10 @@ const Products = () => {
   };
 
   const handleProductClick = (product) => {
-    if (product?.source === 'third-party') {
-      setSelectedThirdPartyProduct(product);
-      setThirdPartyAttributes(null);
-      setThirdPartyLoading(true);
-      thirdPartyService
-        .getProductAttributesByName(product.name)
-        .then((data) => {
-          setThirdPartyAttributes(data?.product || null);
-        })
-        .catch((error) => {
-          console.error('Error loading third-party product attributes:', error);
-          setThirdPartyAttributes(null);
-        })
-        .finally(() => {
-          setThirdPartyLoading(false);
-        });
-      return;
-    }
-
     // Navigate to product detail page with encrypted ID
-    const productId = product._id || product.id;
+    const productId = product?.source === 'third-party'
+      ? `thirdparty:${product.name}`
+      : (product._id || product.id);
     const encryptedId = encryptId(productId);
     const slug = createSlug(product.name);
     const category = product.categorySlug || product.category?.toLowerCase() || 'product';
@@ -401,73 +380,6 @@ const Products = () => {
         )}
       </div>
 
-      {selectedThirdPartyProduct && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden">
-            <div className="px-6 py-4 border-b flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-bold text-gray-900">{selectedThirdPartyProduct.name}</h3>
-                <p className="text-sm text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  Third-party product attributes
-                </p>
-              </div>
-              <button
-                type="button"
-                className="text-gray-500 hover:text-gray-700"
-                onClick={() => {
-                  setSelectedThirdPartyProduct(null);
-                  setThirdPartyAttributes(null);
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto max-h-[70vh]">
-              {thirdPartyLoading ? (
-                <div className="text-center py-10">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  <p className="mt-3 text-sm text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                    Loading attributes...
-                  </p>
-                </div>
-              ) : !thirdPartyAttributes?.attributes ? (
-                <div className="text-center py-10 text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  Attributes not found for this product.
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-                    <p className="text-xs text-gray-500">Product Key</p>
-                    <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {thirdPartyAttributes.productKey || 'N/A'}
-                    </p>
-                  </div>
-
-                  {Object.entries(thirdPartyAttributes.attributes).map(([label, values]) => (
-                    <div key={label} className="rounded-xl border border-gray-200 p-4">
-                      <p className="text-sm font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                        {label}
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {(Array.isArray(values) ? values : []).map((value) => (
-                          <span
-                            key={`${label}-${value}`}
-                            className="px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-100"
-                            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                          >
-                            {value}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </section>
   );
 };

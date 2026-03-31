@@ -18,8 +18,11 @@ export const decryptId = (encryptedId) => {
     if (!encryptedId) return '';
     const decoded = decodeURIComponent(encryptedId);
     const combined = atob(decoded);
-    const id = combined.split('-')[0];
-    return id;
+    const suffix = `-${ENCRYPTION_KEY}`;
+    if (combined.endsWith(suffix)) {
+      return combined.slice(0, -suffix.length);
+    }
+    return combined;
   } catch (error) {
     console.error('Decryption error:', error);
     return encryptedId;
