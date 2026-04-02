@@ -149,13 +149,6 @@ const Header = () => {
     };
   }, []);
 
-  // Ensure mobile shop submenu closes when mobile menu closes
-  useEffect(() => {
-    if (!mobileMenuOpen) {
-      setShopOpen(false);
-    }
-  }, [mobileMenuOpen]);
-
   // Persist VAT mode globally for pricing views.
   useEffect(() => {
     const savedVatMode = localStorage.getItem('vatMode');
@@ -177,14 +170,14 @@ const Header = () => {
   };
 
   return (
-    <header className="bg-gray-800 sticky top-0 z-50 w-full">
-      <nav className="w-full px-3 lg:px-6">
-        <div className="grid [grid-template-columns:1fr_auto_1fr] items-center h-20 w-full">
+    <header className="bg-gray-800 sticky top-0 z-50">
+      <nav className="mx-auto max-w-[1440px] px-3 md:px-6 lg:px-8 xl:px-10">
+        <div className="flex items-center justify-between h-20">
           {/* Left Navigation */}
-          <div className="hidden lg:flex items-center space-x-6 col-start-1 whitespace-nowrap">
+          <div className="hidden lg:flex items-center space-x-6">
             <button
               onClick={() => handleNavClick('home')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Home
@@ -193,7 +186,7 @@ const Header = () => {
             <div className="relative" ref={shopRef}>
               <button
                 onClick={() => setShopOpen(!shopOpen)}
-                className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 flex items-center gap-1.5 whitespace-nowrap"
+                className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 flex items-center gap-1.5"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
                 Shop
@@ -239,7 +232,7 @@ const Header = () => {
 
             <button
               onClick={() => handleNavClick('custom-neon-builder')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Design Custom Neon
@@ -247,7 +240,7 @@ const Header = () => {
 
             <button
               onClick={() => handleNavClick('product-designer')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Design Tool
@@ -256,7 +249,7 @@ const Header = () => {
 
           {/* Center Logo */}
           <div 
-            className="flex items-center justify-center cursor-pointer group col-start-2"
+            className="flex items-center cursor-pointer group absolute left-1/2 transform -translate-x-1/2"
             onClick={() => handleNavClick('home')}
           >
             <img 
@@ -275,9 +268,9 @@ const Header = () => {
           </div>
 
           {/* Right Navigation */}
-          <div className="hidden lg:flex items-center space-x-6 justify-end col-start-3 whitespace-nowrap">
-            <div className="flex items-center gap-2 text-gray-300 flex-shrink-0">
-              <span className="text-xs font-semibold text-white whitespace-nowrap" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+          <div className="hidden lg:flex items-center space-x-6">
+            <div className="flex items-center gap-2 text-gray-300">
+              <span className="text-xs font-semibold text-white" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                 VAT
               </span>
               <button
@@ -299,7 +292,7 @@ const Header = () => {
 
             <button
               onClick={() => handleNavClick('quote')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Get a Free Quote
@@ -307,7 +300,7 @@ const Header = () => {
 
             <button
               onClick={() => handleNavClick('gallery')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Gallery
@@ -315,7 +308,7 @@ const Header = () => {
 
             <button
               onClick={() => handleNavClick('about-us')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               About Us
@@ -323,7 +316,7 @@ const Header = () => {
 
             <button
               onClick={() => handleNavClick('contact')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Contact
@@ -334,7 +327,7 @@ const Header = () => {
               <>
                 <button
                   onClick={() => handleNavClick('login')}
-                  className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap"
+                  className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
                   Login
@@ -388,10 +381,7 @@ const Header = () => {
           </div>
 
           {/* Mobile: Menu Button */}
-          <div className="lg:hidden flex items-center gap-2 col-span-3 justify-between">
-            <div className="flex items-center" onClick={() => handleNavClick('home')}>
-              <img src="/logo.png" alt="RER Logo" className="h-10 w-auto object-contain" />
-            </div>
+          <div className="lg:hidden flex items-center gap-2">
             <button
               className="text-white p-2 hover:bg-gray-700 rounded-lg transition-colors"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
