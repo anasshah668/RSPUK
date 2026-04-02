@@ -2,6 +2,8 @@
   "authentication": {
     "login": "auth/login",
     "register": "auth/register",
+    "registerSendOtp": "auth/register/send-otp",
+    "registerVerifyOtp": "auth/register/verify-otp",
     "me": "auth/me",
     "forgotPassword": "auth/forgot-password"
   },

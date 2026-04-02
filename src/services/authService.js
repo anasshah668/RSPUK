@@ -30,6 +30,20 @@ const register = (payload) => {
   );
 };
 
+const registerSendOtp = (payload) => {
+  return httpClient.post(
+    `${apiRoutes.authentication.registerSendOtp}`,
+    payload
+  );
+};
+
+const registerVerifyOtp = (payload) => {
+  return httpClient.post(
+    `${apiRoutes.authentication.registerVerifyOtp}`,
+    payload
+  );
+};
+
 const getProfile = () => {
   return httpClient.get(
     `${apiRoutes.authentication.me}`
@@ -46,6 +60,8 @@ const forgotPassword = (email) => {
 export const authService = {
   login,
   register,
+  registerSendOtp,
+  registerVerifyOtp,
   getProfile,
   forgotPassword,
   getGoogleAuthUrl,
