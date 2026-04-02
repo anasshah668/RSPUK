@@ -7,6 +7,7 @@ import { productService } from '../services/productService';
 import { orderService } from '../services/orderService';
 import { quoteService } from '../services/quoteService';
 import { categoryService } from '../services/categoryService';
+import { thirdPartyService } from '../services/thirdPartyService';
 
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -385,6 +386,8 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
     description: '',
     category: '',
     basePrice: '',
+    featuresText: '',
+    specificationsText: '',
     isActive: true,
     uiOptions: {
       showEditorButton: true,
@@ -424,6 +427,12 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
         description: product.description || '',
         category: product.category || '',
         basePrice: product.basePrice || '',
+        featuresText: Array.isArray(product.features) ? product.features.join('\n') : '',
+        specificationsText: product.specifications && typeof product.specifications === 'object'
+          ? Object.entries(product.specifications)
+              .map(([key, value]) => `${key}: ${value}`)
+              .join('\n')
+          : '',
         isActive: product.isActive !== undefined ? product.isActive : true,
         uiOptions: {
           showEditorButton: product.uiOptions?.showEditorButton ?? true,
@@ -471,6 +480,8 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
         description: '',
         category: '',
         basePrice: '',
+        featuresText: '',
+        specificationsText: '',
         isActive: true,
         uiOptions: {
           showEditorButton: true,
@@ -547,7 +558,7 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
     const stripHtml = (html) => (html || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
     if (!stripHtml(formData.description)) newErrors.description = 'Description is required';
 
-    if (!formData.basePrice || Number.isNaN(Number(formData.basePrice))) {
+    if (String(formData.basePrice || '').trim() !== '' && Number.isNaN(Number(formData.basePrice))) {
       newErrors.basePrice = 'Valid price is required';
     }
     setErrors(newErrors);
@@ -562,53 +573,34 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
     setSubmitError('');
 
     try {
-      const parseCsvNumbers = (str) =>
-        String(str || '')
-          .split(',')
-          .map(s => s.trim())
-          .filter(Boolean)
-          .map(n => Number(n))
-          .filter(n => !Number.isNaN(n));
+      const features = String(formData.featuresText || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
 
-      const quantities = parseCsvNumbers(formData.pricingTable?.quantities);
-      const saverPrices = parseCsvNumbers(formData.pricingTable?.saverPrices);
-      const standardPrices = parseCsvNumbers(formData.pricingTable?.standardPrices);
-      const expressPrices = parseCsvNumbers(formData.pricingTable?.expressPrices);
-
-      const pricingTablePayload = {
-        enabled: !!formData.pricingTable?.enabled,
-        quantities,
-        deliveryOptions: [
-          {
-            key: 'saver',
-            label: 'Saver',
-            etaDays: Number(formData.pricingTable?.saverEtaDays) || 6,
-            prices: saverPrices,
-          },
-          {
-            key: 'standard',
-            label: 'Standard',
-            etaDays: Number(formData.pricingTable?.standardEtaDays) || 4,
-            prices: standardPrices,
-          },
-          {
-            key: 'express',
-            label: 'Express',
-            etaDays: Number(formData.pricingTable?.expressEtaDays) || 2,
-            prices: expressPrices,
-          },
-        ],
-      };
+      const specifications = String(formData.specificationsText || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .reduce((acc, line) => {
+          const separatorIndex = line.indexOf(':');
+          if (separatorIndex === -1) return acc;
+          const key = line.slice(0, separatorIndex).trim();
+          const value = line.slice(separatorIndex + 1).trim();
+          if (key && value) acc[key] = value;
+          return acc;
+        }, {});
 
       const payload = {
         name: formData.name,
         description: formData.description,
         category: formData.category,
-        basePrice: String(formData.basePrice),
+        ...(String(formData.basePrice || '').trim() !== '' ? { basePrice: String(formData.basePrice) } : {}),
+        features,
+        specifications,
         isActive: String(formData.isActive),
         uiOptions: formData.uiOptions,
         sizeOptions: formData.sizeOptions,
-        pricingTable: pricingTablePayload,
       };
 
       console.log('[Admin] Product payload:', payload);
@@ -753,6 +745,35 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
               {errors.basePrice && (
                 <p className="mt-1 text-xs text-red-600">{errors.basePrice}</p>
               )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Features (one per line)
+              </label>
+              <textarea
+                name="featuresText"
+                value={formData.featuresText}
+                onChange={handleChange}
+                rows={6}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                placeholder={`Premium print quality\nFast turnaround\nEco-friendly stock`}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Specifications (Key: Value, one per line)
+              </label>
+              <textarea
+                name="specificationsText"
+                value={formData.specificationsText}
+                onChange={handleChange}
+                rows={6}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                placeholder={`Paper Type: 450gsm Silk\nSize: 85 x 55mm\nFinish: Matt`}
+              />
             </div>
           </div>
 
@@ -927,150 +948,6 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
               )}
             </div>
 
-            {/* Delivery Pricing Table */}
-            <div className="mt-6 border-t pt-4">
-              <label className="flex items-center gap-2 text-sm text-gray-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                <input
-                  type="checkbox"
-                  checked={!!formData.pricingTable?.enabled}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      pricingTable: { ...(prev.pricingTable || {}), enabled: e.target.checked },
-                    }))
-                  }
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                />
-                Enable delivery pricing table
-              </label>
-
-              {formData.pricingTable?.enabled && (
-                <div className="mt-3 space-y-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      Quantities (comma separated)
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.pricingTable?.quantities || ''}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          pricingTable: { ...(prev.pricingTable || {}), quantities: e.target.value },
-                        }))
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                      placeholder="250, 500, 1000, 1500"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="border border-gray-200 rounded-xl p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Saver</p>
-                        <input
-                          type="number"
-                          value={formData.pricingTable?.saverEtaDays ?? 6}
-                          onChange={(e) =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              pricingTable: { ...(prev.pricingTable || {}), saverEtaDays: e.target.value },
-                            }))
-                          }
-                          className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-xs"
-                          title="ETA days"
-                        />
-                      </div>
-                      <label className="block text-xs text-gray-600 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                        Prices (comma separated)
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.pricingTable?.saverPrices || ''}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            pricingTable: { ...(prev.pricingTable || {}), saverPrices: e.target.value },
-                          }))
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                        placeholder="20.80, 29.18, 37.27"
-                      />
-                    </div>
-
-                    <div className="border border-gray-200 rounded-xl p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Standard</p>
-                        <input
-                          type="number"
-                          value={formData.pricingTable?.standardEtaDays ?? 4}
-                          onChange={(e) =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              pricingTable: { ...(prev.pricingTable || {}), standardEtaDays: e.target.value },
-                            }))
-                          }
-                          className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-xs"
-                          title="ETA days"
-                        />
-                      </div>
-                      <label className="block text-xs text-gray-600 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                        Prices (comma separated)
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.pricingTable?.standardPrices || ''}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            pricingTable: { ...(prev.pricingTable || {}), standardPrices: e.target.value },
-                          }))
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                        placeholder="21.89, 30.72, 39.23"
-                      />
-                    </div>
-
-                    <div className="border border-gray-200 rounded-xl p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Express</p>
-                        <input
-                          type="number"
-                          value={formData.pricingTable?.expressEtaDays ?? 2}
-                          onChange={(e) =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              pricingTable: { ...(prev.pricingTable || {}), expressEtaDays: e.target.value },
-                            }))
-                          }
-                          className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-xs"
-                          title="ETA days"
-                        />
-                      </div>
-                      <label className="block text-xs text-gray-600 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                        Prices (comma separated)
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.pricingTable?.expressPrices || ''}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            pricingTable: { ...(prev.pricingTable || {}), expressPrices: e.target.value },
-                          }))
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                        placeholder="24.07, 33.79, 43.15"
-                      />
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                    Quantities count must match each prices list count (same order).
-                  </p>
-                </div>
-              )}
-            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -1889,6 +1766,8 @@ const SettingsTab = () => {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [syncingThirdParty, setSyncingThirdParty] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -1923,6 +1802,25 @@ const SettingsTab = () => {
       setError(e?.message || 'Failed to save settings');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSyncThirdPartyProducts = async () => {
+    setSyncingThirdParty(true);
+    setError('');
+    setNotice('');
+    setSyncResult(null);
+    try {
+      const response = await thirdPartyService.syncProductsToDb({ forceRefresh: true });
+      setSyncResult({
+        syncedCount: response?.syncedCount || 0,
+        productsCount: Array.isArray(response?.products) ? response.products.length : 0,
+      });
+      setNotice('Third-party products synced successfully.');
+    } catch (e) {
+      setError(e?.message || 'Failed to sync third-party products');
+    } finally {
+      setSyncingThirdParty(false);
     }
   };
 
@@ -2000,6 +1898,29 @@ const SettingsTab = () => {
             {saving ? 'Saving...' : 'Save Settings'}
           </button>
         </form>
+      </div>
+
+      <div className="bg-white rounded-xl shadow p-6 max-w-3xl">
+        <h3 className="text-lg font-bold text-gray-900 mb-2">Third-Party Product Sync</h3>
+        <p className="text-sm text-gray-600 mb-6" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+          Click to fetch selected third-party products and store/update them in your product database.
+        </p>
+
+        {syncResult ? (
+          <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+            Synced {syncResult.syncedCount} products ({syncResult.productsCount} filtered from source).
+          </div>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={handleSyncThirdPartyProducts}
+          disabled={syncingThirdParty}
+          className="px-5 py-2.5 rounded-lg bg-gray-900 hover:bg-gray-800 text-white font-semibold text-sm disabled:opacity-50"
+          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+        >
+          {syncingThirdParty ? 'Syncing...' : 'Fetch 3rd Party Products'}
+        </button>
       </div>
     </div>
   );

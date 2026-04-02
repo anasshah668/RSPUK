@@ -46,7 +46,9 @@
   "thirdParty": {
     "authLogin": "third-party/auth/login",
     "authToken": "third-party/auth/token",
+    "syncProducts": "third-party/products/sync",
     "productAttributes": "third-party/products/attributes",
-    "productAttributesByName": "third-party/products/attributes"
+    "productAttributesByName": "third-party/products/attributes",
+    "productPrices": "third-party/products/prices"
   }
 }

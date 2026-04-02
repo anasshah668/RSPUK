@@ -21,15 +21,6 @@ const Products = () => {
   const [visibleCount, setVisibleCount] = useState(10);
   const { addToCart } = useCart();
 
-  // Static categories that should always appear
-  const staticCategories = [
-    { name: 'printed-board', displayName: 'Printed Board' },
-    { name: '2d-box-signage', displayName: '2D Box Signage' },
-    { name: '3d-built-up-letters', displayName: '3D Built Up Letters' },
-    { name: 'flex-face', displayName: 'Flex Face' },
-    { name: 'lightbox', displayName: 'Lightbox' },
-  ];
-
   useEffect(() => {
     const loadData = async () => {
       await fetchCategories();
@@ -88,26 +79,10 @@ const Products = () => {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      // Load local products and third-party products in parallel.
-      const [localResult, thirdPartyResult] = await Promise.allSettled([
-        productService.list({ page: 1, limit: 100 }),
-        thirdPartyService.getProductAttributes(),
-      ]);
+      const data = await productService.list({ page: 1, limit: 100 });
+      const products = Array.isArray(data.products) ? data.products : [];
 
-      const data = localResult.status === 'fulfilled' ? localResult.value : { products: [] };
-      const thirdPartyData = thirdPartyResult.status === 'fulfilled' ? thirdPartyResult.value : { products: [] };
-
-      if (localResult.status === 'rejected') {
-        console.error('Error fetching local products:', localResult.reason);
-      }
-      if (thirdPartyResult.status === 'rejected') {
-        console.error('Error fetching third-party products:', thirdPartyResult.reason);
-      }
-
-      const localProducts = Array.isArray(data.products) ? data.products : [];
-      const partnerProducts = Array.isArray(thirdPartyData.products) ? thirdPartyData.products : [];
-
-      if (localProducts.length > 0 || partnerProducts.length > 0) {
+      if (products.length > 0) {
         // Get category mapping from current categories state
         const categoryMap = {};
         if (categories.length > 0) {
@@ -117,7 +92,7 @@ const Products = () => {
         }
 
         // Transform backend products to match frontend format
-        const transformedLocalProducts = localProducts.map(product => {
+        const transformedProducts = products.map(product => {
           const categorySlug = product.category;
           const categoryDisplayName = categoryMap[categorySlug] || 
             categorySlug.charAt(0).toUpperCase() + categorySlug.slice(1).replace('-', ' ');
@@ -125,38 +100,21 @@ const Products = () => {
           return {
             id: product._id,
             name: product.name,
+            description: String(product.description || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
             category: categoryDisplayName,
             categorySlug: categorySlug,
             categoryDisplayName: categoryDisplayName,
             price: product.basePrice || product.variants?.[0]?.price || 0,
             originalPrice: null,
-            image: product.images?.[0]?.url || '',
+            image: product.productImage?.url || product.images?.[0]?.url || '',
             badge: null,
             rating: 4.5,
             reviews: 0,
             _id: product._id,
             productData: product, // Store full product data for navigation
+            source: product.source || 'local',
           };
         });
-
-        const transformedThirdPartyProducts = partnerProducts.map((product, index) => ({
-          id: `tp-${product.productKey || index}`,
-          name: product.name || 'Third-party Product',
-          category: 'Partner Products',
-          categorySlug: 'partner-products',
-          categoryDisplayName: 'Partner Products',
-          price: 0,
-          originalPrice: null,
-          image: '',
-          badge: 'Partner',
-          rating: 4.5,
-          reviews: 0,
-          _id: `thirdparty:${product.productKey || index}`,
-          productData: product,
-          source: 'third-party',
-        }));
-
-        const transformedProducts = [...transformedLocalProducts, ...transformedThirdPartyProducts];
 
         setAllProducts(transformedProducts);
         // Apply current filter
@@ -197,9 +155,7 @@ const Products = () => {
 
   const handleProductClick = (product) => {
     // Navigate to product detail page with encrypted ID
-    const productId = product?.source === 'third-party'
-      ? `thirdparty:${product.name}`
-      : (product._id || product.id);
+    const productId = product._id || product.id;
     const encryptedId = encryptId(productId);
     const slug = createSlug(product.name);
     const category = product.categorySlug || product.category?.toLowerCase() || 'product';
@@ -225,7 +181,7 @@ const Products = () => {
           </p>
 
           {/* Categories Filter - Right after the description */}
-          {(categories.length > 0 || staticCategories.length > 0) && (
+          {categories.length > 0 && (
             <div className="flex flex-wrap justify-center gap-3 mb-12">
               <button
                 onClick={() => handleCategoryClick('All')}
@@ -238,20 +194,6 @@ const Products = () => {
               >
                 All Products
               </button>
-              {/* Static categories */}
-              {staticCategories.map((cat) => (
-                <button
-                  key={cat.name}
-                  onClick={() => {
-                    // Navigate to category page instead of filtering
-                    navigate(`/category/${cat.name}`);
-                  }}
-                  className="px-6 py-3 rounded-full font-semibold text-sm transition-all duration-200 bg-white text-gray-700 hover:bg-gray-100 shadow-md hover:shadow-lg"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  {cat.displayName}
-                </button>
-              ))}
               {/* Backend categories */}
               {categories.map((category) => (
                 <button
@@ -357,6 +299,12 @@ const Products = () => {
                 >
                   {product.name}
                 </h3>
+                <p
+                  className="mt-2 text-sm leading-6 text-gray-600 line-clamp-3 min-h-[4.5rem]"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  {product.description || ' '}
+                </p>
               </div>
             </div>
             ))}

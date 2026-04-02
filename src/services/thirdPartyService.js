@@ -14,10 +14,20 @@ const refreshAuth = () => {
   return httpClient.post(apiRoutes.thirdParty.authLogin, {});
 };
 
+const syncProductsToDb = (params = {}) => {
+  return httpClient.post(apiRoutes.thirdParty.syncProducts, {}, params);
+};
+
+const getProductPrices = (payload) => {
+  return httpClient.post(apiRoutes.thirdParty.productPrices, payload);
+};
+
 export const thirdPartyService = {
   getProductAttributes,
   getProductAttributesByName,
   refreshAuth,
+  syncProductsToDb,
+  getProductPrices,
 };
 
 export default thirdPartyService;

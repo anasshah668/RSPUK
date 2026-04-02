@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
@@ -25,8 +25,14 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const [lamination, setLamination] = useState('both-sides-matt');
   const [roundCorners, setRoundCorners] = useState('no');
   const [deliveryOption, setDeliveryOption] = useState('saver');
+  const deliveryOptionRef = useRef('saver');
   const [showPricingGrid, setShowPricingGrid] = useState(false);
-  const [thirdPartySelections, setThirdPartySelections] = useState({});
+  const [selectedAttributeValues, setSelectedAttributeValues] = useState({});
+  const [isVatInclusive, setIsVatInclusive] = useState(() => localStorage.getItem('vatMode') !== 'ex');
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [imageZoom, setImageZoom] = useState({ active: false, x: 50, y: 50 });
+  const [deliveryPricesByOption, setDeliveryPricesByOption] = useState({});
+  const [deliveryPricingLoading, setDeliveryPricingLoading] = useState(false);
 
   // Initialize with productProp if available, then fetch from URL params or productId
   useEffect(() => {
@@ -45,38 +51,6 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const fetchProduct = async (id) => {
     try {
       setLoading(true);
-      if (String(id).startsWith('thirdparty:')) {
-        const productNameFromId = String(id).replace('thirdparty:', '');
-        const thirdPartyData = await thirdPartyService.getProductAttributesByName(productNameFromId);
-        const thirdPartyProduct = thirdPartyData?.product || {};
-        const attrs = thirdPartyProduct?.attributes || {};
-        const initialSelections = Object.fromEntries(
-          Object.entries(attrs).map(([key, values]) => [key, Array.isArray(values) && values.length ? values[0] : ''])
-        );
-        setThirdPartySelections(initialSelections);
-        setProduct({
-          _id: id,
-          name: productNameFromId,
-          category: 'third-party',
-          basePrice: 0,
-          description: '',
-          images: [],
-          features: [],
-          specifications: {},
-          uiOptions: {
-            showEditorButton: false,
-            showUploadDesignButton: false,
-          },
-          sizeOptions: { enabled: false, required: false, options: [] },
-          pricingTable: { enabled: false, quantities: [], deliveryOptions: [] },
-          source: 'third-party',
-          thirdParty: {
-            productKey: thirdPartyProduct.productKey || '',
-            attributes: attrs,
-          },
-        });
-        return;
-      }
       // Use centralized service
       const data = await productService.getById(id);
       // Backend returns product directly, not wrapped
@@ -97,38 +71,44 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const getProduct = () => {
     // If we have product from backend, use it
     if (product) {
+      const allImages = [
+        product.productImage?.url,
+        ...(Array.isArray(product.images) ? product.images.map((img) => img?.url) : []),
+      ].filter(Boolean);
       return {
         name: product.name,
         category: product.category?.charAt(0).toUpperCase() + product.category?.slice(1).replace('-', ' ') || 'Product',
         price: product.basePrice || product.variants?.[0]?.price || 0,
         originalPrice: null,
-        image: product.images?.[0]?.url || '',
+        image: allImages[0] || '',
+        images: allImages,
         description: product.description || '',
         features: product.features || [],
         specifications: product.specifications || {},
         uiOptions: product.uiOptions || {},
         sizeOptions: product.sizeOptions || {},
         pricingTable: product.pricingTable || {},
-        source: product.source || null,
-        thirdParty: product.thirdParty || null,
       };
     }
     // If we have productProp passed from parent, use it (this prevents image flash)
     if (productProp) {
+      const allImages = [
+        productProp.productImage?.url,
+        ...(Array.isArray(productProp.images) ? productProp.images.map((img) => img?.url) : []),
+      ].filter(Boolean);
       return {
         name: productProp.name,
         category: productProp.category?.charAt(0).toUpperCase() + productProp.category?.slice(1).replace('-', ' ') || 'Product',
         price: productProp.basePrice || productProp.variants?.[0]?.price || 0,
         originalPrice: null,
-        image: productProp.images?.[0]?.url || '',
+        image: allImages[0] || '',
+        images: allImages,
         description: productProp.description || '',
         features: productProp.features || [],
         specifications: productProp.specifications || {},
         uiOptions: productProp.uiOptions || {},
         sizeOptions: productProp.sizeOptions || {},
         pricingTable: productProp.pricingTable || {},
-        source: productProp.source || null,
-        thirdParty: productProp.thirdParty || null,
       };
     }
     // Otherwise use hardcoded data based on productType (only if not loading from backend)
@@ -138,7 +118,10 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   };
 
   const displayProduct = getProduct();
-  const isThirdPartyProduct = displayProduct?.source === 'third-party';
+  const productImages = Array.isArray(displayProduct?.images) && displayProduct.images.length > 0
+    ? displayProduct.images
+    : (displayProduct?.image ? [displayProduct.image] : []);
+  const selectedImage = productImages[selectedImageIndex] || productImages[0] || '';
 
   // Check if this is a business card product
   const isBusinessCard = () => {
@@ -148,6 +131,103 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
            categoryLower.includes('businesscard') ||
            categoryLower === 'business card';
   };
+  const dynamicAttributes = product?.thirdPartyAttributes || productProp?.thirdPartyAttributes || {};
+  const hasDynamicAttributes = Object.keys(dynamicAttributes).length > 0;
+  const thirdPartyProductKey = product?.thirdPartyProductKey || productProp?.thirdPartyProductKey || null;
+  const hasThirdPartyPricing = Boolean(thirdPartyProductKey);
+  const STATIC_DELIVERY_OPTIONS = [
+    { key: 'saver', label: 'Saver', etaDays: 6, serviceLevel: 'Saver' },
+    { key: 'standard', label: 'Standard', etaDays: 4, serviceLevel: 'Standard' },
+    { key: 'express', label: 'Express', etaDays: 2, serviceLevel: 'Express' },
+  ];
+  const dynamicAttributeEntries = Object.entries(dynamicAttributes).filter(([attributeName]) => {
+    // For business cards, keep visual selectors and avoid duplicate dropdowns.
+    const normalizedName = attributeName.toLowerCase();
+    if (
+      isBusinessCard() &&
+      (normalizedName.includes('sides printed') || normalizedName.includes('round corners'))
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    if (!hasDynamicAttributes) {
+      setSelectedAttributeValues({});
+      return;
+    }
+
+    const initialValues = {};
+    Object.entries(dynamicAttributes).forEach(([attributeName, options]) => {
+      if (Array.isArray(options) && options.length > 0) {
+        initialValues[attributeName] = options[0];
+      }
+    });
+    setSelectedAttributeValues(initialValues);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?._id, productProp?._id, hasDynamicAttributes]);
+
+  useEffect(() => {
+    setSelectedImageIndex(0);
+  }, [product?._id, productProp?._id, encryptedId]);
+
+  useEffect(() => {
+    if (!hasThirdPartyPricing || !thirdPartyProductKey) {
+      setDeliveryPricesByOption({});
+      return;
+    }
+
+    const qty = Number(quantity) > 0 ? Number(quantity) : 1;
+    const productionData = { ...selectedAttributeValues };
+
+    if (isBusinessCard()) {
+      productionData['Sides Printed'] = sidesPrinted === 'double-sided' ? 'Double Sided' : 'Single Sided';
+      productionData['Round Corners'] = roundCorners === 'yes' ? 'Yes' : 'None';
+    }
+
+    if (Object.keys(productionData).length === 0) {
+      setDeliveryPricesByOption({});
+      return;
+    }
+
+    let active = true;
+    setDeliveryPricingLoading(true);
+
+    Promise.all(
+      STATIC_DELIVERY_OPTIONS.map(async (option) => {
+        try {
+          const response = await thirdPartyService.getProductPrices({
+            productId: thirdPartyProductKey,
+            serviceLevel: option.serviceLevel,
+            quantity: [qty],
+            productionData,
+          });
+          const rows = Array.isArray(response?.prices) ? response.prices : [];
+          const exactRow = rows.find((row) => Number(row?.quantity) === qty) || rows[0];
+          const servicePrice =
+            exactRow?.prices?.find(
+              (entry) => String(entry?.serviceLevel || '').toLowerCase() === option.serviceLevel.toLowerCase()
+            ) || exactRow?.prices?.[0];
+          return [option.key, servicePrice?.price ?? null];
+        } catch (error) {
+          return [option.key, null];
+        }
+      })
+    )
+      .then((entries) => {
+        if (!active) return;
+        setDeliveryPricesByOption(Object.fromEntries(entries));
+      })
+      .finally(() => {
+        if (active) setDeliveryPricingLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thirdPartyProductKey, hasThirdPartyPricing, quantity, selectedAttributeValues, sidesPrinted, roundCorners]);
 
   // Material options
   const materialOptions = [
@@ -175,23 +255,19 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   ];
 
   const getEffectivePricingTable = () => {
-    if (displayProduct?.pricingTable?.enabled && Array.isArray(displayProduct.pricingTable.quantities)) {
-      return displayProduct.pricingTable;
-    }
-
-    // Fallback: hardcoded business card table (legacy)
-    if (isBusinessCard()) {
+    if (hasThirdPartyPricing) {
+      const qty = Number(quantity) > 0 ? Number(quantity) : 1;
       return {
         enabled: true,
-        quantities: [250, 500, 1000, 1500, 2000, 2500, 3000, 3500],
-        deliveryOptions: [
-          { key: 'saver', label: 'Saver', etaDays: 6, prices: [20.80, 29.18, 37.27, 44.84, 55.52, 65.47, 77.39, 89.27] },
-          { key: 'standard', label: 'Standard', etaDays: 4, prices: [21.89, 30.72, 39.23, 47.21, 58.45, 68.92, 81.46, 93.97] },
-          { key: 'express', label: 'Express', etaDays: 2, prices: [24.07, 33.79, 43.15, 51.92, 64.30, 75.80, 89.60, 103.37] },
-        ],
+        quantities: [qty],
+        deliveryOptions: STATIC_DELIVERY_OPTIONS.map((option) => ({
+          key: option.key,
+          label: option.label,
+          etaDays: option.etaDays,
+          prices: [deliveryPricesByOption[option.key] ?? null],
+        })),
       };
     }
-
     return { enabled: false, quantities: [], deliveryOptions: [] };
   };
 
@@ -226,8 +302,13 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
 
   // Get current price based on quantity and delivery
   const getCurrentPrice = () => {
-    const price = getPriceForQuantity(quantity, deliveryOption);
+    const price = getPriceForQuantity(quantity, deliveryOptionRef.current || deliveryOption);
     return price || 0;
+  };
+
+  const handleDeliveryOptionSelect = (optionKey) => {
+    deliveryOptionRef.current = optionKey;
+    setDeliveryOption(optionKey);
   };
 
   // Ensure current delivery option exists in pricingTable (when admin config differs)
@@ -236,20 +317,45 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     if (deliveryOptions.length === 0) return;
     const exists = deliveryOptions.some(o => o.key === deliveryOption);
     if (!exists) {
-      setDeliveryOption(deliveryOptions[0].key);
+      handleDeliveryOptionSelect(deliveryOptions[0].key);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasDeliveryPricing, pricingTable?.deliveryOptions]);
 
   const VAT_RATE = 0.2;
 
+  useEffect(() => {
+    const handleVatModeChanged = (event) => {
+      const mode = event?.detail?.mode;
+      if (mode === 'inc') setIsVatInclusive(true);
+      if (mode === 'ex') setIsVatInclusive(false);
+    };
+
+    const handleStorageChange = (event) => {
+      if (event.key !== 'vatMode') return;
+      setIsVatInclusive(event.newValue !== 'ex');
+    };
+
+    window.addEventListener('vat-mode-changed', handleVatModeChanged);
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('vat-mode-changed', handleVatModeChanged);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
+  const applyVatMode = (baseExVatPrice) => {
+    const exVat = Number(baseExVatPrice || 0);
+    return isVatInclusive ? exVat * (1 + VAT_RATE) : exVat;
+  };
+
   const getPriceIncVat = () => {
-    return (isBusinessCard() || hasDeliveryPricing) ? getCurrentPrice() : (displayProduct?.price || 0);
+    const exVat = (isBusinessCard() || hasDeliveryPricing) ? getCurrentPrice() : (displayProduct?.price || 0);
+    return exVat * (1 + VAT_RATE);
   };
 
   const getPriceExVat = () => {
-    const inc = getPriceIncVat();
-    return inc / (1 + VAT_RATE);
+    return (isBusinessCard() || hasDeliveryPricing) ? getCurrentPrice() : (displayProduct?.price || 0);
   };
 
   const getDeliveryDateLabel = () => {
@@ -329,31 +435,53 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     }
 
     // Calculate price for business cards and products using a delivery pricing table
-    const finalPrice = (isBusinessCard() || hasDeliveryPricing) ? getCurrentPrice() : displayProduct.price;
+    const exVatPrice = (isBusinessCard() || hasDeliveryPricing) ? getCurrentPrice() : displayProduct.price;
+    const finalPrice = applyVatMode(exVatPrice);
     
     const cartProduct = {
       id: product?._id || `${productType}-${Date.now()}`,
       name: displayProduct.name,
       category: displayProduct.category,
       price: finalPrice,
-      image: displayProduct.image,
+      image: selectedImage || displayProduct.image,
       quantity: quantity,
       designOption: effectiveDesignOption,
       uploadedImage: uploadedImage,
       ...(sizeEnabled && { size: selectedSize }),
-      ...(hasDeliveryPricing && { deliveryOption }),
-      ...(isThirdPartyProduct && { thirdPartySelections }),
+      ...(hasDeliveryPricing && { deliveryOption: deliveryOptionRef.current || deliveryOption }),
+      ...(hasDynamicAttributes && { selectedAttributes: selectedAttributeValues }),
       // Include business card options if applicable
       ...(isBusinessCard() && {
         material,
         sidesPrinted,
         lamination,
         roundCorners,
-        deliveryOption
+        deliveryOption: deliveryOptionRef.current || deliveryOption
       })
     };
     addToCart(cartProduct, quantity);
     toast.success(`${displayProduct.name} added to cart!`);
+  };
+
+  const handleImageMouseMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setImageZoom({ active: true, x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
+  };
+
+  const handleImageMouseLeave = () => {
+    setImageZoom((prev) => ({ ...prev, active: false }));
+  };
+
+  const handleBackToProducts = () => {
+    navigate('/');
+    setTimeout(() => {
+      const element = document.getElementById('products');
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 120);
   };
 
   return (
@@ -361,7 +489,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
         {/* Back Button */}
         <button
-          onClick={() => navigate(-1)}
+          onClick={handleBackToProducts}
           className="mb-4 text-gray-600 hover:text-gray-900 font-medium flex items-center gap-2 transition-colors text-sm"
           style={{ fontFamily: 'Lexend Deca, sans-serif' }}
         >
@@ -374,14 +502,23 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Product Image */}
           <div className="bg-white rounded-xl shadow-lg overflow-hidden sticky top-6 self-start">
-            <div className="aspect-square w-full relative p-4 bg-gray-100">
-              {displayProduct?.image ? (
+            <div
+              className="aspect-square w-full relative p-4 bg-gray-100 overflow-hidden cursor-zoom-in"
+              onMouseMove={handleImageMouseMove}
+              onMouseEnter={handleImageMouseMove}
+              onMouseLeave={handleImageMouseLeave}
+            >
+              {selectedImage ? (
                 <img
-                  key={`${product?._id || productProp?._id || 'product'}-${displayProduct.image}`}
-                  src={displayProduct?.image}
+                  key={`${product?._id || productProp?._id || 'product'}-${selectedImage}`}
+                  src={selectedImage}
                   alt={displayProduct.name}
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-contain transition-transform duration-200 ease-out"
                   loading="eager"
+                  style={{
+                    transform: imageZoom.active ? 'scale(2)' : 'scale(1)',
+                    transformOrigin: `${imageZoom.x}% ${imageZoom.y}%`,
+                  }}
                   onError={(e) => {
                     e.target.src = 'https://via.placeholder.com/800x800?text=' + encodeURIComponent(displayProduct.name);
                   }}
@@ -392,6 +529,31 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                 </div>
               )}
             </div>
+            {productImages.length > 1 && (
+              <div className="px-4 pb-4">
+                <div className="grid grid-cols-5 gap-2">
+                  {productImages.map((imgUrl, index) => (
+                    <button
+                      key={`${imgUrl}-${index}`}
+                      type="button"
+                      onClick={() => setSelectedImageIndex(index)}
+                      className={`aspect-square rounded-md overflow-hidden border-2 ${
+                        index === selectedImageIndex ? 'border-blue-500' : 'border-gray-200'
+                      }`}
+                    >
+                      <img
+                        src={imgUrl}
+                        alt={`${displayProduct.name} ${index + 1}`}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.src = 'https://via.placeholder.com/120x120?text=Image';
+                        }}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Product Info */}
@@ -428,168 +590,6 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                 dangerouslySetInnerHTML={{ __html: displayProduct.description || '' }}
               />
             </div>
-
-            {/* Delivery pricing table (user side) */}
-            {hasDeliveryPricing && (
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      Choose Delivery
-                    </h3>
-                    <p className="text-xs text-gray-500 mt-0.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      Prices update by quantity and delivery speed
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      Pricing Grid
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowPricingGrid(!showPricingGrid)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                        showPricingGrid ? 'bg-blue-600' : 'bg-gray-300'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 ${
-                          showPricingGrid ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
-
-                {!showPricingGrid ? (
-                  <div className="grid grid-cols-3 gap-3">
-                    {saverOpt && (
-                      <button
-                        type="button"
-                        onClick={() => setDeliveryOption('saver')}
-                        className={`p-4 border-2 rounded-lg text-center transition-all relative ${
-                          deliveryOption === 'saver'
-                            ? 'border-green-400 bg-green-50'
-                            : 'border-gray-300 hover:border-gray-400'
-                        }`}
-                      >
-                        <p className="text-sm font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                          {saverOpt.label || 'Saver'}
-                        </p>
-                        <p className="text-base font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                          £{(getPriceForQuantity(quantity, 'saver') || 0).toFixed(2)}
-                        </p>
-                      </button>
-                    )}
-                    {standardOpt && (
-                      <button
-                        type="button"
-                        onClick={() => setDeliveryOption('standard')}
-                        className={`p-4 border-2 rounded-lg text-center transition-all ${
-                          deliveryOption === 'standard'
-                            ? 'border-green-400 bg-green-50'
-                            : 'border-gray-300 hover:border-gray-400'
-                        }`}
-                      >
-                        <p className="text-sm font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                          {standardOpt.label || 'Standard'}
-                        </p>
-                        <p className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                          {(() => {
-                            const base = saverOpt ? (getPriceForQuantity(quantity, 'saver') || 0) : 0;
-                            const p = getPriceForQuantity(quantity, 'standard') || 0;
-                            const diff = p - base;
-                            return diff > 0 ? `+£${diff.toFixed(2)}` : `£${p.toFixed(2)}`;
-                          })()}
-                        </p>
-                      </button>
-                    )}
-                    {expressOpt && (
-                      <button
-                        type="button"
-                        onClick={() => setDeliveryOption('express')}
-                        className={`p-4 border-2 rounded-lg text-center transition-all ${
-                          deliveryOption === 'express'
-                            ? 'border-green-400 bg-green-50'
-                            : 'border-gray-300 hover:border-gray-400'
-                        }`}
-                      >
-                        <p className="text-sm font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                          {expressOpt.label || 'Express'}
-                        </p>
-                        <p className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                          {(() => {
-                            const base = saverOpt ? (getPriceForQuantity(quantity, 'saver') || 0) : 0;
-                            const p = getPriceForQuantity(quantity, 'express') || 0;
-                            const diff = p - base;
-                            return diff > 0 ? `+£${diff.toFixed(2)}` : `£${p.toFixed(2)}`;
-                          })()}
-                        </p>
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
-                    <div className="overflow-x-auto max-h-96 overflow-y-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50 sticky top-0">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 border-r border-gray-200" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                              Qty
-                            </th>
-                            <th className={`px-4 py-3 text-center text-xs font-semibold border-r border-gray-200 ${deliveryOption === 'saver' ? 'bg-green-100 text-gray-900' : 'text-gray-700'}`} style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                              {saverOpt?.label || 'Saver'}
-                            </th>
-                            <th className={`px-4 py-3 text-center text-xs font-semibold border-r border-gray-200 ${deliveryOption === 'standard' ? 'bg-green-100 text-gray-900' : 'text-gray-700'}`} style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                              {standardOpt?.label || 'Standard'}
-                            </th>
-                            <th className={`px-4 py-3 text-center text-xs font-semibold ${deliveryOption === 'express' ? 'bg-green-100 text-gray-900' : 'text-gray-700'}`} style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                              {expressOpt?.label || 'Express'}
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {pricingGrid.map((row) => (
-                            <tr key={row.qty} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 text-sm text-gray-600 border-r border-gray-200" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                                {row.qty}
-                              </td>
-                              <td
-                                className={`px-4 py-3 text-center text-sm border-r border-gray-200 cursor-pointer ${
-                                  deliveryOption === 'saver' && row.qty === quantity ? 'bg-green-100 font-semibold' : 'text-gray-900'
-                                }`}
-                                onClick={() => { setDeliveryOption('saver'); setQuantity(row.qty); }}
-                                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                              >
-                                £{Number(row.saver || 0).toFixed(2)}
-                              </td>
-                              <td
-                                className={`px-4 py-3 text-center text-sm border-r border-gray-200 cursor-pointer ${
-                                  deliveryOption === 'standard' && row.qty === quantity ? 'bg-green-100 font-semibold' : 'text-gray-900'
-                                }`}
-                                onClick={() => { setDeliveryOption('standard'); setQuantity(row.qty); }}
-                                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                              >
-                                £{Number(row.standard || 0).toFixed(2)}
-                              </td>
-                              <td
-                                className={`px-4 py-3 text-center text-sm cursor-pointer ${
-                                  deliveryOption === 'express' && row.qty === quantity ? 'bg-green-100 font-semibold' : 'text-gray-900'
-                                }`}
-                                onClick={() => { setDeliveryOption('express'); setQuantity(row.qty); }}
-                                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                              >
-                                £{Number(row.express || 0).toFixed(2)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Tabs for Features/Specs */}
             <div className="border-b border-gray-200">
@@ -739,38 +739,40 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                   )}
                 </div>
 
-                {/* Third-Party Attribute Selection */}
-                {isThirdPartyProduct && (
-                  <div className="space-y-6 pt-4 border-t border-gray-200">
-                    {displayProduct?.thirdParty?.productKey ? (
-                      <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
-                        <p className="text-xs text-blue-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                          Product Key: <span className="font-semibold">{displayProduct.thirdParty.productKey}</span>
-                        </p>
-                      </div>
-                    ) : null}
-                    {Object.entries(displayProduct?.thirdParty?.attributes || {}).map(([attrName, options]) => (
-                      <div key={attrName}>
-                        <label className="block text-sm font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                          {attrName}
+                {/* Dynamic attributes from API/DB */}
+                {hasDynamicAttributes && dynamicAttributeEntries.length > 0 && (
+                  <div className="space-y-3 pt-4 border-t border-gray-200">
+                    <h3 className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      Product Options
+                    </h3>
+                    {dynamicAttributeEntries.map(([attributeName, options]) => (
+                      <div key={attributeName} className="space-y-1.5">
+                        <label className="block text-sm font-medium text-gray-800" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          {attributeName}
                         </label>
-                        <div className="grid grid-cols-2 gap-3">
-                          {(Array.isArray(options) ? options : []).map((optionValue) => (
-                            <button
-                              key={`${attrName}-${optionValue}`}
-                              type="button"
-                              onClick={() => setThirdPartySelections((prev) => ({ ...prev, [attrName]: optionValue }))}
-                              className={`p-4 border-2 rounded-lg transition-all text-center ${
-                                thirdPartySelections[attrName] === optionValue
-                                  ? 'border-green-500 bg-green-50'
-                                  : 'border-gray-300 hover:border-gray-400'
-                              }`}
-                            >
-                              <p className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        <div className="relative">
+                          <select
+                            value={selectedAttributeValues[attributeName] || ''}
+                            onChange={(e) =>
+                              setSelectedAttributeValues((prev) => ({
+                                ...prev,
+                                [attributeName]: e.target.value,
+                              }))
+                            }
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white text-sm"
+                            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                          >
+                            {(Array.isArray(options) ? options : []).map((optionValue) => (
+                              <option key={`${attributeName}-${optionValue}`} value={optionValue}>
                                 {optionValue}
-                              </p>
-                            </button>
-                          ))}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -990,7 +992,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                     </div>
 
                     {/* Delivery & Pricing Grid */}
-                    {hasDeliveryPricing && (
+                    {hasDeliveryPricing && false && (
                     <div className="pt-4 border-t border-gray-200">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -1027,7 +1029,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                         <div className="grid grid-cols-3 gap-3">
                           <button
                             type="button"
-                            onClick={() => setDeliveryOption('saver')}
+                            onClick={() => handleDeliveryOptionSelect('saver')}
                             className={`p-4 border-2 rounded-lg text-center transition-all relative ${
                               deliveryOption === 'saver'
                                 ? 'border-green-400 bg-green-50'
@@ -1051,7 +1053,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setDeliveryOption('standard')}
+                            onClick={() => handleDeliveryOptionSelect('standard')}
                             className={`p-4 border-2 rounded-lg text-center transition-all ${
                               deliveryOption === 'standard'
                                 ? 'border-green-400 bg-green-50'
@@ -1072,7 +1074,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setDeliveryOption('express')}
+                            onClick={() => handleDeliveryOptionSelect('express')}
                             className={`p-4 border-2 rounded-lg text-center transition-all ${
                               deliveryOption === 'express'
                                 ? 'border-green-400 bg-green-50'
@@ -1143,7 +1145,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                                             : 'text-gray-900'
                                         }`}
                                         onClick={() => {
-                                          setDeliveryOption('saver');
+                                          handleDeliveryOptionSelect('saver');
                                           setQuantity(row.qty);
                                         }}
                                         style={{ fontFamily: 'Lexend Deca, sans-serif' }}
@@ -1162,7 +1164,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                                             : 'text-gray-900'
                                         }`}
                                         onClick={() => {
-                                          setDeliveryOption('standard');
+                                          handleDeliveryOptionSelect('standard');
                                           setQuantity(row.qty);
                                         }}
                                         style={{ fontFamily: 'Lexend Deca, sans-serif' }}
@@ -1176,7 +1178,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                                             : 'text-gray-900'
                                         }`}
                                         onClick={() => {
-                                          setDeliveryOption('express');
+                                          handleDeliveryOptionSelect('express');
                                           setQuantity(row.qty);
                                         }}
                                         style={{ fontFamily: 'Lexend Deca, sans-serif' }}
@@ -1197,6 +1199,163 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                         </div>
                       )}
                     </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Delivery pricing table (user side) */}
+                {hasDeliveryPricing && (
+                  <div className="bg-white rounded-xl border border-gray-200 p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          Choose Delivery
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-0.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          Prices update by quantity and delivery speed
+                        </p>
+                        {deliveryPricingLoading && (
+                          <p className="text-xs text-gray-500 mt-0.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            Fetching latest delivery prices...
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          Pricing Grid
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setShowPricingGrid(!showPricingGrid)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                            showPricingGrid ? 'bg-blue-600' : 'bg-gray-300'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 ${
+                              showPricingGrid ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {!showPricingGrid ? (
+                      <div className="grid grid-cols-3 gap-3">
+                        {saverOpt && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeliveryOptionSelect('saver')}
+                            className={`p-4 border-2 rounded-lg text-center transition-all relative ${
+                              deliveryOption === 'saver'
+                                ? 'border-green-400 bg-green-50'
+                                : 'border-gray-300 hover:border-gray-400'
+                            }`}
+                          >
+                            <p className="text-sm font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              {saverOpt.label || 'Saver'}
+                            </p>
+                            <p className="text-base font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              £{applyVatMode(getPriceForQuantity(quantity, 'saver') || 0).toFixed(2)}
+                            </p>
+                          </button>
+                        )}
+                        {standardOpt && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeliveryOptionSelect('standard')}
+                            className={`p-4 border-2 rounded-lg text-center transition-all ${
+                              deliveryOption === 'standard'
+                                ? 'border-green-400 bg-green-50'
+                                : 'border-gray-300 hover:border-gray-400'
+                            }`}
+                          >
+                            <p className="text-sm font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              {standardOpt.label || 'Standard'}
+                            </p>
+                            <p className="text-base font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              £{applyVatMode(getPriceForQuantity(quantity, 'standard') || 0).toFixed(2)}
+                            </p>
+                          </button>
+                        )}
+                        {expressOpt && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeliveryOptionSelect('express')}
+                            className={`p-4 border-2 rounded-lg text-center transition-all ${
+                              deliveryOption === 'express'
+                                ? 'border-green-400 bg-green-50'
+                                : 'border-gray-300 hover:border-gray-400'
+                            }`}
+                          >
+                            <p className="text-sm font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              {expressOpt.label || 'Express'}
+                            </p>
+                            <p className="text-base font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              £{applyVatMode(getPriceForQuantity(quantity, 'express') || 0).toFixed(2)}
+                            </p>
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="border border-gray-200 rounded-lg overflow-hidden">
+                        <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50 sticky top-0">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 border-r border-gray-200" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                                  Qty
+                                </th>
+                                <th className={`px-4 py-3 text-center text-xs font-semibold border-r border-gray-200 ${deliveryOption === 'saver' ? 'bg-green-100 text-gray-900' : 'text-gray-700'}`} style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                                  {saverOpt?.label || 'Saver'}
+                                </th>
+                                <th className={`px-4 py-3 text-center text-xs font-semibold border-r border-gray-200 ${deliveryOption === 'standard' ? 'bg-green-100 text-gray-900' : 'text-gray-700'}`} style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                                  {standardOpt?.label || 'Standard'}
+                                </th>
+                                <th className={`px-4 py-3 text-center text-xs font-semibold ${deliveryOption === 'express' ? 'bg-green-100 text-gray-900' : 'text-gray-700'}`} style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                                  {expressOpt?.label || 'Express'}
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                              {pricingGrid.map((row) => (
+                                <tr key={row.qty} className="hover:bg-gray-50">
+                                  <td className="px-4 py-3 text-sm text-gray-600 border-r border-gray-200" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                                    {row.qty}
+                                  </td>
+                                  <td
+                                    className={`px-4 py-3 text-center text-sm border-r border-gray-200 cursor-pointer ${
+                                      deliveryOption === 'saver' && row.qty === quantity ? 'bg-green-100 font-semibold' : 'text-gray-900'
+                                    }`}
+                                    onClick={() => { handleDeliveryOptionSelect('saver'); setQuantity(row.qty); }}
+                                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                                  >
+                                    £{applyVatMode(Number(row.saver || 0)).toFixed(2)}
+                                  </td>
+                                  <td
+                                    className={`px-4 py-3 text-center text-sm border-r border-gray-200 cursor-pointer ${
+                                      deliveryOption === 'standard' && row.qty === quantity ? 'bg-green-100 font-semibold' : 'text-gray-900'
+                                    }`}
+                                    onClick={() => { handleDeliveryOptionSelect('standard'); setQuantity(row.qty); }}
+                                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                                  >
+                                    £{applyVatMode(Number(row.standard || 0)).toFixed(2)}
+                                  </td>
+                                  <td
+                                    className={`px-4 py-3 text-center text-sm cursor-pointer ${
+                                      deliveryOption === 'express' && row.qty === quantity ? 'bg-green-100 font-semibold' : 'text-gray-900'
+                                    }`}
+                                    onClick={() => { handleDeliveryOptionSelect('express'); setQuantity(row.qty); }}
+                                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                                  >
+                                    £{applyVatMode(Number(row.express || 0)).toFixed(2)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}
@@ -1319,12 +1478,12 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                   {isBusinessCard() ? getDeliveryDateLabel() : 'Total'}
                 </div>
                 <div className="text-lg md:text-xl font-black text-gray-900 whitespace-nowrap" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  £{getPriceIncVat().toFixed(2)}
-                  <span className="ml-2 text-xs font-semibold text-gray-700">Inc Vat</span>
+                  £{applyVatMode(getPriceExVat()).toFixed(2)}
+                  <span className="ml-2 text-xs font-semibold text-gray-700">{isVatInclusive ? 'Inc Vat' : 'Ex Vat'}</span>
                 </div>
               </div>
               <div className="text-sm text-gray-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                £{getPriceExVat().toFixed(2)} <span className="text-xs">Ex Vat</span>
+                £{(isVatInclusive ? getPriceExVat() : getPriceIncVat()).toFixed(2)} <span className="text-xs">{isVatInclusive ? 'Ex Vat' : 'Inc Vat'}</span>
               </div>
             </div>
 
