@@ -108,14 +108,18 @@ export const featuredSignageItems = [
     details:
       'Choose from a variety of paper stocks and finishes based on campaign duration and placement. Posters are suitable for retail displays, hospitality promotions, office communication, and public-facing announcements.',
     highlights: ['Multiple size options', 'Vibrant color reproduction', 'Fast campaign turnaround'],
-    images: [],
+    images: [
+      toAssetPath('Posters', '1.jpg'),
+      toAssetPath('Posters', '2.jpg'),
+      toAssetPath('Posters', '3.jpg'),
+    ],
   },
   {
     id: 'pvc-banners',
     title: 'PVC Banners',
     categorySlug: 'pvc-banners',
     route: '/featured/pvc-banners',
-    folderName: 'PVC Banners',
+    folderName: 'PVC',
     description: 'Durable PVC banners for outdoor promotions, events, and large-format messaging.',
     heading: 'PVC Banners',
     blurb:
@@ -125,14 +129,19 @@ export const featuredSignageItems = [
     details:
       'We produce reinforced banners with finishing options such as hems and eyelets to make installation straightforward. Print output is optimized for readability from distance and reliable outdoor performance.',
     highlights: ['Outdoor-ready material', 'Large-format print support', 'Hems and eyelets available'],
-    images: [],
+    images: [
+      toAssetPath('PVC', '1.jpg'),
+      toAssetPath('PVC', '2.jpg'),
+      toAssetPath('PVC', '3.jpg'),
+      
+    ],
   },
   {
     id: 'correx-foamex-aluminium-prints',
     title: 'Correx / Foamex / Aluminium Prints',
     categorySlug: 'correx-foamex-aluminium-prints',
     route: '/featured/correx-foamex-aluminium-prints',
-    folderName: 'Correx Foamex Aluminium Prints',
+    folderName: 'CorrexPrints',
     description: 'Rigid board printing options for temporary and long-term signage needs.',
     heading: 'Correx / Foamex / Aluminium Prints',
     blurb:
@@ -142,14 +151,22 @@ export const featuredSignageItems = [
     details:
       'We help match substrate to use-case, ensuring your graphics perform correctly in their intended environment. Suitable for estate boards, wall branding, directional signage, and premium display panels.',
     highlights: ['Material options for every use-case', 'Crisp direct print quality', 'Ideal for fixed signage'],
-    images: [],
+    images: [
+      toAssetPath('CorrexPrints', '1.jpg'),
+      toAssetPath('CorrexPrints', '2.jpg'),
+      toAssetPath('CorrexPrints', '3.jpg'),
+      toAssetPath('CorrexPrints', '4.jpg'),
+      toAssetPath('CorrexPrints', '5.jpg'),
+      toAssetPath('CorrexPrints', '6.jpg'),
+      toAssetPath('CorrexPrints', '7.jpg'),
+    ],
   },
   {
     id: 'backlit-prints',
     title: 'Backlit Prints',
     categorySlug: 'backlit-prints',
     route: '/featured/backlit-prints',
-    folderName: 'Backlit Prints',
+    folderName: 'Backlit',
     description: 'Translucent print media optimized for illuminated lightbox applications.',
     heading: 'Backlit Prints',
     blurb:
@@ -159,14 +176,20 @@ export const featuredSignageItems = [
     details:
       'We calibrate artwork output for illuminated conditions to maintain balanced color and contrast once lit. This helps preserve brand accuracy and visual clarity across varying ambient light levels.',
     highlights: ['Optimized for illuminated displays', 'Balanced color under lighting', 'Suitable for day/night branding'],
-    images: [],
+    images: [
+      toAssetPath('Backlit', '1.jpg'),
+      toAssetPath('Backlit', '2.jpg'),
+      toAssetPath('Backlit', '3.jpg'),
+      toAssetPath('Backlit', '4.jpg'),
+      
+    ],
   },
   {
     id: 'canvas-prints',
     title: 'Canvas Prints',
     categorySlug: 'canvas-prints',
     route: '/featured/canvas-prints',
-    folderName: 'Canvas Prints',
+    folderName: 'Canvas',
     description: 'Premium canvas prints for interior branding, decor, and visual storytelling.',
     heading: 'Canvas Prints',
     blurb:
@@ -176,14 +199,18 @@ export const featuredSignageItems = [
     details:
       'Produced using high-resolution print processes, our canvases offer strong tonal detail and durable finish. Available in multiple dimensions to suit wall displays and feature installations.',
     highlights: ['Premium interior finish', 'Rich color and tonal depth', 'Multiple display sizes'],
-    images: [],
+    images: [
+      toAssetPath('Canvas', '1.jpg'),
+      toAssetPath('Canvas', '2.jpg'),
+      toAssetPath('Canvas', '3.jpg'),
+    ],
   },
   {
     id: 'printed-vinyl',
     title: 'Printed Vinyl',
     categorySlug: 'printed-vinyl',
     route: '/featured/printed-vinyl',
-    folderName: 'Printed Vinyl',
+    folderName: 'Vinyl',
     description: 'Custom printed vinyl graphics for walls, windows, and branded surfaces.',
     heading: 'Printed Vinyl',
     blurb:
@@ -193,14 +220,19 @@ export const featuredSignageItems = [
     details:
       'We provide production guidance based on placement, durability needs, and finish type. This ensures cleaner installation, reliable adhesion, and consistent visual quality throughout campaign duration.',
     highlights: ['Full-color custom graphics', 'Versatile indoor/outdoor use', 'Ideal for branded environments'],
-    images: [],
+    images: [
+      toAssetPath('Vinyl', '1.jpg'),
+      toAssetPath('Vinyl', '2.jpg'),
+      toAssetPath('Vinyl', '3.jpg'),
+      toAssetPath('Vinyl', '4.jpg'),
+    ],
   },
   {
     id: 'frosted-vinyl',
     title: 'Frosted Vinyl',
     categorySlug: 'frosted-vinyl',
     route: '/featured/frosted-vinyl',
-    folderName: 'Frosted Vinyl',
+    folderName: 'Frosted',
     description: 'Elegant privacy vinyl with a clean etched-glass look for internal glazing.',
     heading: 'Frosted Vinyl',
     blurb:
@@ -210,14 +242,21 @@ export const featuredSignageItems = [
     details:
       'Design options include full frosting, cut shapes, logo integration, and banding styles. The finish is subtle, premium, and highly effective for interior branding and privacy management.',
     highlights: ['Privacy without blocking light', 'Etched-glass visual effect', 'Custom logo and pattern options'],
-    images: [],
+    images: [
+      toAssetPath('Frosted', '1.jpg'),
+      toAssetPath('Frosted', '2.jpg'),
+      toAssetPath('Frosted', '3.jpg'),
+      toAssetPath('Frosted', '4.jpg'),
+      toAssetPath('Frosted', '5.jpg'),
+      toAssetPath('Frosted', '6.jpg'),
+    ],
   },
   {
     id: 'one-way-vision',
     title: 'One Way Vision',
     categorySlug: 'one-way-vision',
     route: '/featured/one-way-vision',
-    folderName: 'One Way Vision',
+    folderName: 'OneVision',
     description: 'Perforated window graphics allowing outward visibility with external branding.',
     heading: 'One Way Vision',
     blurb:
@@ -227,14 +266,20 @@ export const featuredSignageItems = [
     details:
       'We print high-contrast graphics optimized for perforated media and viewing distance. This helps keep artwork clear externally while maintaining practical day-to-day visibility from inside.',
     highlights: ['External ad space on glazing', 'Internal outward visibility', 'Great for shops and vehicles'],
-    images: [],
+    images: [
+      toAssetPath('OneVision', '1.jpg'),
+      toAssetPath('OneVision', '2.jpg'),
+      toAssetPath('OneVision', '3.jpg'),
+      toAssetPath('OneVision', '4.jpg'),
+      
+    ],
   },
   {
     id: 'cut-vinyl',
     title: 'Cut Vinyl',
     categorySlug: 'cut-vinyl',
     route: '/featured/cut-vinyl',
-    folderName: 'Cut Vinyl',
+    folderName: 'CutVinyl',
     description: 'Precision-cut lettering and shapes for clean, minimal, long-lasting graphics.',
     heading: 'Cut Vinyl',
     blurb:
@@ -244,14 +289,21 @@ export const featuredSignageItems = [
     details:
       'Available in multiple colors and finishes, cut vinyl graphics are produced with accurate contour cutting for neat edges and professional presentation. Ideal for long-term branding consistency.',
     highlights: ['Sharp, clean graphic edges', 'Long-lasting finish', 'Excellent for text and logos'],
-    images: [],
+    images: [
+      toAssetPath('CutVinyl', '1.jpg'),
+      toAssetPath('CutVinyl', '2.jpg'),
+      toAssetPath('CutVinyl', '3.jpg'),
+      toAssetPath('CutVinyl', '4.jpg'),
+      toAssetPath('CutVinyl', '5.jpg'),
+      
+    ],
   },
   {
     id: 'privacy-films',
     title: 'Privacy Films',
     categorySlug: 'privacy-films',
     route: '/featured/privacy-films',
-    folderName: 'Privacy Films',
+    folderName: 'PrivacyFilms',
     description: 'Functional privacy films for glazing with optional branding and decorative styles.',
     heading: 'Privacy Films',
     blurb:
@@ -261,7 +313,15 @@ export const featuredSignageItems = [
     details:
       'Solutions include full coverage, gradient effects, and branded layouts depending on your design requirements. Film selection is tailored to privacy level, glass type, and maintenance expectations.',
     highlights: ['Improved visual privacy', 'Suitable for office glazing', 'Custom decorative options'],
-    images: [],
+    images: [
+      toAssetPath('PrivacyFilms', '1.jpg'),
+      toAssetPath('PrivacyFilms', '2.jpg'),
+      toAssetPath('PrivacyFilms', '3.jpg'),
+      toAssetPath('PrivacyFilms', '4.jpg'),
+      toAssetPath('PrivacyFilms', '5.jpg'),
+     
+      
+    ],
   },
 ];
 

@@ -39,12 +39,21 @@ const updateStatus = (orderId, status, trackingNumber = null) => {
   );
 };
 
+const trackByTrackingNumber = (trackingNumber) => {
+  return httpClient.get(
+    `${apiRoutes.orders.track}/${encodeURIComponent(trackingNumber)}`,
+    {},
+    { skipAuth: true }
+  );
+};
+
 export const orderService = {
   create,
   getUserOrders,
   getById,
   list,
   updateStatus,
+  trackByTrackingNumber,
 };
 
 export default orderService;

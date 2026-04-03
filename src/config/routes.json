@@ -5,7 +5,8 @@
     "registerSendOtp": "auth/register/send-otp",
     "registerVerifyOtp": "auth/register/verify-otp",
     "me": "auth/me",
-    "forgotPassword": "auth/forgot-password"
+    "forgotPassword": "auth/forgot-password",
+    "changePassword": "auth/change-password"
   },
   "products": {
     "list": "products",
@@ -28,12 +29,14 @@
     "create": "orders",
     "getUserOrders": "orders",
     "getById": "orders",
+    "track": "orders/track",
     "list": "admin/orders",
     "updateStatus": "admin/orders"
   },
   "quotes": {
     "create": "quotes",
     "list": "quotes",
+    "my": "quotes/my",
     "getById": "quotes",
     "update": "quotes",
     "sendEmail": "quotes"

@@ -29,6 +29,12 @@ const list = (params = {}) => {
   );
 };
 
+const listMy = () => {
+  return httpClient.get(
+    `${apiRoutes.quotes.my}`
+  );
+};
+
 const getById = (quoteId) => {
   return httpClient.get(
     `${apiRoutes.quotes.getById}/${quoteId}`
@@ -53,6 +59,7 @@ export const quoteService = {
   create,
   createLogoArtworkQuote,
   list,
+  listMy,
   getById,
   update,
   sendQuotationEmail,

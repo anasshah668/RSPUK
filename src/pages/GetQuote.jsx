@@ -126,7 +126,13 @@ const GetQuote = () => {
         {/* Header */}
         <div className="mb-8">
           <button
-            onClick={() => (onClose && onClose()) || (onNavigate && onNavigate('home'))}
+            onClick={() => {
+              if (window.history.length > 1) {
+                navigate(-1);
+              } else {
+                navigate('/');
+              }
+            }}
             className="text-gray-600 hover:text-gray-900 font-medium flex items-center gap-2 transition-colors text-sm mb-6"
             style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >
@@ -168,7 +174,7 @@ const GetQuote = () => {
                     className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                       errors.name ? 'border-red-500' : 'border-gray-300'
                     }`}
-                    placeholder="John Doe"
+                    placeholder="Name"
                     style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                   />
                   {errors.name && (
@@ -192,7 +198,7 @@ const GetQuote = () => {
                     className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                       errors.email ? 'border-red-500' : 'border-gray-300'
                     }`}
-                    placeholder="john@example.com"
+                    placeholder="name@example.com"
                     style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                   />
                   {errors.email && (

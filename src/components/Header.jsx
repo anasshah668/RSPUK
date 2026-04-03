@@ -72,6 +72,7 @@ const Header = () => {
     'home': '/',
     'quote': '/get-free-quote',
     'about-us': '/about-us',
+    'account': '/account',
     'login': '/login',
     'register': '/register',
     'custom-neon-builder': '/custom-neon-builder',
@@ -174,7 +175,7 @@ const Header = () => {
       <nav className="mx-auto max-w-[1440px] px-3 md:px-6 lg:px-8 xl:px-10">
         <div className="flex items-center justify-between h-20">
           {/* Left Navigation */}
-          <div className="hidden lg:flex items-center space-x-6">
+          <div className="hidden lg:flex items-center space-x-6 lg:pr-24">
             <button
               onClick={() => handleNavClick('home')}
               className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
@@ -245,6 +246,13 @@ const Header = () => {
             >
               Design Tool
             </button>
+            <button
+              onClick={() => handleNavClick('gallery')}
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+            >
+              Gallery
+            </button>
           </div>
 
           {/* Center Logo */}
@@ -268,7 +276,7 @@ const Header = () => {
           </div>
 
           {/* Right Navigation */}
-          <div className="hidden lg:flex items-center space-x-6">
+          <div className="hidden lg:flex items-center space-x-6 lg:pl-24">
             <div className="flex items-center gap-2 text-gray-300">
               <span className="text-xs font-semibold text-white" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                 VAT
@@ -298,13 +306,6 @@ const Header = () => {
               Get a Free Quote
             </button>
 
-            <button
-              onClick={() => handleNavClick('gallery')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              Gallery
-            </button>
 
             <button
               onClick={() => handleNavClick('about-us')}
@@ -322,7 +323,7 @@ const Header = () => {
               Contact
             </button>
 
-            {/* Auth Buttons / User Icon */}
+            {/* Auth Buttons / My Account */}
             {!isAuthenticated() ? (
               <>
                 <button
@@ -341,42 +342,22 @@ const Header = () => {
                 </button>
               </>
             ) : (
-              <div className="relative" ref={userMenuRef}>
-                <div className="relative">
-                  <button
-                    onClick={() => setUserMenuOpen(!userMenuOpen)}
-                    className="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center justify-center transition-colors duration-200"
-                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                  >
-                    {getUserInitial()}
-                  </button>
-                  {/* Online status indicator */}
-                  {isAuthenticated() && (
-                    <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-400 border-2 border-gray-800 rounded-full"></span>
-                  )}
-                </div>
-                {userMenuOpen && (
-                  <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-2xl py-2 border border-gray-100 z-50">
-                    <div className="px-4 py-2 border-b border-gray-100">
-                      <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                        {user?.name || user?.email || 'User'}
-                      </p>
-                      {user?.email && (
-                        <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                          {user.email}
-                        </p>
-                      )}
-                    </div>
-                    <button
-                      onClick={handleLogout}
-                      className="block w-full text-left px-4 py-2.5 text-gray-800 hover:bg-blue-50 hover:text-blue-600 transition-all duration-150 text-sm font-medium"
-                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                    >
-                      Sign out
-                    </button>
-                  </div>
-                )}
-              </div>
+              <>
+                <button
+                  onClick={() => handleNavClick('account')}
+                  className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  My Account
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  Logout
+                </button>
+              </>
             )}
           </div>
 
@@ -550,6 +531,13 @@ const Header = () => {
                     </p>
                   )}
                 </div>
+                <button
+                  onClick={() => { handleNavClick('account'); }}
+                  className="block w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gray-100 rounded-lg transition-all duration-150 text-sm font-medium"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  My Account
+                </button>
                 <button
                   onClick={handleLogout}
                   className="block w-full text-left px-4 py-3 text-white hover:bg-gray-700 hover:text-gray-300 rounded-lg transition-all duration-150 text-sm font-medium"

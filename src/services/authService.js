@@ -57,6 +57,13 @@ const forgotPassword = (email) => {
   );
 };
 
+const changePassword = (payload) => {
+  return httpClient.post(
+    `${apiRoutes.authentication.changePassword}`,
+    payload
+  );
+};
+
 export const authService = {
   login,
   register,
@@ -65,6 +72,7 @@ export const authService = {
   getProfile,
   forgotPassword,
   getGoogleAuthUrl,
+  changePassword,
 };
 
 export default authService;
