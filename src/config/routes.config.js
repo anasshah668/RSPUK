@@ -9,6 +9,7 @@ const Register = lazy(() => import('../pages/Register'));
 const OAuthCallback = lazy(() => import('../pages/OAuthCallback'));
 const ProductDetail = lazy(() => import('../pages/ProductDetail'));
 const ProductDesigner = lazy(() => import('../pages/ProductDesigner'));
+const GenericProductDesigner = lazy(() => import('../pages/GenericProductDesigner'));
 const NeonTextBuilder = lazy(() => import('../pages/NeonTextBuilder'));
 const CustomNeonBuilder = lazy(() => import('../pages/CustomNeonBuilder'));
 const CheckoutPage = lazy(() => import('../pages/CheckoutPage'));
@@ -85,6 +86,11 @@ export const routes = [
   {
     path: '/product-designer',
     component: ProductDesigner,
+    layout: 'default',
+  },
+  {
+    path: '/generic-product-designer',
+    component: GenericProductDesigner,
     layout: 'default',
   },
   // Featured signage dedicated pages
@@ -218,6 +224,7 @@ export const getRoutePath = (routeName, params = {}) => {
     customNeonBuilder: '/custom-neon-builder',
     checkout: '/checkout',
     productDesigner: '/product-designer',
+    genericProductDesigner: '/generic-product-designer',
     productDetail: (category, productName, encryptedId) => 
       `/${category}/${productName}/${encryptedId}`,
     adminLogin: '/admin/login',

@@ -25,7 +25,7 @@ const StartDesigningPrint = () => {
 
             <div className="flex flex-col sm:flex-row gap-3 lg:justify-end">
               <button
-                onClick={() => navigate(getRoutePath('productDesigner'))}
+                onClick={() => navigate(getRoutePath('genericProductDesigner'))}
                 className="px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >

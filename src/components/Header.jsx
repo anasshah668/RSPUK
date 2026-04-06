@@ -76,7 +76,7 @@ const Header = () => {
     'login': '/login',
     'register': '/register',
     'custom-neon-builder': '/custom-neon-builder',
-    'product-designer': '/product-designer',
+    'product-designer': '/generic-product-designer',
     'neon-builder': '/neon-builder',
     'contact': '/#contact',
     'gallery': '/#gallery',
