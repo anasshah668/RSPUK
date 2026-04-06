@@ -55,7 +55,8 @@
     "productAttributes": "third-party/products/attributes",
     "productAttributesByName": "third-party/products/attributes",
     "productPrices": "third-party/products/prices",
-    "expectedDeliveryDate": "third-party/products/expected-delivery-date"
+    "expectedDeliveryDate": "third-party/products/expected-delivery-date",
+    "quantities": "third-party/products/quantities"
   },
   "payments": {
     "worldpayCheckoutSession": "payments/worldpay/checkout-session",

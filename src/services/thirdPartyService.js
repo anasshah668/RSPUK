@@ -26,6 +26,10 @@ const getExpectedDeliveryDate = (payload) => {
   return httpClient.post(apiRoutes.thirdParty.expectedDeliveryDate, payload);
 };
 
+const getQuantities = (payload) => {
+  return httpClient.post(apiRoutes.thirdParty.quantities, payload);
+};
+
 export const thirdPartyService = {
   getProductAttributes,
   getProductAttributesByName,
@@ -33,6 +37,7 @@ export const thirdPartyService = {
   syncProductsToDb,
   getProductPrices,
   getExpectedDeliveryDate,
+  getQuantities,
 };
 
 export default thirdPartyService;

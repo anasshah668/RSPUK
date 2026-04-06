@@ -35,6 +35,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const [deliveryPricingLoading, setDeliveryPricingLoading] = useState(false);
   const [expectedDeliveryByOption, setExpectedDeliveryByOption] = useState({});
   const [deliveryPostcode, setDeliveryPostcode] = useState('');
+  const [quantitiesOptions, setQuantitiesOptions] = useState([]);
 
   // Initialize with productProp if available, then fetch from URL params or productId
   useEffect(() => {
@@ -270,13 +271,33 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
             },
           });
 
-          const rawDate =
-            response?.expectedDeliveryDate ||
-            response?.result?.expectedDeliveryDate ||
-            response?.result?.deliveryDate ||
-            response?.result?.date;
+          // Normalize date from multiple possible fields
+          const res = response || {};
+          const resultObj = res.result || {};
+          // Prefer explicit expectedDeliveryDate if present
+          let normalizedDate = res.expectedDeliveryDate || resultObj.expectedDeliveryDate || null;
+          // Fallback to timestamp (ms since epoch)
+          if (!normalizedDate && typeof resultObj.timestamp === 'number') {
+            const d = new Date(resultObj.timestamp);
+            if (!Number.isNaN(d.getTime())) normalizedDate = d.toISOString();
+          }
+          // Fallback to formattedDate 'dd/MM/yyyy'
+          if (!normalizedDate && typeof resultObj.formattedDate === 'string') {
+            const parts = resultObj.formattedDate.split('/'); // dd/MM/yyyy
+            if (parts.length === 3) {
+              const [dd, mm, yyyy] = parts;
+              const iso = `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}T12:00:00Z`;
+              const d = new Date(iso);
+              if (!Number.isNaN(d.getTime())) normalizedDate = d.toISOString();
+            }
+          }
+          // Other common fallbacks
+          if (!normalizedDate) {
+            const other = resultObj.deliveryDate || resultObj.date || null;
+            if (other) normalizedDate = other;
+          }
 
-          return [option.key, rawDate || null];
+          return [option.key, normalizedDate || null];
         } catch (error) {
           return [option.key, null];
         }
@@ -291,6 +312,43 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [thirdPartyProductKey, hasThirdPartyPricing, quantity, selectedAttributeValues, sidesPrinted, roundCorners, deliveryPostcode]);
+
+  // Fetch available quantities for current product/options/service level
+  useEffect(() => {
+    if (!hasThirdPartyPricing || !thirdPartyProductKey) {
+      setQuantitiesOptions([]);
+      return;
+    }
+    const productionData = { ...selectedAttributeValues };
+    if (isBusinessCard()) {
+      productionData['Sides Printed'] = sidesPrinted === 'double-sided' ? 'Double Sided' : 'Single Sided';
+      productionData['Round Corners'] = roundCorners === 'yes' ? 'Yes' : 'None';
+    }
+    if (Object.keys(productionData).length === 0) {
+      setQuantitiesOptions([]);
+      return;
+    }
+    let active = true;
+    const service = (STATIC_DELIVERY_OPTIONS.find(o => o.key === (deliveryOptionRef.current || deliveryOption))?.serviceLevel) || 'Saver';
+    thirdPartyService.getQuantities({
+      productId: thirdPartyProductKey,
+      serviceLevel: service,
+      productionData,
+    }).then((res) => {
+      if (!active) return;
+      const list = Array.isArray(res?.quantities) ? res.quantities : (Array.isArray(res?.result) ? res.result : []);
+      const nums = (list || []).map((n) => Number(n)).filter((n) => Number.isFinite(n) && n > 0);
+      setQuantitiesOptions(nums);
+      // If current quantity not in options, set to first
+      if (nums.length > 0 && !nums.includes(Number(quantity))) {
+        setQuantity(nums[0]);
+      }
+    }).catch(() => {
+      if (active) setQuantitiesOptions([]);
+    });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thirdPartyProductKey, hasThirdPartyPricing, selectedAttributeValues, sidesPrinted, roundCorners, deliveryOption]);
 
   // Material options
   const materialOptions = [
@@ -1468,32 +1526,45 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                     <label className="block text-xs font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                       Quantity
                     </label>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                        className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-100 transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                        </svg>
-                      </button>
-                      <input
-                        type="number"
-                        min="1"
+                    {quantitiesOptions.length > 0 ? (
+                      <select
                         value={quantity}
-                        onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                        className="w-16 px-2 py-1.5 border border-gray-300 rounded text-center font-semibold text-sm"
+                        onChange={(e) => setQuantity(Number(e.target.value))}
+                        className="w-full max-w-xs px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                         style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                      />
-                      <button
-                        onClick={() => setQuantity(quantity + 1)}
-                        className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-100 transition-colors"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                      </button>
-                    </div>
+                        {quantitiesOptions.map((q) => (
+                          <option key={q} value={q}>{q}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                          className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-100 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                          </svg>
+                        </button>
+                        <input
+                          type="number"
+                          min="1"
+                          value={quantity}
+                          onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                          className="w-16 px-2 py-1.5 border border-gray-300 rounded text-center font-semibold text-sm"
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        />
+                        <button
+                          onClick={() => setQuantity(quantity + 1)}
+                          className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-100 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Action Buttons */}
