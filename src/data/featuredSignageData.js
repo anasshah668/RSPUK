@@ -10,7 +10,7 @@ export const featuredSignageItems = [
     categorySlug: '3d-built-up-letters',
     route: '/featured/3d-built-up-letters',
     folderName: '3D Lettering',
-    description: 'Premium dimensional lettering with standout visual impact.',
+    description: 'Premium dimensional signage that creates strong visual impact for your business.',
     heading: '3D Built-up Letters',
     blurb:
       'Precision-built dimensional lettering for storefronts and commercial facades with premium finish and long-term durability.',
@@ -27,7 +27,7 @@ export const featuredSignageItems = [
     categorySlug: '2d-box-signage',
     route: '/featured/2d-box-signage',
     folderName: '2D Signage',
-    description: 'Clean and modern box signage for retail and commercial fronts.',
+    description: 'Modern and clean signage with optional illumination for day and night visibility.',
     heading: '2D Box Signage',
     blurb:
       'Modern boxed signage solutions designed for clarity, clean branding, and strong front-of-store visibility.',
@@ -44,7 +44,7 @@ export const featuredSignageItems = [
     categorySlug: 'flex-face',
     route: '/featured/flex-face',
     folderName: 'Flex Face',
-    description: 'Large format illuminated sign systems built for visibility.',
+    description: 'Ideal for large shopfronts and retail spaces requiring seamless, bold graphics.',
     heading: 'Flex Face Sign',
     blurb:
       'Large-format illuminated flex systems for high-impact branding across long facades and elevated installations.',
@@ -61,7 +61,7 @@ export const featuredSignageItems = [
     categorySlug: 'lightbox',
     route: '/featured/lightbox',
     folderName: 'Light Box',
-    description: 'Bright, even illumination for day-and-night brand presence.',
+    description: 'Bright, illuminated signage designed to stand out in any environment.',
     heading: 'Lightbox Sign',
     blurb:
       'Bright and even LED-lit lightbox signage for day-and-night readability with a professional visual finish.',
@@ -82,7 +82,7 @@ export const featuredSignageItems = [
     categorySlug: 'printed-board',
     route: '/featured/printed-board',
     folderName: 'Printed Board Sign',
-    description: 'Durable, high-quality printed signage for indoor and outdoor use.',
+    description: 'Durable and cost-effective signage for both indoor and outdoor applications',
     heading: 'Printed Board Sign',
     blurb:
       'Durable printed board signage for indoor and outdoor use with crisp graphics and consistent color quality.',

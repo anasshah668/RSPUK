@@ -33,6 +33,8 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const [imageZoom, setImageZoom] = useState({ active: false, x: 50, y: 50 });
   const [deliveryPricesByOption, setDeliveryPricesByOption] = useState({});
   const [deliveryPricingLoading, setDeliveryPricingLoading] = useState(false);
+  const [expectedDeliveryByOption, setExpectedDeliveryByOption] = useState({});
+  const [deliveryPostcode, setDeliveryPostcode] = useState('');
 
   // Initialize with productProp if available, then fetch from URL params or productId
   useEffect(() => {
@@ -229,6 +231,67 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [thirdPartyProductKey, hasThirdPartyPricing, quantity, selectedAttributeValues, sidesPrinted, roundCorners]);
 
+  useEffect(() => {
+    if (!hasThirdPartyPricing || !thirdPartyProductKey) {
+      setExpectedDeliveryByOption({});
+      return;
+    }
+    if (!deliveryPostcode.trim()) {
+      setExpectedDeliveryByOption({});
+      return;
+    }
+
+    const qty = Number(quantity) > 0 ? Number(quantity) : 1;
+    const productionData = { ...selectedAttributeValues };
+
+    if (isBusinessCard()) {
+      productionData['Sides Printed'] = sidesPrinted === 'double-sided' ? 'Double Sided' : 'Single Sided';
+      productionData['Round Corners'] = roundCorners === 'yes' ? 'Yes' : 'None';
+    }
+
+    if (Object.keys(productionData).length === 0) {
+      setExpectedDeliveryByOption({});
+      return;
+    }
+
+    let active = true;
+
+    Promise.all(
+      STATIC_DELIVERY_OPTIONS.map(async (option) => {
+        try {
+          const response = await thirdPartyService.getExpectedDeliveryDate({
+            productId: thirdPartyProductKey,
+            productionData,
+            serviceLevel: option.serviceLevel,
+            quantity: qty,
+            artworkService: 'Just Print',
+            deliveryAddress: {
+              postcode: deliveryPostcode.trim(),
+            },
+          });
+
+          const rawDate =
+            response?.expectedDeliveryDate ||
+            response?.result?.expectedDeliveryDate ||
+            response?.result?.deliveryDate ||
+            response?.result?.date;
+
+          return [option.key, rawDate || null];
+        } catch (error) {
+          return [option.key, null];
+        }
+      })
+    ).then((entries) => {
+      if (!active) return;
+      setExpectedDeliveryByOption(Object.fromEntries(entries));
+    });
+
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thirdPartyProductKey, hasThirdPartyPricing, quantity, selectedAttributeValues, sidesPrinted, roundCorners, deliveryPostcode]);
+
   // Material options
   const materialOptions = [
     { 
@@ -359,6 +422,16 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   };
 
   const getDeliveryDateLabel = () => {
+    const apiDateRaw = expectedDeliveryByOption[deliveryOption];
+    if (apiDateRaw) {
+      const parsed = new Date(apiDateRaw);
+      if (!Number.isNaN(parsed.getTime())) {
+        const weekday = parsed.toLocaleDateString(undefined, { weekday: 'short' });
+        const day = parsed.toLocaleDateString(undefined, { day: '2-digit' });
+        const month = parsed.toLocaleDateString(undefined, { month: 'short' });
+        return `${weekday}. ${day} ${month}`;
+      }
+    }
     const now = new Date();
     const option = (pricingTable?.deliveryOptions || []).find(o => o.key === deliveryOption);
     const addDays = option?.etaDays ?? (deliveryOption === 'express' ? 2 : deliveryOption === 'standard' ? 4 : 6);
@@ -1214,6 +1287,19 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                         <p className="text-xs text-gray-500 mt-0.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                           Prices update by quantity and delivery speed
                         </p>
+                        <div className="mt-2 max-w-[240px]">
+                          <label className="block text-[11px] font-semibold text-gray-600 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            Delivery Postcode
+                          </label>
+                          <input
+                            type="text"
+                            value={deliveryPostcode}
+                            onChange={(e) => setDeliveryPostcode(e.target.value.toUpperCase())}
+                            placeholder="e.g. ZE1 0AA"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                          />
+                        </div>
                         {deliveryPricingLoading && (
                           <p className="text-xs text-gray-500 mt-0.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                             Fetching latest delivery prices...
@@ -1241,6 +1327,12 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                     </div>
 
                     {!showPricingGrid ? (
+                      <>
+                      {!deliveryPostcode.trim() && (
+                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          Enter postcode to get expected delivery dates.
+                        </p>
+                      )}
                       <div className="grid grid-cols-3 gap-3">
                         {saverOpt && (
                           <button
@@ -1257,6 +1349,9 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                             </p>
                             <p className="text-base font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                               £{applyVatMode(getPriceForQuantity(quantity, 'saver') || 0).toFixed(2)}
+                            </p>
+                            <p className="text-[11px] text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              {expectedDeliveryByOption.saver ? `ETA: ${new Date(expectedDeliveryByOption.saver).toLocaleDateString()}` : 'ETA: Enter postcode'}
                             </p>
                           </button>
                         )}
@@ -1276,6 +1371,9 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                             <p className="text-base font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                               £{applyVatMode(getPriceForQuantity(quantity, 'standard') || 0).toFixed(2)}
                             </p>
+                            <p className="text-[11px] text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              {expectedDeliveryByOption.standard ? `ETA: ${new Date(expectedDeliveryByOption.standard).toLocaleDateString()}` : 'ETA: Enter postcode'}
+                            </p>
                           </button>
                         )}
                         {expressOpt && (
@@ -1294,9 +1392,13 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                             <p className="text-base font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                               £{applyVatMode(getPriceForQuantity(quantity, 'express') || 0).toFixed(2)}
                             </p>
+                            <p className="text-[11px] text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              {expectedDeliveryByOption.express ? `ETA: ${new Date(expectedDeliveryByOption.express).toLocaleDateString()}` : 'ETA: Enter postcode'}
+                            </p>
                           </button>
                         )}
                       </div>
+                      </>
                     ) : (
                       <div className="border border-gray-200 rounded-lg overflow-hidden">
                         <div className="overflow-x-auto max-h-96 overflow-y-auto">

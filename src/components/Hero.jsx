@@ -14,55 +14,62 @@ const Hero = () => {
       {/* Content */}
       <div className="container mx-auto px-4 lg:px-8 relative z-10">
         <div className="max-w-7xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+          <div className="grid lg:grid-cols-2 gap-7 lg:gap-10 items-center">
             
             {/* Left Column - Text Content */}
-            <div className="space-y-6 animate-fade-in-up">
+            <div className="space-y-5 lg:space-y-6 animate-fade-in-up">
               {/* Main Heading */}
-              <h1 
-                className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight tracking-tight"
+              <h1
+                className="text-[30px] md:text-[38px] lg:text-[46px] font-bold leading-[1.12] tracking-tight"
               >
-                <span className="text-gray-900 animate-slide-in-left">Make Your Brand</span>
+                <span className="text-gray-900 animate-slide-in-left lg:whitespace-nowrap">Custom Signs & Shopfront</span>
                 <br />
                 <span className="text-blue-600 relative inline-block animate-slide-in-left-delay">
-                  Impossible
+                Branding in 
                   <span className="absolute -inset-0.5 bg-blue-600/10 blur-md animate-pulse-slow"></span>
                 </span>
                 <br />
                 <span className="text-gray-900 relative inline-block animate-slide-in-left-delay-2">
-                  To{' '}
+                Middlesbrough,{' '}
                   <WavyUnderline thick={true}>
-                    Ignore
+                    UK
                   </WavyUnderline>
                 </span>
               </h1>
               
               {/* Subheading */}
-              <p 
-                className="text-base md:text-lg text-gray-600 leading-relaxed max-w-xl animate-fade-in-up-delay-2"
+              <p
+                className="text-sm md:text-base text-gray-600 leading-relaxed max-w-lg animate-fade-in-up-delay-2"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
-                Custom neon signs, large-format printing & bespoke signage manufactured in the UK.
+              We specialise in 3D signs, lightboxes, custom neon signs, window graphics and complete business branding solutions.
               </p>
+
+              <div
+                className="inline-flex max-w-full items-center gap-2 md:gap-2.5 px-3 md:px-4 py-2 rounded-xl border border-blue-100 bg-blue-50/70 text-[11px] md:text-xs text-blue-800 font-semibold leading-snug animate-fade-in-up-delay-2 flex-wrap"
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+              >
+                <span>3D Signs</span>
+                <span className="text-blue-400">•</span>
+                <span>Lightbox Signs</span>
+                <span className="text-blue-400">•</span>
+                <span>Custom Neon</span>
+                <span className="text-blue-400">•</span>
+                <span>Flex Face</span>
+                <span className="text-blue-400">•</span>
+                <span>Window Graphics</span>
+                <span className="text-blue-400">•</span>
+                <span>Printing</span>
+              </div>
               
               {/* CTA Buttons */}
-              <div className="flex flex-col sm:flex-row gap-3 pt-2 animate-fade-in-up-delay-3">
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2.5 pt-1 animate-fade-in-up-delay-3">
                 <button
                   onClick={() => navigate(getRoutePath('productDesigner'))}
-                  className="group bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg transition-all duration-300 font-semibold text-xs md:text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-lg hover:shadow-blue-500/50 transform hover:-translate-y-0.5 hover:scale-105"
+                  className="group bg-blue-600 hover:bg-blue-700 text-white px-4 md:px-5 py-2.5 rounded-lg transition-all duration-300 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm hover:shadow-md hover:shadow-blue-500/40 transform hover:-translate-y-0.5"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
-                  Start Designing
-                  <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => navigate(getRoutePath('getQuote'))}
-                  className="group bg-yellow-400 hover:bg-yellow-500 text-gray-900 px-5 py-2 rounded-lg transition-all duration-300 font-semibold text-xs md:text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  Get a Free Quote
+                  Design Your Sign
                   <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
@@ -77,14 +84,25 @@ const Hero = () => {
                       }
                     }, 100);
                   }}
-                  className="group bg-white hover:bg-gray-50 border-2 border-blue-600 text-blue-600 hover:text-blue-700 px-5 py-2 rounded-lg transition-all duration-300 font-semibold text-xs md:text-sm flex items-center justify-center gap-2 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+                  className="group bg-white hover:bg-gray-50 border-2 border-blue-600 text-blue-600 hover:text-blue-700 px-4 md:px-5 py-2.5 rounded-lg transition-all duration-300 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
-                  Explore Services
+                  Explore Signs
                   <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </button>
+                <button
+                  onClick={() => navigate(getRoutePath('getQuote'))}
+                  className="group bg-yellow-400 hover:bg-yellow-500 text-gray-900 px-4 md:px-5 py-2.5 rounded-lg transition-all duration-300 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  Get a Free Quote
+                  <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+               
               </div>
             </div>
             

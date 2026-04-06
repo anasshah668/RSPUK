@@ -13,14 +13,13 @@ const StartDesigningPrint = () => {
           <div className="grid lg:grid-cols-2 gap-8 items-center">
             <div>
               <h2 className="text-2xl md:text-3xl font-bold text-white leading-tight">
-                Start Designing Your Own <WavyUnderline>Print</WavyUnderline>
+              Design Your Product  <WavyUnderline>Online</WavyUnderline>
               </h2>
               <p
                 className="mt-3 text-sm md:text-base text-slate-200 max-w-xl leading-relaxed"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
-                Upload your artwork or create a custom design in minutes. Choose your product, adjust options,
-                and get production-ready prints with expert support from our team.
+                Create your own custom designs using our advanced tools or upload your artwork for quick production.
               </p>
             </div>
 

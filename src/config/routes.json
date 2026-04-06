@@ -54,6 +54,11 @@
     "syncProducts": "third-party/products/sync",
     "productAttributes": "third-party/products/attributes",
     "productAttributesByName": "third-party/products/attributes",
-    "productPrices": "third-party/products/prices"
+    "productPrices": "third-party/products/prices",
+    "expectedDeliveryDate": "third-party/products/expected-delivery-date"
+  },
+  "payments": {
+    "worldpayCheckoutSession": "payments/worldpay/checkout-session",
+    "worldpayCharge": "payments/worldpay/charge"
   }
 }

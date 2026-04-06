@@ -23,10 +23,11 @@ const HomePage = () => {
       <FeaturedSignageProducts />
       <Features />
       <CustomNeonPrinting />
+      <Products />
       <WhyChooseUs />
       <StartDesigningPrint />
       <Transformation />
-      <Products />
+    
       <TrustedBy />
       <BuiltForResults />
       <Contact />

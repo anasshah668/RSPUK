@@ -11,6 +11,7 @@ const ProductDetail = lazy(() => import('../pages/ProductDetail'));
 const ProductDesigner = lazy(() => import('../pages/ProductDesigner'));
 const NeonTextBuilder = lazy(() => import('../pages/NeonTextBuilder'));
 const CustomNeonBuilder = lazy(() => import('../pages/CustomNeonBuilder'));
+const CheckoutPage = lazy(() => import('../pages/CheckoutPage'));
 const AdminLogin = lazy(() => import('../pages/AdminLogin'));
 const AdminDashboard = lazy(() => import('../pages/AdminDashboard'));
 const CategoryProducts = lazy(() => import('../pages/CategoryProducts'));
@@ -74,6 +75,11 @@ export const routes = [
   {
     path: '/custom-neon-builder',
     component: CustomNeonBuilder,
+    layout: 'default',
+  },
+  {
+    path: '/checkout',
+    component: CheckoutPage,
     layout: 'default',
   },
   {
@@ -210,6 +216,7 @@ export const getRoutePath = (routeName, params = {}) => {
     account: '/account',
     neonBuilder: '/neon-builder',
     customNeonBuilder: '/custom-neon-builder',
+    checkout: '/checkout',
     productDesigner: '/product-designer',
     productDetail: (category, productName, encryptedId) => 
       `/${category}/${productName}/${encryptedId}`,

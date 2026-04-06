@@ -16,13 +16,15 @@ const FeaturedSignageProducts = () => {
       <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
         <div className="text-center mb-8">
           <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
-            Featured <WavyUnderline>Signage Products</WavyUnderline>
+         
+          Our Signage <WavyUnderline>Solutions</WavyUnderline>
           </h2>
           <p
             className="mt-2 text-sm md:text-base text-gray-600 max-w-2xl mx-auto"
             style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >
-            Explore our most requested signage solutions and jump directly to each dedicated product page.
+           We design, manufacture and supply high-quality signage solutions in Middlesbrough and across the UK. Our signs are built to attract attention, increase visibility and strengthen your brand presence.
+
           </p>
         </div>
 

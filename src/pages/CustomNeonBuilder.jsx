@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import NeonText from '../components/NeonText';
+import CommonCheckout from '../components/CommonCheckout';
 import { useCart } from '../context/CartContext';
 import { toPng } from 'html-to-image';
 import { quoteService } from '../services/quoteService';
+import { paymentService } from '../services/paymentService';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -14,7 +16,7 @@ const CustomNeonBuilder = () => {
   const previewRef = useRef(null);
   const [showPreview, setShowPreview] = useState(false);
   const [builderMode, setBuilderMode] = useState('design-light');
-  const [currentStep, setCurrentStep] = useState(1); // 1: Design + Size, 2: Checkout
+  const [currentStep, setCurrentStep] = useState(1); // 1: Custom Design, 2: Pricing, 3: Preview, 4: Checkout
   const [showEffects, setShowEffects] = useState(false);
   const [showBuildOptions, setShowBuildOptions] = useState(false);
   const [neonConfig, setNeonConfig] = useState({
@@ -46,6 +48,8 @@ const CustomNeonBuilder = () => {
     phone: '',
     address: ''
   });
+  const [paymentMethod, setPaymentMethod] = useState('worldpay-card');
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [countries, setCountries] = useState([{ code: 'GB', name: 'United Kingdom' }]);
   const [quoteSubmitting, setQuoteSubmitting] = useState(false);
   const [logoQuoteForm, setLogoQuoteForm] = useState({
@@ -107,8 +111,62 @@ const CustomNeonBuilder = () => {
     { name: 'Kalam', label: 'Kalam' },
   ];
 
+  const getEstimatedAmount = () => {
+    if (selectedSize?.price && selectedSize.price > 0) return Number(selectedSize.price);
+
+    const widthRaw = selectedSize?.width || '';
+    const heightRaw = selectedSize?.height || '';
+    const widthNum = parseFloat(widthRaw) || 0;
+    const heightNum = parseFloat(heightRaw) || 0;
+
+    const widthUnit = widthRaw.includes('ft') ? 'ft' : widthRaw.includes('mm') ? 'mm' : 'cm';
+    const heightUnit = heightRaw.includes('ft') ? 'ft' : heightRaw.includes('mm') ? 'mm' : 'cm';
+
+    const widthCm = widthUnit === 'ft' ? widthNum * 30.48 : widthUnit === 'mm' ? widthNum / 10 : widthNum;
+    const heightCm = heightUnit === 'ft' ? heightNum * 30.48 : heightUnit === 'mm' ? heightNum / 10 : heightNum;
+
+    const base = 59;
+    const areaPart = Math.max(0, widthCm * 0.9 + heightCm * 1.2);
+    const addonPart = neonConfig.environment === 'outdoor' ? 25 : 0;
+    const total = base + areaPart + addonPart;
+
+    return Math.max(10, Number(total.toFixed(2)));
+  };
+
+  const estimatedAmount = getEstimatedAmount();
+
   const handleNext = () => {
-    if (currentStep < 2) {
+    if (currentStep === 1 && !selectedSize) {
+      toast.error('Please select a size to continue.');
+      return;
+    }
+    if (currentStep === 3) {
+      navigate('/checkout', {
+        state: {
+          checkoutData: {
+            title: 'Custom Neon Sign Checkout',
+            description: 'Complete your custom neon sign purchase securely.',
+            amount: estimatedAmount,
+            summary: [
+              {
+                label: 'Text',
+                value: `${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♥' : neonConfig.addOnShape === 'star' ? ' ★' : ''}`,
+              },
+              {
+                label: 'Size',
+                value: selectedSize ? `${selectedSize.width} x ${selectedSize.height}` : 'Not selected',
+              },
+              {
+                label: 'Build',
+                value: `${neonConfig.environment === 'outdoor' ? 'Outdoor' : 'Indoor'} • ${neonConfig.tubeThickness === 'classic' ? 'Classic Tube' : 'Bold Tube'}`,
+              },
+            ],
+          },
+        },
+      });
+      return;
+    }
+    if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -119,22 +177,48 @@ const CustomNeonBuilder = () => {
     }
   };
 
-  const handleCheckout = () => {
+  const handleCheckout = async (paymentPayload = null) => {
     if (!selectedSize) {
       toast.error('Please select a size to continue.');
       return;
     }
-    const order = {
-      id: `neon-${Date.now()}`,
-      type: 'neon-sign',
-      config: neonConfig,
-      size: selectedSize,
-      price: selectedSize?.price || 0,
-      quantity: 1
-    };
-    addToCart(order, 1);
-    toast.success('Order added to cart!');
-    navigate('/');
+    if (!customerInfo.name || !customerInfo.email || !customerInfo.phone || !customerInfo.address) {
+      toast.error('Please complete all contact details.');
+      return;
+    }
+    if (!acceptTerms) {
+      toast.error('Please accept the Terms & Conditions to continue.');
+      return;
+    }
+    try {
+      let paymentId = null;
+      if (paymentMethod === 'worldpay-card' && paymentPayload?.sessionState) {
+        const paymentResult = await paymentService.chargeWorldpay({
+          sessionState: paymentPayload.sessionState,
+          amount: estimatedAmount,
+          currency: 'GBP',
+          orderReference: `NEON-${Date.now()}`,
+          customerInfo,
+        });
+        paymentId = paymentResult?.paymentId || null;
+      }
+
+      const order = {
+        id: `neon-${Date.now()}`,
+        type: 'neon-sign',
+        config: neonConfig,
+        size: selectedSize,
+        paymentMethod,
+        paymentId,
+        price: estimatedAmount,
+        quantity: 1
+      };
+      addToCart(order, 1);
+      toast.success('Order added to cart!');
+      navigate('/');
+    } catch (error) {
+      toast.error(error.message || 'Payment failed. Please try again.');
+    }
   };
 
   const handleDownload = async () => {
@@ -230,7 +314,10 @@ const CustomNeonBuilder = () => {
                       backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)',
                       backgroundSize: '20px 20px'
                     }}></div>
-                    <div className="relative z-10 w-full" id="neon-preview-export">
+                    <div
+                      className="relative z-10 w-full lg:scale-90 xl:scale-100 origin-center transition-transform"
+                      id="neon-preview-export"
+                    >
                       <NeonText
                         text={`${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♥' : neonConfig.addOnShape === 'star' ? ' ★' : ''}`}
                         font={neonConfig.font}
@@ -907,141 +994,156 @@ const CustomNeonBuilder = () => {
           </div>
         );
 
-      case 2: // Checkout Step
+      case 2: // Pricing Step
         return (
           <div className="space-y-6">
             <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">
-                Review & Checkout
+              <h3 className="text-xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                Pricing
               </h3>
-              
-              <div className="grid md:grid-cols-2 gap-6">
-                {/* Order Summary */}
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-3">
-                    Order Summary
-                  </h4>
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Text:</span>
-                      <span className="font-semibold text-gray-900">
-                        {`${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♥' : neonConfig.addOnShape === 'star' ? ' ★' : ''}`}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Size:</span>
-                      <span className="font-semibold text-gray-900">
-                        {selectedSize ? `${selectedSize.width} × ${selectedSize.height}` : 'Not selected'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Width:</span>
-                      <span className="font-semibold text-gray-900">
-                        {selectedSize?.width ? `${selectedSize.width}${selectedSize.widthFt ? ` (${selectedSize.widthFt})` : ''}` : '—'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Height:</span>
-                      <span className="font-semibold text-gray-900">{selectedSize?.height || '—'}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Letters per line:</span>
-                      <span className="font-semibold text-gray-900">{selectedSize?.lettersPerLine ?? '—'}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Color:</span>
-                      <div className="flex items-center gap-2">
-                        <div 
-                          className="w-4 h-4 rounded-full border border-gray-300"
-                          style={{ backgroundColor: neonConfig.color }}
-                        ></div>
-                        <span className="font-semibold text-gray-900">{neonConfig.color}</span>
-                      </div>
-                    </div>
-                    <div className="border-t border-gray-200 pt-3 mt-3 space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Indoor/Outdoor:</span>
-                        <span className="font-semibold text-gray-900">{neonConfig.environment === 'outdoor' ? 'Outdoor (IP67)' : 'Indoor'}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Jacket:</span>
-                        <span className="font-semibold text-gray-900">{neonConfig.jacket === 'white' ? 'White jacket' : 'Coloured jacket'}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Background:</span>
-                        <span className="font-semibold text-gray-900">{`Cut to shape • ${neonConfig.backgroundColor}`}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Mounting:</span>
-                        <span className="font-semibold text-gray-900">Wall mounting screws</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Tube thickness:</span>
-                        <span className="font-semibold text-gray-900">{neonConfig.tubeThickness === 'classic' ? 'Classic (6mm)' : 'Bold (8mm)'}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Remote dimmer:</span>
-                        <span className="font-semibold text-gray-900">{neonConfig.remoteDimmer === 'yes' ? 'Yes' : 'No'}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Power mode:</span>
-                        <span className="font-semibold text-gray-900">{neonConfig.powerMode === 'battery-operated' ? 'Battery operated' : 'Power adaptor'}</span>
-                      </div>
-                    </div>
-                    <div className="border-t border-gray-200 pt-3 mt-3">
-                      <div className="flex justify-between">
-                        <span className="font-bold text-gray-900">Total:</span>
-                        <span className="font-bold text-blue-600 text-lg">
-                          {selectedSize?.price > 0 ? `£${selectedSize.price.toFixed(2)}` : 'Contact for quote'}
-                        </span>
-                      </div>
+              <p className="text-sm text-gray-600 mb-6" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                Review estimated pricing before moving to final preview and secure checkout.
+              </p>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="rounded-xl border border-gray-200 p-4 bg-gray-50">
+                  <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Estimated Price</p>
+                  <p className="text-2xl font-bold text-blue-700 mt-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {`£${estimatedAmount.toFixed(2)}`}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-blue-200 p-4 bg-blue-50">
+                  <p className="text-sm font-semibold text-blue-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Klarna Pay in 3</p>
+                  <p className="text-sm font-bold text-blue-900 mt-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {`From £${(estimatedAmount / 3).toFixed(2)} x 3`}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 3: // Preview Step
+        return (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                Preview
+              </h3>
+              <p className="text-sm text-gray-600 mb-4" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                Review all selected options before moving to checkout.
+              </p>
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 md:p-5">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div className="rounded-lg border border-gray-200 bg-white p-3">
+                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Text</p>
+                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      {`${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♥' : neonConfig.addOnShape === 'star' ? ' ★' : ''}`}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-3">
+                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Size</p>
+                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      {selectedSize ? `${selectedSize.width} x ${selectedSize.height}` : 'Not selected'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-3">
+                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Font</p>
+                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>{neonConfig.font}</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-3">
+                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Color</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="w-4 h-4 rounded-full border border-gray-300" style={{ backgroundColor: neonConfig.color }} />
+                      <p className="text-sm font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>{neonConfig.color}</p>
                     </div>
                   </div>
-                </div>
-
-                {/* Customer Information */}
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-3">
-                    Contact Information
-                  </h4>
-                  <div className="space-y-3">
-                    <input
-                      type="text"
-                      placeholder="Full Name"
-                      value={customerInfo.name}
-                      onChange={(e) => setCustomerInfo({ ...customerInfo, name: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                    />
-                    <input
-                      type="email"
-                      placeholder="Email Address"
-                      value={customerInfo.email}
-                      onChange={(e) => setCustomerInfo({ ...customerInfo, email: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                    />
-                    <input
-                      type="tel"
-                      placeholder="Phone Number"
-                      value={customerInfo.phone}
-                      onChange={(e) => setCustomerInfo({ ...customerInfo, phone: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                    />
-                    <textarea
-                      placeholder="Delivery Address"
-                      value={customerInfo.address}
-                      onChange={(e) => setCustomerInfo({ ...customerInfo, address: e.target.value })}
-                      rows="3"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                    />
+                  <div className="rounded-lg border border-gray-200 bg-white p-3">
+                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Environment</p>
+                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      {neonConfig.environment === 'outdoor' ? 'Outdoor (IP67)' : 'Indoor'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-3">
+                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Jacket</p>
+                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      {neonConfig.jacket === 'white' ? 'White' : 'Coloured'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-3">
+                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Background</p>
+                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      {`Cut to shape • ${neonConfig.backgroundColor}`}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-3">
+                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Tube Thickness</p>
+                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      {neonConfig.tubeThickness === 'classic' ? 'Classic (6mm)' : 'Bold (8mm)'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-3">
+                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Remote Dimmer</p>
+                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      {neonConfig.remoteDimmer === 'yes' ? 'Yes' : 'No'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-3">
+                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Power Mode</p>
+                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      {neonConfig.powerMode === 'battery-operated' ? 'Battery operated' : 'Power adaptor'}
+                    </p>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+        );
+
+      case 4: // Checkout Step
+        return (
+          <CommonCheckout
+            title="Review & Secure Checkout"
+            totalAmount={estimatedAmount}
+            orderSummary={(
+              <>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Text:</span>
+                  <span className="font-semibold text-gray-900">
+                    {`${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♥' : neonConfig.addOnShape === 'star' ? ' ★' : ''}`}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Size:</span>
+                  <span className="font-semibold text-gray-900">
+                    {selectedSize ? `${selectedSize.width} x ${selectedSize.height}` : 'Not selected'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Environment:</span>
+                  <span className="font-semibold text-gray-900">{neonConfig.environment === 'outdoor' ? 'Outdoor (IP67)' : 'Indoor'}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Power Mode:</span>
+                  <span className="font-semibold text-gray-900">{neonConfig.powerMode === 'battery-operated' ? 'Battery operated' : 'Power adaptor'}</span>
+                </div>
+                <div className="border-t border-gray-200 pt-3 mt-3 flex justify-between">
+                  <span className="font-bold text-gray-900">Total:</span>
+                  <span className="font-bold text-blue-700">
+                    {`£${estimatedAmount.toFixed(2)}`}
+                  </span>
+                </div>
+              </>
+            )}
+            customerInfo={customerInfo}
+            onCustomerInfoChange={setCustomerInfo}
+            paymentMethod={paymentMethod}
+            onPaymentMethodChange={setPaymentMethod}
+            acceptTerms={acceptTerms}
+            onAcceptTermsChange={setAcceptTerms}
+            onSubmit={handleCheckout}
+            submitDisabled={!customerInfo.name || !customerInfo.email || !customerInfo.phone || !customerInfo.address || !acceptTerms}
+            submitLabel="Pay Securely"
+          />
         );
 
       default:
@@ -1112,7 +1214,9 @@ const CustomNeonBuilder = () => {
           <div className="flex items-center justify-between">
             {[
               { step: 1, label: 'Custom Design', icon: '✏️' },
-              { step: 2, label: 'Checkout', icon: '🛒' }
+              { step: 2, label: 'Pricing', icon: '💷' },
+              { step: 3, label: 'Preview', icon: '👀' },
+              { step: 4, label: 'Checkout', icon: '🛒' }
             ].map((item, index) => (
               <React.Fragment key={item.step}>
                 <div className="flex items-center">
@@ -1129,7 +1233,7 @@ const CustomNeonBuilder = () => {
                     </span>
                   </div>
                 </div>
-                {index < 1 && (
+                {index < 3 && (
                   <div className={`flex-1 h-0.5 mx-4 ${currentStep > item.step ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
                 )}
               </React.Fragment>
@@ -1182,7 +1286,7 @@ const CustomNeonBuilder = () => {
             </div>
           )}
           
-          {currentStep < 2 ? (
+          {currentStep < 4 ? (
             <button
               onClick={handleNext}
               className={`px-6 py-3 rounded-lg font-semibold text-white transition-colors ${
@@ -1192,20 +1296,7 @@ const CustomNeonBuilder = () => {
             >
               Next
             </button>
-          ) : (
-            <button
-              onClick={handleCheckout}
-              disabled={!customerInfo.name || !customerInfo.email}
-              className={`px-6 py-3 rounded-lg font-semibold text-white transition-colors ${
-                !customerInfo.name || !customerInfo.email
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700'
-              }`}
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              Complete Order
-            </button>
-          )}
+          ) : null}
         </div>
           </>
         ) : (
