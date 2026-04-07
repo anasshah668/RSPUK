@@ -55,6 +55,13 @@ const sendQuotationEmail = (quoteId, payload = {}) => {
   );
 };
 
+const reply = (quoteId, payload = {}) => {
+  return httpClient.put(
+    `${apiRoutes.quotes.update}/${quoteId}/reply`,
+    payload
+  );
+};
+
 export const quoteService = {
   create,
   createLogoArtworkQuote,
@@ -62,6 +69,7 @@ export const quoteService = {
   listMy,
   getById,
   update,
+  reply,
   sendQuotationEmail,
 };
 

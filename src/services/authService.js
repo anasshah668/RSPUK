@@ -46,7 +46,14 @@ const registerVerifyOtp = (payload) => {
 
 const getProfile = () => {
   return httpClient.get(
-    `${apiRoutes.authentication.me}`
+    'users/profile'
+  );
+};
+
+const updateProfile = (payload) => {
+  return httpClient.put(
+    'users/profile',
+    payload
   );
 };
 
@@ -70,6 +77,7 @@ export const authService = {
   registerSendOtp,
   registerVerifyOtp,
   getProfile,
+  updateProfile,
   forgotPassword,
   getGoogleAuthUrl,
   changePassword,

@@ -52,17 +52,11 @@ const ViewProfile = () => {
     setSaving(true);
     setMessage('');
     try {
-      const res = await fetch('/api/users/profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || 'Failed to update profile');
+      const data = await authService.updateProfile(form);
       setMessage('Profile updated');
       setProfile(data);
     } catch (err) {
-      setMessage(err.message);
+      setMessage(err?.message || 'Failed to update profile');
     } finally {
       setSaving(false);
     }
@@ -115,6 +109,9 @@ const ViewProfile = () => {
 const ViewQuotes = () => {
   const [quotes, setQuotes] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
+  const [replyDrafts, setReplyDrafts] = React.useState({});
+  const [replySavingId, setReplySavingId] = React.useState('');
+  const [replyMessage, setReplyMessage] = React.useState('');
 
   React.useEffect(() => {
     let mounted = true;
@@ -129,26 +126,118 @@ const ViewQuotes = () => {
     return () => { mounted = false; };
   }, []);
 
+  const getStatusClass = (status) => {
+    const value = String(status || 'new').toLowerCase();
+    if (value === 'quoted') return 'bg-blue-50 text-blue-700 border-blue-100';
+    if (value === 'converted') return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+    if (value === 'closed') return 'bg-gray-100 text-gray-700 border-gray-200';
+    if (value === 'contacted') return 'bg-amber-50 text-amber-700 border-amber-100';
+    return 'bg-purple-50 text-purple-700 border-purple-100';
+  };
+
+  const handleReplySubmit = async (quoteId) => {
+    const message = String(replyDrafts[quoteId] || '').trim();
+    if (!message) return;
+
+    setReplyMessage('');
+    setReplySavingId(quoteId);
+    try {
+      const updated = await quoteService.reply(quoteId, { customerReply: message });
+      setQuotes((prev) => prev.map((q) => (q._id === quoteId ? updated : q)));
+      setReplyDrafts((prev) => ({ ...prev, [quoteId]: '' }));
+      setReplyMessage('Reply sent successfully.');
+    } catch (err) {
+      setReplyMessage(err?.message || 'Failed to send reply');
+    } finally {
+      setReplySavingId('');
+    }
+  };
+
   if (loading) return <div className="text-gray-600">Loading quotes...</div>;
   if (!quotes?.length) return <div className="text-gray-600">No quotes yet.</div>;
 
   return (
     <div className="space-y-4">
+      {replyMessage && <div className="text-sm text-blue-600">{replyMessage}</div>}
       {quotes.map((q) => (
-        <div key={q._id} className="border rounded-lg p-4 bg-white">
-          <div className="flex flex-wrap justify-between items-center gap-2">
-            <div className="font-semibold">{q.projectType || q.productType || 'Quote'}</div>
-            <div className="text-sm text-gray-500">{new Date(q.createdAt).toLocaleString()}</div>
-          </div>
-          <div className="mt-2 text-sm text-gray-700">{q.adminResponse || 'Awaiting response'}</div>
-          {q.quotedPrice !== undefined && (
-            <div className="mt-1 text-sm text-blue-600 font-semibold">Quoted: £{Number(q.quotedPrice).toFixed(2)}</div>
-          )}
-          {q.artworkUrl && (
-            <div className="mt-3">
-              <a href={q.artworkUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline text-sm">View uploaded artwork</a>
+        <div key={q._id} className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+            <div className="flex flex-wrap justify-between items-start gap-3">
+              <div>
+                <div className="text-base font-semibold text-gray-900">{q.projectType || q.productType || 'Quote'}</div>
+                <div className="text-xs text-gray-500 mt-1">Created: {new Date(q.createdAt).toLocaleString()}</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-[11px] px-2.5 py-1 rounded-full border font-semibold uppercase tracking-wide ${getStatusClass(q.status)}`}>
+                  {q.status || 'new'}
+                </span>
+                {q.quotedPrice !== undefined && q.quotedPrice !== null && (
+                  <span className="text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-1">
+                    £{Number(q.quotedPrice).toFixed(2)}
+                  </span>
+                )}
+              </div>
             </div>
-          )}
+          </div>
+
+          <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2 space-y-3">
+              <div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Team response</div>
+                <div className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  {q.adminResponse || 'Awaiting response from our team.'}
+                </div>
+              </div>
+
+              {q.customerReply && (
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Your latest reply</div>
+                  <div className="text-sm text-gray-700 bg-blue-50 border border-blue-100 rounded-lg p-3">
+                    {q.customerReply}
+                    {q.customerRepliedAt && (
+                      <div className="text-[11px] text-blue-700 mt-1">Replied on {new Date(q.customerRepliedAt).toLocaleString()}</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 block">Reply to this quote</label>
+                <textarea
+                  rows={3}
+                  value={replyDrafts[q._id] || ''}
+                  onChange={(e) => setReplyDrafts((prev) => ({ ...prev, [q._id]: e.target.value }))}
+                  placeholder="Type your reply, requested changes, or approval..."
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                />
+                <div className="mt-2 flex justify-end">
+                  <button
+                    onClick={() => handleReplySubmit(q._id)}
+                    disabled={replySavingId === q._id || !String(replyDrafts[q._id] || '').trim()}
+                    className="px-4 py-2 text-sm font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {replySavingId === q._id ? 'Sending...' : 'Send Reply'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Artwork</div>
+              {q.artworkUrl ? (
+                <a href={q.artworkUrl} target="_blank" rel="noreferrer" className="block group">
+                  <div className="w-full h-44 rounded-lg border border-gray-200 bg-white overflow-hidden">
+                    <img src={q.artworkUrl} alt="Artwork" className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform" />
+                  </div>
+                  <div className="mt-2 text-xs text-blue-600 font-medium">Open full image</div>
+                </a>
+              ) : (
+                <div className="w-full h-44 rounded-lg border border-dashed border-gray-300 bg-gray-50 text-gray-500 text-sm flex items-center justify-center">
+                  No artwork attached
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       ))}
     </div>
@@ -159,6 +248,11 @@ const ChangePassword = () => {
   const [form, setForm] = React.useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [saving, setSaving] = React.useState(false);
   const [message, setMessage] = React.useState('');
+  const [showPassword, setShowPassword] = React.useState({
+    currentPassword: false,
+    newPassword: false,
+    confirmPassword: false,
+  });
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
@@ -190,16 +284,91 @@ const ChangePassword = () => {
       {message && <div className="text-sm text-blue-600">{message}</div>}
       <div>
         <label className="block text-sm text-gray-600 mb-1">Current Password</label>
-        <input type="password" name="currentPassword" value={form.currentPassword} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
+        <div className="relative">
+          <input
+            type={showPassword.currentPassword ? 'text' : 'password'}
+            name="currentPassword"
+            value={form.currentPassword}
+            onChange={handleChange}
+            className="w-full border rounded-lg px-3 py-2 pr-10"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((prev) => ({ ...prev, currentPassword: !prev.currentPassword }))}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+            title={showPassword.currentPassword ? 'Hide password' : 'Show password'}
+          >
+            {showPassword.currentPassword ? (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.956 9.956 0 012.042-3.368M6.223 6.223A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a9.969 9.969 0 01-4.125 5.168M15 12a3 3 0 11-6 0 3 3 0 016 0zM3 3l18 18" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm text-gray-600 mb-1">New Password</label>
-          <input type="password" name="newPassword" value={form.newPassword} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
+          <div className="relative">
+            <input
+              type={showPassword.newPassword ? 'text' : 'password'}
+              name="newPassword"
+              value={form.newPassword}
+              onChange={handleChange}
+              className="w-full border rounded-lg px-3 py-2 pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => ({ ...prev, newPassword: !prev.newPassword }))}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              title={showPassword.newPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword.newPassword ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.956 9.956 0 012.042-3.368M6.223 6.223A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a9.969 9.969 0 01-4.125 5.168M15 12a3 3 0 11-6 0 3 3 0 016 0zM3 3l18 18" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
         <div>
           <label className="block text-sm text-gray-600 mb-1">Confirm New Password</label>
-          <input type="password" name="confirmPassword" value={form.confirmPassword} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
+          <div className="relative">
+            <input
+              type={showPassword.confirmPassword ? 'text' : 'password'}
+              name="confirmPassword"
+              value={form.confirmPassword}
+              onChange={handleChange}
+              className="w-full border rounded-lg px-3 py-2 pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => ({ ...prev, confirmPassword: !prev.confirmPassword }))}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              title={showPassword.confirmPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword.confirmPassword ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.956 9.956 0 012.042-3.368M6.223 6.223A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a9.969 9.969 0 01-4.125 5.168M15 12a3 3 0 11-6 0 3 3 0 016 0zM3 3l18 18" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
       </div>
       <button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg">
