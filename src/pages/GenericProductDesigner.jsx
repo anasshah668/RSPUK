@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { fabric } from 'fabric';
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
+import { useAuth } from '../context/AuthContext';
+import { authService } from '../services/authService';
 
 const SIZE_PRESETS = [
   { id: 'a4-portrait', label: 'A4 Portrait (794 x 1123)', width: 794, height: 1123 },
@@ -12,7 +14,7 @@ const SIZE_PRESETS = [
   { id: 'presentation', label: 'Presentation (1920 x 1080)', width: 1920, height: 1080 }
 ];
 
-const emptyPage = (index, size = { width: 500, height: 500 }) => ({
+const emptyPage = (index, size = { width: 800, height: 400 }) => ({
   id: Date.now() + index,
   name: `Page ${index + 1}`,
   width: size.width,
@@ -59,6 +61,7 @@ const FONT_OPTIONS = [
 
 const GenericProductDesigner = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, login } = useAuth();
   const canvasElRef = useRef(null);
   const uploadRef = useRef(null);
   const projectLoadRef = useRef(null);
@@ -80,8 +83,8 @@ const GenericProductDesigner = () => {
   const [webAssets, setWebAssets] = useState([]);
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
-  const [customWidth, setCustomWidth] = useState(500);
-  const [customHeight, setCustomHeight] = useState(500);
+  const [customWidth, setCustomWidth] = useState(800);
+  const [customHeight, setCustomHeight] = useState(400);
   const [pages, setPages] = useState([emptyPage(0)]);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [showAllIcons, setShowAllIcons] = useState(false);
@@ -90,6 +93,16 @@ const GenericProductDesigner = () => {
   const [openInsertSection, setOpenInsertSection] = useState(null);
   const [fontSearch, setFontSearch] = useState('');
   const [showFontPicker, setShowFontPicker] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState('signup'); // signup | signin
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
+  const [pendingDownload, setPendingDownload] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [otpExpiresIn, setOtpExpiresIn] = useState(0);
+  const [showPassword, setShowPassword] = useState(false);
+  const [authForm, setAuthForm] = useState({ email: '', password: '' });
   const fontPickerRef = useRef(null);
 
   const currentPage = pages[currentPageIndex];
@@ -107,6 +120,14 @@ const GenericProductDesigner = () => {
     return () => window.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!authModalOpen || !otpSent || otpExpiresIn <= 0) return undefined;
+    const timer = setInterval(() => {
+      setOtpExpiresIn((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [authModalOpen, otpSent, otpExpiresIn]);
+
   const getCanvasThumbnail = () => {
     if (!canvas) return null;
     const width = canvas.getWidth() || 500;
@@ -119,6 +140,7 @@ const GenericProductDesigner = () => {
       multiplier
     });
   };
+
 
   const saveHistoryState = (targetCanvas) => {
     const serialized = JSON.stringify(targetCanvas.toJSON());
@@ -133,6 +155,7 @@ const GenericProductDesigner = () => {
   const applyCanvasSize = (width, height) => {
     if (!canvas) return;
     canvas.setDimensions({ width, height });
+    canvas.calcOffset();
     canvas.renderAll();
     setPages((prev) =>
       prev.map((page, idx) =>
@@ -158,9 +181,11 @@ const GenericProductDesigner = () => {
     canvas.clear();
     canvas.backgroundColor = backgroundColor;
     canvas.setDimensions({ width: target.width, height: target.height });
+    canvas.calcOffset();
 
     if (target.json) {
       canvas.loadFromJSON(target.json, () => {
+        canvas.calcOffset();
         canvas.renderAll();
       });
     } else {
@@ -172,18 +197,53 @@ const GenericProductDesigner = () => {
     if (!canvasElRef.current) return;
 
     const fabricCanvas = new fabric.Canvas(canvasElRef.current, {
-      width: 500,
-      height: 500,
+      width: 800,
+      height: 400,
       backgroundColor: '#ffffff',
-      preserveObjectStacking: true
+      preserveObjectStacking: true,
+      enableRetinaScaling: false
     });
 
-    fabricCanvas.on('selection:created', (e) => setSelectedObject(e.selected?.[0] || null));
-    fabricCanvas.on('selection:updated', (e) => setSelectedObject(e.selected?.[0] || null));
+    fabricCanvas.on('selection:created', (e) => {
+      setSelectedObject(e.selected?.[0] || null);
+    });
+    fabricCanvas.on('selection:updated', (e) => {
+      setSelectedObject(e.selected?.[0] || null);
+    });
     fabricCanvas.on('selection:cleared', () => setSelectedObject(null));
-    fabricCanvas.on('object:added', () => saveHistoryState(fabricCanvas));
-    fabricCanvas.on('object:modified', () => saveHistoryState(fabricCanvas));
-    fabricCanvas.on('object:removed', () => saveHistoryState(fabricCanvas));
+    fabricCanvas.on('object:added', (evt) => {
+      saveHistoryState(fabricCanvas);
+    });
+    fabricCanvas.on('object:modified', () => {
+      saveHistoryState(fabricCanvas);
+    });
+    fabricCanvas.on('object:removed', () => {
+      saveHistoryState(fabricCanvas);
+    });
+    fabricCanvas.on('mouse:up', () => {});
+
+    fabricCanvas.on('object:moving', (evt) => {
+      const target = evt?.target;
+      if (!target) return;
+      const center = target.getCenterPoint();
+      const canvasCenterX = fabricCanvas.getWidth() / 2;
+      const canvasCenterY = fabricCanvas.getHeight() / 2;
+      const threshold = 8;
+      if (Math.abs(center.x - canvasCenterX) <= threshold) {
+        target.setPositionByOrigin(
+          new fabric.Point(canvasCenterX, center.y),
+          'center',
+          'center'
+        );
+      }
+      if (Math.abs(center.y - canvasCenterY) <= threshold) {
+        target.setPositionByOrigin(
+          new fabric.Point(target.getCenterPoint().x, canvasCenterY),
+          'center',
+          'center'
+        );
+      }
+    });
 
     setCanvas(fabricCanvas);
     saveHistoryState(fabricCanvas);
@@ -198,6 +258,7 @@ const GenericProductDesigner = () => {
   useEffect(() => {
     if (!canvas) return;
     canvas.backgroundColor = backgroundColor;
+    canvas.calcOffset();
     canvas.renderAll();
   }, [canvas, backgroundColor]);
 
@@ -242,8 +303,8 @@ const GenericProductDesigner = () => {
   const addPage = () => {
     saveCurrentPageSnapshot();
     const newPage = emptyPage(pages.length, {
-      width: currentPage?.width || 500,
-      height: currentPage?.height || 500
+      width: currentPage?.width || 800,
+      height: currentPage?.height || 400
     });
     setPages((prev) => [...prev, newPage]);
     setCurrentPageIndex(pages.length);
@@ -583,8 +644,10 @@ const GenericProductDesigner = () => {
       canvas.clear();
       canvas.backgroundColor = backgroundColor;
       canvas.setDimensions({ width: pageData.width, height: pageData.height });
+      canvas.calcOffset();
       if (pageData.json) {
         canvas.loadFromJSON(pageData.json, () => {
+          canvas.calcOffset();
           canvas.renderAll();
           resolve();
         });
@@ -635,6 +698,132 @@ const GenericProductDesigner = () => {
     pdf.save('design.pdf');
   };
 
+  const closeAuthModal = () => {
+    setAuthModalOpen(false);
+    setAuthError('');
+    setAuthLoading(false);
+    setOtp('');
+    setOtpSent(false);
+    setOtpExpiresIn(0);
+  };
+
+  const completeAuth = async (data) => {
+    if (!data) return;
+    login(
+      {
+        _id: data._id,
+        name: data.name,
+        email: data.email,
+        role: data.role
+      },
+      data.token
+    );
+    closeAuthModal();
+    if (pendingDownload) {
+      setPendingDownload(false);
+      await exportCurrentPage();
+    }
+  };
+
+  const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+
+  const sendSignupOtp = async () => {
+    if (!authForm.email.trim()) {
+      setAuthError('Email is required');
+      return;
+    }
+    if (!isValidEmail(authForm.email)) {
+      setAuthError('Please enter a valid email address');
+      return;
+    }
+    setAuthError('');
+    setAuthLoading(true);
+    try {
+      const generatedPassword = `Temp#${Math.random().toString(36).slice(2, 10)}A1`;
+      const response = await authService.registerSendOtp({
+        name: 'Designer User',
+        email: authForm.email.trim(),
+        password: generatedPassword
+      });
+      setAuthForm((prev) => ({ ...prev, password: generatedPassword }));
+      setOtpSent(true);
+      setOtp('');
+      setOtpExpiresIn(Number(response?.expiresInSeconds || 600));
+    } catch (error) {
+      const message = String(error?.message || '');
+      if (message.toLowerCase().includes('already exists')) {
+        setAuthMode('signin');
+        setOtpSent(false);
+        setAuthError('Account already exists. Please sign in to download.');
+      } else {
+        setAuthError(message || 'Unable to send OTP');
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const verifySignupOtp = async () => {
+    if (!otp.trim()) {
+      setAuthError('OTP code is required');
+      return;
+    }
+    setAuthError('');
+    setAuthLoading(true);
+    try {
+      const data = await authService.registerVerifyOtp({
+        email: authForm.email.trim(),
+        otp: otp.trim()
+      });
+      await completeAuth(data);
+    } catch (error) {
+      setAuthError(error?.message || 'OTP verification failed');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const signInAndDownload = async () => {
+    if (!authForm.email.trim() || !authForm.password) {
+      setAuthError('Email and password are required');
+      return;
+    }
+    if (!isValidEmail(authForm.email)) {
+      setAuthError('Please enter a valid email address');
+      return;
+    }
+    setAuthError('');
+    setAuthLoading(true);
+    try {
+      const data = await authService.login({
+        email: authForm.email.trim(),
+        password: authForm.password
+      });
+      await completeAuth(data);
+    } catch (error) {
+      setAuthError(error?.message || 'Sign in failed');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleDownloadClick = async () => {
+    if (isAuthenticated() && localStorage.getItem('token')) {
+      try {
+        await authService.getProfile();
+        await exportCurrentPage();
+        return;
+      } catch (_) {
+        localStorage.removeItem('token');
+      }
+    }
+    setPendingDownload(true);
+    setAuthMode('signup');
+    setAuthModalOpen(true);
+    setAuthError('');
+    setOtpSent(false);
+  };
+
   const saveProject = () => {
     saveCurrentPageSnapshot();
     const payload = JSON.stringify({ pages, currentPageIndex }, null, 2);
@@ -675,8 +864,30 @@ const GenericProductDesigner = () => {
   const updateSelectedObject = (property, value) => {
     if (!canvas || !selectedObject) return;
     selectedObject.set(property, value);
+    selectedObject.setCoords();
     canvas.renderAll();
   };
+
+  const alignSelection = (mode) => {
+    if (!canvas) return;
+    const objects = canvas.getActiveObjects();
+    if (!objects.length) return;
+    const cw = canvas.getWidth();
+    const ch = canvas.getHeight();
+
+    objects.forEach((obj) => {
+      const bounds = obj.getBoundingRect(true, true);
+      if (mode === 'left') obj.set('left', obj.left - bounds.left);
+      if (mode === 'center') obj.set('left', obj.left + (cw / 2 - (bounds.left + bounds.width / 2)));
+      if (mode === 'right') obj.set('left', obj.left + (cw - (bounds.left + bounds.width)));
+      if (mode === 'top') obj.set('top', obj.top - bounds.top);
+      if (mode === 'middle') obj.set('top', obj.top + (ch / 2 - (bounds.top + bounds.height / 2)));
+      if (mode === 'bottom') obj.set('top', obj.top + (ch - (bounds.top + bounds.height)));
+      obj.setCoords();
+    });
+    canvas.renderAll();
+  };
+
 
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden">
@@ -702,7 +913,7 @@ const GenericProductDesigner = () => {
           ))}
         </div>
 
-        <aside className="w-80 bg-white shadow-lg p-4 overflow-y-auto flex-shrink-0">
+        <aside className="w-72 bg-white shadow-lg p-4 overflow-y-auto flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-lg font-bold text-gray-900">Generic Designer</h1>
             <button
@@ -999,6 +1210,65 @@ const GenericProductDesigner = () => {
             </div>
           </div>
         )}
+
+        {selectedObject && (
+          <div className="mt-6 pt-4 border-t border-gray-200 space-y-3">
+            <h4 className="text-sm font-semibold text-gray-900">Transform</h4>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-gray-600 block mb-1">X</label>
+                <input
+                  type="number"
+                  value={Math.round(selectedObject.left || 0)}
+                  onChange={(e) => updateSelectedObject('left', Number(e.target.value))}
+                  className="w-full p-2 border border-gray-300 rounded text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-600 block mb-1">Y</label>
+                <input
+                  type="number"
+                  value={Math.round(selectedObject.top || 0)}
+                  onChange={(e) => updateSelectedObject('top', Number(e.target.value))}
+                  className="w-full p-2 border border-gray-300 rounded text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-600 block mb-1">W</label>
+                <input
+                  type="number"
+                  value={Math.round((selectedObject.width || 0) * (selectedObject.scaleX || 1))}
+                  onChange={(e) => {
+                    const base = selectedObject.width || 1;
+                    updateSelectedObject('scaleX', Number(e.target.value) / base);
+                  }}
+                  className="w-full p-2 border border-gray-300 rounded text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-600 block mb-1">H</label>
+                <input
+                  type="number"
+                  value={Math.round((selectedObject.height || 0) * (selectedObject.scaleY || 1))}
+                  onChange={(e) => {
+                    const base = selectedObject.height || 1;
+                    updateSelectedObject('scaleY', Number(e.target.value) / base);
+                  }}
+                  className="w-full p-2 border border-gray-300 rounded text-sm"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 block mb-1">Rotation</label>
+              <input
+                type="number"
+                value={Math.round(selectedObject.angle || 0)}
+                onChange={(e) => updateSelectedObject('angle', Number(e.target.value))}
+                className="w-full p-2 border border-gray-300 rounded text-sm"
+              />
+            </div>
+          </div>
+        )}
       </aside>
       </div>
 
@@ -1034,6 +1304,27 @@ const GenericProductDesigner = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 7h12M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m-8 0l1 12h8l1-12" />
               </svg>
             </button>
+            <div className="w-px h-7 bg-gray-200 mx-1" />
+            <div className="flex items-center gap-1">
+              <button onClick={() => alignSelection('left')} className="p-1.5 border border-gray-300 rounded hover:bg-gray-50" title="Align Left">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5v14M8 7h12M8 12h8M8 17h12" /></svg>
+              </button>
+              <button onClick={() => alignSelection('center')} className="p-1.5 border border-gray-300 rounded hover:bg-gray-50" title="Align Center">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v14M6 7h12M8 12h8M6 17h12" /></svg>
+              </button>
+              <button onClick={() => alignSelection('right')} className="p-1.5 border border-gray-300 rounded hover:bg-gray-50" title="Align Right">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 5v14M4 7h12M8 12h8M4 17h12" /></svg>
+              </button>
+              <button onClick={() => alignSelection('top')} className="p-1.5 border border-gray-300 rounded hover:bg-gray-50" title="Align Top">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 4h14M7 8v12M12 8v8M17 8v12" /></svg>
+              </button>
+              <button onClick={() => alignSelection('middle')} className="p-1.5 border border-gray-300 rounded hover:bg-gray-50" title="Align Middle">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M7 5v14M12 7v10M17 5v14" /></svg>
+              </button>
+              <button onClick={() => alignSelection('bottom')} className="p-1.5 border border-gray-300 rounded hover:bg-gray-50" title="Align Bottom">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 20h14M7 4v12M12 8v8M17 4v12" /></svg>
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -1078,10 +1369,10 @@ const GenericProductDesigner = () => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto bg-gray-200 p-3">
-          <div className="flex items-center justify-center h-full">
-            <div className="bg-white shadow-2xl rounded-lg p-2 inline-block" style={{ maxWidth: 'calc(100% - 2rem)', maxHeight: 'calc(100% - 2rem)' }}>
-              <canvas ref={canvasElRef} style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }} />
+        <div className="flex-1 overflow-auto bg-gray-200 p-4 relative">
+          <div className="min-h-full min-w-full flex items-start justify-start p-4">
+            <div className="bg-white shadow-2xl rounded-lg p-2 inline-block relative">
+              <canvas ref={canvasElRef} style={{ display: 'block' }} />
             </div>
           </div>
         </div>
@@ -1127,12 +1418,12 @@ const GenericProductDesigner = () => {
             <button onClick={saveProject} className="px-3 py-2 text-sm border border-gray-300 rounded-lg">Save Project</button>
             <button onClick={() => projectLoadRef.current?.click()} className="px-3 py-2 text-sm border border-gray-300 rounded-lg">Load Project</button>
             <input ref={projectLoadRef} type="file" accept="application/json" className="hidden" onChange={loadProject} />
-            <button onClick={exportCurrentPage} className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg">Save & Download</button>
+            <button onClick={handleDownloadClick} className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg">Save & Download</button>
           </div>
         </div>
       </main>
 
-      <aside className="w-56 bg-white border-l border-gray-200 p-3 overflow-y-auto flex-shrink-0">
+      <aside className="w-[235px] min-w-[235px] bg-white border-l border-gray-200 p-2.5 overflow-y-auto shrink-0">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-gray-900">Pages</h3>
           <span className="text-xs text-gray-500">{pages.length}</span>
@@ -1148,7 +1439,7 @@ const GenericProductDesigner = () => {
               }`}
               title={`Go to ${page.name}`}
             >
-              <div className="w-full h-24 rounded border border-gray-200 bg-white overflow-hidden flex items-center justify-center">
+              <div className="w-full h-16 rounded border border-gray-200 bg-white overflow-hidden flex items-center justify-center">
                 {page.thumbnail ? (
                   <img
                     src={page.thumbnail}
@@ -1159,12 +1450,187 @@ const GenericProductDesigner = () => {
                   <span className="text-xs text-gray-400">No preview</span>
                 )}
               </div>
-              <div className="mt-2 text-xs font-medium text-gray-700">{page.name}</div>
+              <div className="mt-1.5 text-[11px] font-medium text-gray-700 break-words">{page.name}</div>
               <div className="text-[11px] text-gray-500">{page.width} x {page.height}</div>
             </button>
           ))}
         </div>
+
       </aside>
+
+      {authModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px] flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden animate-[fadeIn_.2s_ease-out]">
+            <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-5 py-4 text-white">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-lg bg-slate-700 p-1.5 flex items-center justify-center">
+                    <img src="/logo.png" alt="RSP UK" className="h-full w-full object-contain drop-shadow-[0_0_2px_rgba(255,255,255,0.6)]" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold leading-tight">Continue to Download</h3>
+                    <p className="text-xs text-white/80 mt-0.5">Sign in once and download your artwork instantly.</p>
+                  </div>
+                </div>
+                <button onClick={closeAuthModal} className="text-white/80 hover:text-white text-xl leading-none">×</button>
+              </div>
+            </div>
+            <div className="p-5">
+              <div className="mb-3 text-xs text-gray-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                Secure authentication required for export.
+              </div>
+            <div className="mb-3 text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 font-medium">
+              Trusted by 1000+ people for fast and secure printing services.
+            </div>
+            <div className="mb-4 grid grid-cols-3 gap-2">
+              {[
+                { label: 'SSL Secure', icon: 'lock' },
+                { label: 'OTP Verified', icon: 'shield' },
+                { label: 'Private Data', icon: 'user' }
+              ].map((item) => (
+                <div key={item.label} className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-center">
+                  <div className="flex justify-center mb-1">
+                    {item.icon === 'lock' && (
+                      <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2h-1V9a5 5 0 10-10 0v2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>
+                    )}
+                    {item.icon === 'shield' && (
+                      <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l8 4v5c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V7l8-4z" /></svg>
+                    )}
+                    {item.icon === 'user' && (
+                      <svg className="w-3.5 h-3.5 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A9.955 9.955 0 0112 15c2.354 0 4.518.813 6.225 2.172M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    )}
+                  </div>
+                  <div className="text-[10px] font-medium text-gray-600">{item.label}</div>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <button
+                onClick={() => { setAuthMode('signup'); setOtpSent(false); setAuthError(''); }}
+                className={`p-2 rounded-lg text-sm border ${authMode === 'signup' ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300'}`}
+              >
+                Quick Signup
+              </button>
+              <button
+                onClick={() => { setAuthMode('signin'); setOtpSent(false); setAuthError(''); }}
+                className={`p-2 rounded-lg text-sm border ${authMode === 'signin' ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300'}`}
+              >
+                Sign In
+              </button>
+            </div>
+
+            {authMode === 'signup' && (
+              <div className="space-y-3">
+                <input
+                  type="email"
+                  value={authForm.email}
+                  onChange={(e) => setAuthForm((prev) => ({ ...prev, email: e.target.value }))}
+                  placeholder="Enter your email"
+                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm"
+                />
+                {authForm.email && !isValidEmail(authForm.email) && (
+                  <div className="text-xs text-amber-600">Please enter a valid email format.</div>
+                )}
+
+                {!otpSent ? (
+                  <button
+                    onClick={sendSignupOtp}
+                    disabled={authLoading}
+                    className="w-full p-2.5 rounded-lg bg-blue-600 text-white text-sm disabled:opacity-50"
+                  >
+                    {authLoading ? 'Sending...' : 'Send OTP'}
+                  </button>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value)}
+                      placeholder="Enter OTP"
+                      className="w-full p-2.5 border border-gray-300 rounded-lg text-sm"
+                    />
+                    <div className="text-xs text-gray-500">
+                      Expires in: {Math.floor(otpExpiresIn / 60).toString().padStart(2, '0')}:
+                      {(otpExpiresIn % 60).toString().padStart(2, '0')}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={verifySignupOtp}
+                        disabled={authLoading}
+                        className="p-2.5 rounded-lg bg-blue-600 text-white text-sm disabled:opacity-50"
+                      >
+                        {authLoading ? 'Verifying...' : 'Verify & Download'}
+                      </button>
+                      <button
+                        onClick={sendSignupOtp}
+                        disabled={authLoading}
+                        className="p-2.5 rounded-lg border border-gray-300 text-sm disabled:opacity-50"
+                      >
+                        Resend OTP
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {authMode === 'signin' && (
+              <div className="space-y-3">
+                <input
+                  type="email"
+                  value={authForm.email}
+                  onChange={(e) => setAuthForm((prev) => ({ ...prev, email: e.target.value }))}
+                  placeholder="Email"
+                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm"
+                />
+                {authForm.email && !isValidEmail(authForm.email) && (
+                  <div className="text-xs text-amber-600">Please enter a valid email format.</div>
+                )}
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={authForm.password}
+                    onChange={(e) => setAuthForm((prev) => ({ ...prev, password: e.target.value }))}
+                    placeholder="Password"
+                    className="w-full p-2.5 pr-10 border border-gray-300 rounded-lg text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.956 9.956 0 012.042-3.368M6.223 6.223A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a9.969 9.969 0 01-4.125 5.168M15 12a3 3 0 11-6 0 3 3 0 016 0zM3 3l18 18" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+                <button
+                  onClick={signInAndDownload}
+                  disabled={authLoading}
+                  className="w-full p-2.5 rounded-lg bg-blue-600 text-white text-sm disabled:opacity-50"
+                >
+                  {authLoading ? 'Signing in...' : 'Sign In & Download'}
+                </button>
+              </div>
+            )}
+
+            {authError && (
+              <div className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-2.5">
+                {authError}
+              </div>
+            )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
