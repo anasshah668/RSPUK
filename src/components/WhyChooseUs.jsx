@@ -57,19 +57,7 @@ const WhyChooseUs = () => {
         </svg>
       ),
     },
-    {
-      title: 'Manufactured in Middlesbrough, UK',
-      description:
-        'Produced locally in Middlesbrough for better quality control and dependable turnaround.',
-      iconWrap: 'bg-slate-50 ring-slate-200',
-      iconColor: 'text-slate-700',
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M12 21s6-5.2 6-10a6 6 0 10-12 0c0 4.8 6 10 6 10z" />
-          <circle cx="12" cy="11" r="2.2" strokeWidth={1.9} />
-        </svg>
-      ),
-    },
+   
   ];
 
   return (
@@ -80,7 +68,7 @@ const WhyChooseUs = () => {
             Why <WavyUnderline>Choose Our Signs</WavyUnderline>
           </h2>
           <p className="mt-2 text-gray-600 max-w-2xl mx-auto text-sm md:text-base" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-            Professional signage and print solutions delivered with quality, speed, and dependable service.
+            Professional signage and print solutions delivered with quality, speed, and dependable service. Manufactured in Middlesbrough, UK
           </p>
         </div>
 

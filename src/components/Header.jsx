@@ -75,8 +75,8 @@ const Header = () => {
     'account': '/account',
     'login': '/login',
     'register': '/register',
-    'custom-neon-builder': '/custom-neon-builder',
     'product-designer': '/generic-product-designer',
+    'custom-neon-builder': '/custom-neon-builder',
     'neon-builder': '/neon-builder',
     'contact': '/#contact',
     'gallery': '/#gallery',
@@ -230,21 +230,20 @@ const Header = () => {
                 </div>
               )}
             </div>
-
-            <button
-              onClick={() => handleNavClick('custom-neon-builder')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              Design Custom Neon
-            </button>
-
             <button
               onClick={() => handleNavClick('product-designer')}
               className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Design Tool
+            </button>
+            
+            <button
+              onClick={() => handleNavClick('custom-neon-builder')}
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+            >
+              Design Custom Neon
             </button>
             <button
               onClick={() => handleNavClick('gallery')}

@@ -27,7 +27,6 @@ const HomePage = () => {
       <WhyChooseUs />
       <StartDesigningPrint />
       <Transformation />
-    
       <TrustedBy />
       <BuiltForResults />
       <Contact />

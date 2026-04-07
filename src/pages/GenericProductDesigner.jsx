@@ -29,6 +29,33 @@ const QUICK_ICONS = [
 ];
 
 const QUICK_EMOJIS = ['😇', '😊', '😮', '❤️', '👍', '🎉', '⭐', '🔥', '💯', '✨', '🎁', '🚀'];
+const FONT_OPTIONS = [
+  'Lexend Deca',
+  'Arial',
+  'Helvetica',
+  'Verdana',
+  'Tahoma',
+  'Trebuchet MS',
+  'Times New Roman',
+  'Georgia',
+  'Garamond',
+  'Palatino',
+  'Courier New',
+  'Lucida Console',
+  'Monaco',
+  'Impact',
+  'Comic Sans MS',
+  'Montserrat',
+  'Roboto',
+  'Poppins',
+  'Open Sans',
+  'Lato',
+  'Raleway',
+  'Nunito',
+  'Merriweather',
+  'Playfair Display',
+  'Oswald'
+];
 
 const GenericProductDesigner = () => {
   const navigate = useNavigate();
@@ -61,8 +88,24 @@ const GenericProductDesigner = () => {
   const [showAllEmojis, setShowAllEmojis] = useState(false);
   const [showAllShapes, setShowAllShapes] = useState(false);
   const [openInsertSection, setOpenInsertSection] = useState(null);
+  const [fontSearch, setFontSearch] = useState('');
+  const [showFontPicker, setShowFontPicker] = useState(false);
+  const fontPickerRef = useRef(null);
 
   const currentPage = pages[currentPageIndex];
+  const filteredFonts = FONT_OPTIONS.filter((font) =>
+    font.toLowerCase().includes((fontSearch || '').toLowerCase())
+  );
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (fontPickerRef.current && !fontPickerRef.current.contains(event.target)) {
+        setShowFontPicker(false);
+      }
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const getCanvasThumbnail = () => {
     if (!canvas) return null;
@@ -817,17 +860,48 @@ const GenericProductDesigner = () => {
 
             <div>
               <label className="text-sm text-gray-700 block mb-1">Font Family</label>
-              <select
-                value={fontFamily}
-                onChange={(e) => setFontFamily(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-              >
-                <option value="Lexend Deca">Lexend Deca</option>
-                <option value="Arial">Arial</option>
-                <option value="Georgia">Georgia</option>
-                <option value="Montserrat">Montserrat</option>
-                <option value="Times New Roman">Times New Roman</option>
-              </select>
+              <div className="relative" ref={fontPickerRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowFontPicker((prev) => !prev)}
+                  className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white text-left flex items-center justify-between"
+                  style={{ fontFamily }}
+                >
+                  <span>{fontFamily}</span>
+                  <span className="text-gray-500 text-xs">▼</span>
+                </button>
+                {showFontPicker && (
+                  <div className="absolute z-20 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg">
+                    <input
+                      type="text"
+                      value={fontSearch}
+                      onChange={(e) => setFontSearch(e.target.value)}
+                      placeholder="Search fonts..."
+                      className="w-full p-2 text-sm border-b border-gray-200 rounded-t-lg"
+                    />
+                    <div className="max-h-52 overflow-y-auto">
+                      {filteredFonts.length > 0 ? (
+                        filteredFonts.map((font) => (
+                          <button
+                            key={font}
+                            type="button"
+                            onClick={() => {
+                              setFontFamily(font);
+                              setShowFontPicker(false);
+                            }}
+                            className="w-full px-2 py-2 text-left text-sm hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                            style={{ fontFamily: font }}
+                          >
+                            {font}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-2 py-2 text-sm text-gray-500">No fonts found</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

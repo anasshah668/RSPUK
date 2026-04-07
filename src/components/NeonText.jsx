@@ -7,7 +7,9 @@ const NeonText = ({
   size, 
   glowIntensity, 
   letterSpacing, 
-  flicker 
+  flicker,
+  containerClassName = '',
+  minHeightClass = 'min-h-[260px] md:min-h-[320px]'
 }) => {
   // Generate layered text-shadow for realistic neon glow
   // No blur filters - only sharp shadows that simulate neon tube lighting
@@ -76,17 +78,23 @@ const NeonText = ({
     textRendering: 'optimizeLegibility',
     WebkitFontSmoothing: 'antialiased',
     MozOsxFontSmoothing: 'grayscale',
+    width: '100%',
+    maxWidth: '100%',
+    lineHeight: 1.2,
+    whiteSpace: 'normal',
+    overflowWrap: 'anywhere',
+    wordBreak: 'break-word',
   };
 
   return (
     <div 
       id="neon-preview"
-      className="flex items-center justify-center min-h-[400px] md:min-h-[500px] p-8"
+      className={`flex items-center justify-center w-full ${minHeightClass} p-6 md:p-8 ${containerClassName}`}
       style={{ backgroundColor: '#2f3140' }}
     >
       <div 
         style={neonStyle}
-        className="select-none"
+        className="select-none px-2 md:px-4"
       >
         {text || 'NEON TEXT'}
       </div>
