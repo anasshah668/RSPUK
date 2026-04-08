@@ -347,45 +347,45 @@ const CustomNeonBuilder = () => {
                 Live Preview
               </h3>
               <div className="bg-gray-900 rounded-xl p-4 md:p-5 min-h-[280px] md:min-h-[320px] flex items-center justify-center relative overflow-hidden">
-                {/* Dark background with subtle pattern */}
-                <div className="absolute inset-0 opacity-10 z-0" style={{
-                  backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)',
-                  backgroundSize: '20px 20px'
-                }}></div>
-                <div
-                  className="relative z-10 w-full lg:scale-90 xl:scale-100 origin-center transition-transform"
-                  id="neon-preview-export"
-                >
-                  <NeonText
-                    text={`${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♥' : neonConfig.addOnShape === 'star' ? ' ★' : ''}`}
-                    font={neonConfig.font}
-                    color={neonConfig.color}
-                    size={neonConfig.size}
-                    glowIntensity={neonConfig.glowIntensity}
-                    letterSpacing={neonConfig.letterSpacing}
-                    flicker={neonConfig.flicker}
+                    {/* Dark background with subtle pattern */}
+                    <div className="absolute inset-0 opacity-10 z-0" style={{
+                      backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)',
+                      backgroundSize: '20px 20px'
+                    }}></div>
+                    <div
+                      className="relative z-10 w-full lg:scale-90 xl:scale-100 origin-center transition-transform"
+                      id="neon-preview-export"
+                    >
+                      <NeonText
+                        text={`${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♥' : neonConfig.addOnShape === 'star' ? ' ★' : ''}`}
+                        font={neonConfig.font}
+                        color={neonConfig.color}
+                        size={neonConfig.size}
+                        glowIntensity={neonConfig.glowIntensity}
+                        letterSpacing={neonConfig.letterSpacing}
+                        flicker={neonConfig.flicker}
                     minHeightClass="min-h-[240px] md:min-h-[280px]"
-                  />
-                </div>
-                <div className="absolute top-4 left-4 z-20 space-y-2">
-                  <div className="bg-black/70 backdrop-blur-sm text-white px-3 py-1.5 rounded text-xs font-semibold inline-flex" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                    Live Preview
-                  </div>
-                  {selectedSize?.width && selectedSize?.height ? (
-                    <div className="bg-black/60 backdrop-blur-sm text-white/90 px-3 py-1.5 rounded text-[11px] font-semibold inline-flex border border-white/10" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {selectedSize.width} wide {selectedSize.widthFt ? `(${selectedSize.widthFt})` : ''} • {selectedSize.height} height
+                      />
                     </div>
-                  ) : null}
+                    <div className="absolute top-4 left-4 z-20 space-y-2">
+                      <div className="bg-black/70 backdrop-blur-sm text-white px-3 py-1.5 rounded text-xs font-semibold inline-flex" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Live Preview
+                      </div>
+                      {selectedSize?.width && selectedSize?.height ? (
+                        <div className="bg-black/60 backdrop-blur-sm text-white/90 px-3 py-1.5 rounded text-[11px] font-semibold inline-flex border border-white/10" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          {selectedSize.width} wide {selectedSize.widthFt ? `(${selectedSize.widthFt})` : ''} • {selectedSize.height} height
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
             {/* Right: Design controls */}
             <div className="bg-white rounded-xl shadow-lg p-5 md:p-6 lg:col-span-6">
               <h3 className="text-xl font-bold text-gray-900 mb-6">
                 Customize Your Neon Sign
               </h3>
-              <div className="space-y-4">
+                <div className="space-y-4">
                   {/* Text Input */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -423,7 +423,7 @@ const CustomNeonBuilder = () => {
                             onChange={(e) => setFontSearch(e.target.value)}
                             placeholder="Search fonts..."
                             className="w-full px-3 py-2 text-sm border-b border-gray-200"
-                            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                           />
                           <div className="max-h-60 overflow-y-auto">
                             {filteredFonts.length > 0 ? (
@@ -1063,11 +1063,11 @@ const CustomNeonBuilder = () => {
                         <li>Add a <strong>Remote dimmer</strong> to control brightness from your sofa/bar.</li>
                         <li>Click <strong>Preview</strong> or <strong>Download</strong> to share your mockup.</li>
                       </ul>
-                    </div>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
         );
 
       case 2: // Pricing Step

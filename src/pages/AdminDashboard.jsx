@@ -31,6 +31,16 @@ const AdminDashboard = () => {
     fetchData();
   }, [activeTab, user]);
 
+  useEffect(() => {
+    if (activeTab !== 'quotes' || user?.role !== 'admin') return undefined;
+
+    const intervalId = setInterval(() => {
+      fetchData();
+    }, 20000);
+
+    return () => clearInterval(intervalId);
+  }, [activeTab, user]);
+
   const fetchData = async () => {
     try {
       if (activeTab === 'overview') {
@@ -207,6 +217,17 @@ const OverviewTab = ({ analytics }) => {
       <h2 className="text-2xl font-bold text-gray-900">
         Dashboard Overview
       </h2>
+
+      {Number(analytics?.overview?.pendingQuotes || 0) > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-sm font-semibold text-amber-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            Pending Quotes Alert
+          </p>
+          <p className="text-sm text-amber-800 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            You have {Number(analytics?.overview?.pendingQuotes || 0)} pending quote(s) to review.
+          </p>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -1104,14 +1125,28 @@ const QuotesTab = ({ quotes, onResponse }) => {
   };
 
   const handleSubmitResponse = () => {
-    onResponse(selectedQuote._id, {
-      status: 'quoted',
-      adminResponse: responseText,
-      quotedPrice: parseFloat(quotedPrice),
-    });
-    setSelectedQuote(null);
-    setResponseText('');
-    setQuotedPrice('');
+    if (!selectedQuote?._id) return;
+    quoteService
+      .sendQuotationEmail(selectedQuote._id, {
+        status: 'quoted',
+        adminResponse: responseText,
+        quotedPrice: quotedPrice ? parseFloat(quotedPrice) : undefined,
+      })
+      .then(() => {
+        toast.success('Response submitted and email sent to customer');
+        onResponse(selectedQuote._id, {
+          status: 'quoted',
+          adminResponse: responseText,
+          quotedPrice: quotedPrice ? parseFloat(quotedPrice) : undefined,
+        });
+        setSelectedQuote(null);
+        setResponseText('');
+        setQuotedPrice('');
+      })
+      .catch((error) => {
+        console.error('Error submitting response email:', error);
+        toast.error(error.message || 'Failed to send response email.');
+      });
   };
 
   const handleSendQuotationEmail = () => {
@@ -1146,6 +1181,64 @@ const QuotesTab = ({ quotes, onResponse }) => {
     return null;
   };
 
+  const isQuotePending = (q) => {
+    const status = String(q?.status || '').toLowerCase();
+    const customerReplyAt = q?.customerRepliedAt ? new Date(q.customerRepliedAt).getTime() : 0;
+    const respondedAt = q?.respondedAt ? new Date(q.respondedAt).getTime() : 0;
+    return status === 'new' || status === 'contacted' || customerReplyAt > respondedAt;
+  };
+
+  const getConversation = (quote) => {
+    const thread = Array.isArray(quote?.conversation)
+      ? quote.conversation
+          .filter((entry) => String(entry?.message || '').trim())
+          .map((entry) => ({
+            sender: entry.sender === 'admin' ? 'admin' : 'customer',
+            message: String(entry.message || '').trim(),
+            sentAt: entry.sentAt || quote?.updatedAt || quote?.createdAt,
+          }))
+      : [];
+
+    if (thread.length > 0) {
+      return [...thread].sort((a, b) => new Date(a.sentAt) - new Date(b.sentAt));
+    }
+
+    // Backward compatibility for old quotes that only stored latest fields
+    const fallback = [];
+    if (quote?.message) {
+      fallback.push({
+        sender: 'customer',
+        message: quote.message,
+        sentAt: quote.createdAt,
+      });
+    }
+    if (quote?.adminResponse) {
+      fallback.push({
+        sender: 'admin',
+        message: quote.adminResponse,
+        sentAt: quote.respondedAt || quote.updatedAt || quote.createdAt,
+      });
+    }
+    if (quote?.customerReply) {
+      fallback.push({
+        sender: 'customer',
+        message: quote.customerReply,
+        sentAt: quote.customerRepliedAt || quote.updatedAt || quote.createdAt,
+      });
+    }
+    return fallback;
+  };
+
+  useEffect(() => {
+    if (!selectedQuote?._id) return;
+    const freshQuote = quotes.find((q) => q._id === selectedQuote._id);
+    if (freshQuote) {
+      setSelectedQuote(freshQuote);
+      setResponseText(freshQuote?.adminResponse || '');
+      setQuotedPrice(freshQuote?.quotedPrice || '');
+    }
+  }, [quotes, selectedQuote?._id]);
+
   const filteredQuotes = quotes.filter((q) => {
     const matchStatus = filterStatus === 'all' ? true : (String(q.status || '').toLowerCase() === filterStatus);
     const s = searchTerm.trim().toLowerCase();
@@ -1155,6 +1248,13 @@ const QuotesTab = ({ quotes, onResponse }) => {
           .filter(Boolean)
           .some((v) => String(v).toLowerCase().includes(s));
     return matchStatus && matchSearch;
+  }).sort((a, b) => {
+    const pendingA = isQuotePending(a) ? 1 : 0;
+    const pendingB = isQuotePending(b) ? 1 : 0;
+    if (pendingA !== pendingB) return pendingB - pendingA;
+    const aTime = new Date(a?.updatedAt || a?.createdAt || 0).getTime();
+    const bTime = new Date(b?.updatedAt || b?.createdAt || 0).getTime();
+    return bTime - aTime;
   });
 
   return (
@@ -1201,13 +1301,25 @@ const QuotesTab = ({ quotes, onResponse }) => {
               >
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="font-semibold text-gray-900">{quote.name}</p>
+                    <p className="font-semibold text-gray-900 flex items-center gap-2">
+                      <span>{quote.name}</span>
+                      {isQuotePending(quote) ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800">
+                          Pending
+                        </span>
+                      ) : null}
+                    </p>
                     <p className="text-sm text-gray-500">{quote.email}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <p className="text-sm text-gray-600">{quote.projectType}</p>
                       {parseFeatured(quote) ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800">
                           Featured
+                        </span>
+                      ) : null}
+                      {quote.customerReply ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                          Customer replied
                         </span>
                       ) : null}
                     </div>
@@ -1311,6 +1423,12 @@ const QuotesTab = ({ quotes, onResponse }) => {
                     {selectedQuote.respondedAt ? new Date(selectedQuote.respondedAt).toLocaleString() : '—'}
                   </p>
                 </div>
+                <div className="rounded-lg border border-gray-100 p-4">
+                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Customer Replied</p>
+                  <p className="font-semibold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {selectedQuote.customerRepliedAt ? new Date(selectedQuote.customerRepliedAt).toLocaleString() : '—'}
+                  </p>
+                </div>
               </div>
 
               <div className="grid gap-4">
@@ -1320,7 +1438,59 @@ const QuotesTab = ({ quotes, onResponse }) => {
                     {selectedQuote.message || 'N/A'}
                   </p>
                 </div>
+                <div className="rounded-xl border border-emerald-200 p-4 bg-emerald-50/60">
+                  <p className="text-xs text-emerald-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Customer Reply</p>
+                  <p className="font-medium text-gray-900 mt-2 whitespace-pre-wrap" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {selectedQuote.customerReply || 'No reply from customer yet.'}
+                  </p>
+                </div>
                 <AdditionalInfoPanel info={selectedQuote.additionalInfo} />
+              </div>
+
+              <div className="rounded-xl border border-gray-100 p-4 bg-white">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    Conversation Thread
+                  </p>
+                  <span className="text-[11px] text-gray-400" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {getConversation(selectedQuote).length} messages
+                  </span>
+                </div>
+                <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                  {getConversation(selectedQuote).length ? (
+                    getConversation(selectedQuote).map((item, idx) => (
+                      <div
+                        key={`${item.sentAt || 'na'}-${idx}`}
+                        className={`rounded-lg border p-3 ${
+                          item.sender === 'admin'
+                            ? 'bg-blue-50 border-blue-100'
+                            : 'bg-emerald-50 border-emerald-100'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span
+                            className={`text-xs font-semibold uppercase tracking-wide ${
+                              item.sender === 'admin' ? 'text-blue-700' : 'text-emerald-700'
+                            }`}
+                            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                          >
+                            {item.sender === 'admin' ? 'Admin' : 'Customer'}
+                          </span>
+                          <span className="text-[11px] text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            {item.sentAt ? new Date(item.sentAt).toLocaleString() : '—'}
+                          </span>
+                        </div>
+                        <p className="mt-1.5 text-sm text-gray-900 whitespace-pre-wrap" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          {item.message}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      No conversation yet.
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="rounded-xl border border-gray-100 p-4">

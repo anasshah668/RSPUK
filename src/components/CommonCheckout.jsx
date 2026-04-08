@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { paymentService } from '../services/paymentService';
 
@@ -47,7 +47,10 @@ const CommonCheckout = ({
   const [loadingWorldpay, setLoadingWorldpay] = useState(false);
   const [worldpayReady, setWorldpayReady] = useState(false);
   const [worldpayInitError, setWorldpayInitError] = useState('');
-  const [worldpayScriptSrc, setWorldpayScriptSrc] = useState('https://try.access.worldpay.com/access-checkout/v2/checkout.js');
+  const defaultWorldpayScriptSrc = 'https://try.access.worldpay.com/access-checkout/v2/checkout.js';
+  const checkoutInstanceRef = useRef(null);
+
+  const getCheckoutApi = () => window?.Worldpay?.checkout || null;
 
   useEffect(() => {
     let cancelled = false;
@@ -83,25 +86,91 @@ const CommonCheckout = ({
           amount: totalAmount,
           currency: 'GBP',
         });
-        const resolvedScriptUrl = session?.scriptUrl || worldpayScriptSrc;
-        if (session?.scriptUrl && session.scriptUrl !== worldpayScriptSrc) setWorldpayScriptSrc(session.scriptUrl);
+        const resolvedScriptUrl = session?.scriptUrl || defaultWorldpayScriptSrc;
+        const checkoutId = String(session?.checkoutId || '').trim();
+        if (!checkoutId) {
+          throw new Error('Worldpay checkout ID is missing. Please contact support.');
+        }
 
         await loadScript(resolvedScriptUrl);
 
-        window.Worldpay?.checkout?.remove?.();
+        const checkoutApi = getCheckoutApi();
+        const panEl = document.querySelector('#card-pan');
+        const expEl = document.querySelector('#card-expiry');
+        const cvvEl = document.querySelector('#card-cvc');
+        if (!panEl || !expEl || !cvvEl) {
+          throw new Error('Card input containers are missing in checkout form.');
+        }
+
         const initConfig = {
+          id: checkoutId,
           form: '#worldpay-card-form',
           fields: {
             pan: { selector: '#card-pan' },
-            expiry: { selector: '#card-expiry' },
-            cvv: { selector: '#card-cvv' },
+            expiryDate: { selector: '#card-expiry' },
+            cvc: { selector: '#card-cvc' },
           },
         };
-        // checkoutId is optional; include it only when present.
-        window.Worldpay?.checkout?.init?.(initConfig);
-        if (!window.Worldpay?.checkout?.generateSessionState) {
-          throw new Error('Worldpay secure fields are not available yet.');
+
+        if (!checkoutApi) {
+          throw new Error('Worldpay checkout API is unavailable.');
         }
+
+        const initCheckout = () => new Promise((resolve, reject) => {
+          try {
+            const assignInstance = (instanceCandidate) => {
+              const fallbackCandidate = getCheckoutApi();
+              const instance = instanceCandidate || fallbackCandidate;
+              if (instance && typeof instance.generateSessionState === 'function') {
+                checkoutInstanceRef.current = instance;
+                resolve();
+                return true;
+              }
+              return false;
+            };
+
+            if (checkoutApi && typeof checkoutApi.init === 'function') {
+              // Signature supported by Access Checkout: init(config, callback)
+              const maybeReturn = checkoutApi.init(initConfig, (error, instance) => {
+                if (error) {
+                  reject(new Error(error.message || 'Worldpay secure fields initialization failed.'));
+                  return;
+                }
+                if (!assignInstance(instance)) {
+                  reject(new Error('Worldpay did not provide a valid checkout instance.'));
+                }
+              });
+
+              // Some builds may return instance directly instead of callback.
+              if (assignInstance(maybeReturn)) return;
+
+              // Fallback: wait a tick and inspect global object.
+              setTimeout(() => {
+                if (!assignInstance(null)) {
+                  reject(new Error('Worldpay secure fields are unavailable after initialization.'));
+                }
+              }, 100);
+              return;
+            }
+
+            if (typeof checkoutApi === 'function') {
+              const maybeReturn = checkoutApi(initConfig);
+              if (assignInstance(maybeReturn)) return;
+              setTimeout(() => {
+                if (!assignInstance(null)) {
+                  reject(new Error('Worldpay checkout function did not create a usable instance.'));
+                }
+              }, 100);
+              return;
+            }
+
+            reject(new Error('Worldpay checkout init method not found.'));
+          } catch (e) {
+            reject(e);
+          }
+        });
+
+        await initCheckout();
         if (!cancelled) setWorldpayReady(true);
       } catch (error) {
         if (!cancelled) {
@@ -117,19 +186,26 @@ const CommonCheckout = ({
 
     return () => {
       cancelled = true;
-      window.Worldpay?.checkout?.remove?.();
-      setWorldpayReady(false);
+      checkoutInstanceRef.current = null;
     };
-  }, [paymentMethod, totalAmount, worldpayScriptSrc]);
+  }, [paymentMethod, totalAmount]);
 
   const handleSubmit = async () => {
     try {
       if (paymentMethod === 'worldpay-card' && totalAmount > 0) {
-        if (loadingWorldpay || !worldpayReady || !window.Worldpay?.checkout?.generateSessionState) {
+        const instance = checkoutInstanceRef.current;
+        const checkoutApi = getCheckoutApi();
+        const generateSessionState = instance && typeof instance.generateSessionState === 'function'
+          ? instance.generateSessionState.bind(instance)
+          : (checkoutApi && typeof checkoutApi.generateSessionState === 'function'
+            ? checkoutApi.generateSessionState.bind(checkoutApi)
+            : null);
+
+        if (loadingWorldpay || !worldpayReady || !generateSessionState) {
           toast.error('Worldpay is not ready yet. Please wait a second and try again.');
           return;
         }
-        const worldpayPayload = await window.Worldpay.checkout.generateSessionState();
+        const worldpayPayload = await generateSessionState();
         await onSubmit({
           provider: 'worldpay',
           sessionState: worldpayPayload?.sessionState || worldpayPayload,
@@ -262,7 +338,7 @@ const CommonCheckout = ({
                         style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                       />
                       <div
-                        id="card-cvv"
+                        id="card-cvc"
                         className="w-full px-3 py-2 border border-blue-200 bg-white rounded-lg text-sm min-h-[44px]"
                         style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                       />

@@ -135,6 +135,43 @@ const ViewQuotes = () => {
     return 'bg-purple-50 text-purple-700 border-purple-100';
   };
 
+  const getConversation = (quote) => {
+    const thread = Array.isArray(quote?.conversation)
+      ? quote.conversation
+          .filter((entry) => String(entry?.message || '').trim())
+          .map((entry) => ({
+            sender: entry.sender === 'admin' ? 'admin' : 'customer',
+            message: String(entry.message || '').trim(),
+            sentAt: entry.sentAt || quote?.updatedAt || quote?.createdAt,
+          }))
+      : [];
+
+    if (thread.length > 0) {
+      return [...thread].sort((a, b) => new Date(a.sentAt) - new Date(b.sentAt));
+    }
+
+    // Backward compatibility for older quotes created before conversation support
+    const fallback = [];
+    if (quote?.message) {
+      fallback.push({ sender: 'customer', message: quote.message, sentAt: quote.createdAt });
+    }
+    if (quote?.adminResponse) {
+      fallback.push({
+        sender: 'admin',
+        message: quote.adminResponse,
+        sentAt: quote.respondedAt || quote.updatedAt || quote.createdAt,
+      });
+    }
+    if (quote?.customerReply) {
+      fallback.push({
+        sender: 'customer',
+        message: quote.customerReply,
+        sentAt: quote.customerRepliedAt || quote.updatedAt || quote.createdAt,
+      });
+    }
+    return fallback;
+  };
+
   const handleReplySubmit = async (quoteId) => {
     const message = String(replyDrafts[quoteId] || '').trim();
     if (!message) return;
@@ -183,23 +220,40 @@ const ViewQuotes = () => {
           <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2 space-y-3">
               <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Team response</div>
-                <div className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-3">
-                  {q.adminResponse || 'Awaiting response from our team.'}
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Conversation Thread</div>
+                <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-2 max-h-72 overflow-y-auto">
+                  {getConversation(q).length ? (
+                    getConversation(q).map((item, idx) => (
+                      <div
+                        key={`${item.sentAt || 'na'}-${idx}`}
+                        className={`rounded-lg border p-3 ${
+                          item.sender === 'admin'
+                            ? 'bg-white border-blue-100'
+                            : 'bg-blue-50 border-blue-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`text-[11px] font-semibold uppercase tracking-wide ${
+                            item.sender === 'admin' ? 'text-blue-700' : 'text-indigo-700'
+                          }`}>
+                            {item.sender === 'admin' ? 'Team' : 'You'}
+                          </span>
+                          <span className="text-[11px] text-gray-500">
+                            {item.sentAt ? new Date(item.sentAt).toLocaleString() : '—'}
+                          </span>
+                        </div>
+                        <div className="text-sm text-gray-800 whitespace-pre-wrap mt-1">
+                          {item.message}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-gray-600">
+                      Awaiting response from our team.
+                    </div>
+                  )}
                 </div>
               </div>
-
-              {q.customerReply && (
-                <div>
-                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Your latest reply</div>
-                  <div className="text-sm text-gray-700 bg-blue-50 border border-blue-100 rounded-lg p-3">
-                    {q.customerReply}
-                    {q.customerRepliedAt && (
-                      <div className="text-[11px] text-blue-700 mt-1">Replied on {new Date(q.customerRepliedAt).toLocaleString()}</div>
-                    )}
-                  </div>
-                </div>
-              )}
 
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 block">Reply to this quote</label>
