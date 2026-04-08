@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { paymentService } from '../services/paymentService';
 
@@ -45,81 +45,93 @@ const CommonCheckout = ({
   submitLabel = 'Complete Order',
 }) => {
   const [loadingWorldpay, setLoadingWorldpay] = useState(false);
-  const [worldpayCheckoutId, setWorldpayCheckoutId] = useState('');
-
-  const worldpayScriptSrc = useMemo(
-    () => 'https://try.access.worldpay.com/access-checkout/v2/checkout.js',
-    []
-  );
+  const [worldpayReady, setWorldpayReady] = useState(false);
+  const [worldpayInitError, setWorldpayInitError] = useState('');
+  const [worldpayScriptSrc, setWorldpayScriptSrc] = useState('https://try.access.worldpay.com/access-checkout/v2/checkout.js');
 
   useEffect(() => {
+    let cancelled = false;
+
+    const loadScript = async (scriptSrc) => {
+      await new Promise((resolve, reject) => {
+        if (window.Worldpay?.checkout) {
+          resolve();
+          return;
+        }
+        const existing = document.querySelector(`script[src="${scriptSrc}"]`);
+        if (existing) {
+          existing.addEventListener('load', resolve, { once: true });
+          existing.addEventListener('error', reject, { once: true });
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = scriptSrc;
+        script.async = true;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    };
+
     const initWorldpay = async () => {
       if (paymentMethod !== 'worldpay-card' || totalAmount <= 0) return;
       try {
+        setWorldpayReady(false);
+        setWorldpayInitError('');
         setLoadingWorldpay(true);
         const session = await paymentService.createWorldpayCheckoutSession({
           amount: totalAmount,
           currency: 'GBP',
         });
-        if (!session?.checkoutId) {
-          throw new Error('Worldpay checkout ID was not returned by server.');
-        }
-        setWorldpayCheckoutId(session.checkoutId);
+        const resolvedScriptUrl = session?.scriptUrl || worldpayScriptSrc;
+        if (session?.scriptUrl && session.scriptUrl !== worldpayScriptSrc) setWorldpayScriptSrc(session.scriptUrl);
 
-        await new Promise((resolve, reject) => {
-          if (window.Worldpay?.checkout) {
-            resolve();
-            return;
-          }
-          const existing = document.querySelector(`script[src="${worldpayScriptSrc}"]`);
-          if (existing) {
-            existing.addEventListener('load', resolve, { once: true });
-            existing.addEventListener('error', reject, { once: true });
-            return;
-          }
-          const script = document.createElement('script');
-          script.src = worldpayScriptSrc;
-          script.async = true;
-          script.onload = resolve;
-          script.onerror = reject;
-          document.head.appendChild(script);
-        });
+        await loadScript(resolvedScriptUrl);
 
         window.Worldpay?.checkout?.remove?.();
-        window.Worldpay?.checkout?.init?.({
-          id: session.checkoutId,
+        const initConfig = {
           form: '#worldpay-card-form',
           fields: {
             pan: { selector: '#card-pan' },
             expiry: { selector: '#card-expiry' },
             cvv: { selector: '#card-cvv' },
           },
-        });
+        };
+        // checkoutId is optional; include it only when present.
+        window.Worldpay?.checkout?.init?.(initConfig);
+        if (!window.Worldpay?.checkout?.generateSessionState) {
+          throw new Error('Worldpay secure fields are not available yet.');
+        }
+        if (!cancelled) setWorldpayReady(true);
       } catch (error) {
-        toast.error(error.message || 'Worldpay initialization failed.');
+        if (!cancelled) {
+          setWorldpayInitError(error.message || 'Worldpay initialization failed.');
+          toast.error(error.message || 'Worldpay initialization failed.');
+        }
       } finally {
-        setLoadingWorldpay(false);
+        if (!cancelled) setLoadingWorldpay(false);
       }
     };
 
     initWorldpay();
 
     return () => {
+      cancelled = true;
       window.Worldpay?.checkout?.remove?.();
+      setWorldpayReady(false);
     };
   }, [paymentMethod, totalAmount, worldpayScriptSrc]);
 
   const handleSubmit = async () => {
     try {
       if (paymentMethod === 'worldpay-card' && totalAmount > 0) {
-        if (!window.Worldpay?.checkout?.generateSessionState) {
+        if (loadingWorldpay || !worldpayReady || !window.Worldpay?.checkout?.generateSessionState) {
           toast.error('Worldpay is not ready yet. Please wait a second and try again.');
           return;
         }
         const worldpayPayload = await window.Worldpay.checkout.generateSessionState();
         await onSubmit({
           provider: 'worldpay',
-          checkoutId: worldpayCheckoutId,
           sessionState: worldpayPayload?.sessionState || worldpayPayload,
         });
         return;
@@ -257,8 +269,13 @@ const CommonCheckout = ({
                     </div>
                   </form>
                   <div className="text-[11px] text-blue-700">
-                    {loadingWorldpay ? 'Initializing Worldpay secure fields...' : 'Worldpay fields ready'}
+                    {loadingWorldpay ? 'Initializing Worldpay secure fields...' : worldpayReady ? 'Worldpay fields ready' : 'Preparing secure fields...'}
                   </div>
+                  {worldpayInitError && (
+                    <div className="text-[11px] text-red-600 bg-red-50 border border-red-100 rounded-md px-2 py-1">
+                      {worldpayInitError}
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -286,9 +303,11 @@ const CommonCheckout = ({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={submitDisabled}
+            disabled={submitDisabled || (paymentMethod === 'worldpay-card' && (!worldpayReady || loadingWorldpay))}
             className={`w-full px-6 py-3.5 rounded-xl font-semibold text-white transition-colors ${
-              submitDisabled ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow'
+              submitDisabled || (paymentMethod === 'worldpay-card' && (!worldpayReady || loadingWorldpay))
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow'
             }`}
             style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >

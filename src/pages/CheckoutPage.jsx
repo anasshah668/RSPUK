@@ -40,6 +40,7 @@ const CheckoutPage = () => {
   const [activeSlide, setActiveSlide] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('worldpay-card');
   const [acceptTerms, setAcceptTerms] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
     email: '',
@@ -55,10 +56,28 @@ const CheckoutPage = () => {
   }, []);
 
   const amount = Number(checkoutData.amount) > 0 ? Number(checkoutData.amount) : 50;
+  const sanitizedCustomerInfo = {
+    name: String(customerInfo.name || '').trim(),
+    email: String(customerInfo.email || '').trim().toLowerCase(),
+    phone: String(customerInfo.phone || '').trim(),
+    address: String(customerInfo.address || '').trim(),
+  };
+
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sanitizedCustomerInfo.email);
+  const isPhoneValid = /^[+0-9()\-\s]{7,20}$/.test(sanitizedCustomerInfo.phone);
 
   const handleCheckout = async (paymentPayload = null) => {
-    if (!customerInfo.name || !customerInfo.email || !customerInfo.phone || !customerInfo.address) {
+    if (isPaying) return;
+    if (!sanitizedCustomerInfo.name || !sanitizedCustomerInfo.email || !sanitizedCustomerInfo.phone || !sanitizedCustomerInfo.address) {
       toast.error('Please complete all contact details.');
+      return;
+    }
+    if (!isEmailValid) {
+      toast.error('Please enter a valid email address.');
+      return;
+    }
+    if (!isPhoneValid) {
+      toast.error('Please enter a valid phone number.');
       return;
     }
     if (!acceptTerms) {
@@ -67,14 +86,22 @@ const CheckoutPage = () => {
     }
 
     try {
+      setIsPaying(true);
       let paymentId = null;
-      if (paymentMethod === 'worldpay-card' && paymentPayload?.sessionState) {
+      if (paymentMethod === 'worldpay-card') {
+        if (!paymentPayload?.sessionState) {
+          throw new Error('Secure card session was not generated. Please re-enter card details and try again.');
+        }
         const paymentResult = await paymentService.chargeWorldpay({
           sessionState: paymentPayload.sessionState,
           amount,
           currency: 'GBP',
           orderReference: `CHECKOUT-${Date.now()}`,
-          customerInfo,
+          customerInfo: sanitizedCustomerInfo,
+          billingAddress: {
+            address1: sanitizedCustomerInfo.address,
+            countryCode: 'GB',
+          },
         });
         paymentId = paymentResult?.paymentId || null;
       }
@@ -89,6 +116,7 @@ const CheckoutPage = () => {
           paymentId,
           price: amount,
           quantity: 1,
+          customer: sanitizedCustomerInfo,
         },
         1
       );
@@ -97,6 +125,8 @@ const CheckoutPage = () => {
       navigate('/');
     } catch (error) {
       toast.error(error.message || 'Payment failed. Please try again.');
+    } finally {
+      setIsPaying(false);
     }
   };
 
@@ -172,8 +202,17 @@ const CheckoutPage = () => {
           acceptTerms={acceptTerms}
           onAcceptTermsChange={setAcceptTerms}
           onSubmit={handleCheckout}
-          submitDisabled={!customerInfo.name || !customerInfo.email || !customerInfo.phone || !customerInfo.address || !acceptTerms}
-          submitLabel="Pay Securely"
+          submitDisabled={
+            isPaying
+            || !sanitizedCustomerInfo.name
+            || !sanitizedCustomerInfo.email
+            || !sanitizedCustomerInfo.phone
+            || !sanitizedCustomerInfo.address
+            || !isEmailValid
+            || !isPhoneValid
+            || !acceptTerms
+          }
+          submitLabel={isPaying ? 'Processing Payment...' : 'Pay Securely'}
         />
       </div>
       <ToastContainer position="top-right" autoClose={2500} hideProgressBar={false} newestOnTop closeOnClick pauseOnHover />
