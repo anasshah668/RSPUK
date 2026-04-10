@@ -43,7 +43,11 @@
   },
   "admin": {
     "analytics": "admin/analytics",
-    "topAnnouncement": "settings/top-announcement"
+    "topAnnouncement": "settings/top-announcement",
+    "neonPricing": "admin/neon-pricing"
+  },
+  "neonPricing": {
+    "calculate": "neon-pricing/calculate"
   },
   "settings": {
     "topAnnouncement": "settings/top-announcement"

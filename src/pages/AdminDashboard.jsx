@@ -8,6 +8,8 @@ import { orderService } from '../services/orderService';
 import { quoteService } from '../services/quoteService';
 import { categoryService } from '../services/categoryService';
 import { thirdPartyService } from '../services/thirdPartyService';
+import { neonPricingService } from '../services/neonPricingService';
+import AdminNeonPricingTab from '../components/AdminNeonPricingTab';
 
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -21,6 +23,7 @@ const AdminDashboard = () => {
   const [orders, setOrders] = useState([]);
   const [quotes, setQuotes] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [neonPricingSettings, setNeonPricingSettings] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -43,6 +46,7 @@ const AdminDashboard = () => {
 
   const fetchData = async () => {
     try {
+      setLoading(true);
       if (activeTab === 'overview') {
         const data = await adminService.analytics();
         setAnalytics(data);
@@ -58,6 +62,9 @@ const AdminDashboard = () => {
       } else if (activeTab === 'categories') {
         const data = await categoryService.listAll();
         setCategories(data.categories || []);
+      } else if (activeTab === 'neon-pricing') {
+        const data = await neonPricingService.getAdmin();
+        setNeonPricingSettings(data);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -155,7 +162,7 @@ const AdminDashboard = () => {
       <div className="bg-white border-b">
         <div className="container mx-auto px-4">
           <div className="flex gap-1">
-            {['overview', 'products', 'categories', 'orders', 'quotes', 'settings'].map((tab) => (
+            {['overview', 'products', 'categories', 'orders', 'quotes', 'neon-pricing', 'settings'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -166,7 +173,7 @@ const AdminDashboard = () => {
                 }`}
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
-                {tab}
+                {tab === 'neon-pricing' ? 'Neon pricing' : tab}
               </button>
             ))}
           </div>
@@ -191,6 +198,18 @@ const AdminDashboard = () => {
             )}
             {activeTab === 'quotes' && (
               <QuotesTab quotes={quotes} onResponse={handleQuoteResponse} />
+            )}
+            {activeTab === 'neon-pricing' && (
+              neonPricingSettings ? (
+                <AdminNeonPricingTab
+                  settings={neonPricingSettings}
+                  onSaved={(data) => setNeonPricingSettings(data)}
+                />
+              ) : (
+                <p className="text-red-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  Could not load neon pricing settings. Ensure the API is running and you are signed in as admin.
+                </p>
+              )
             )}
             {activeTab === 'settings' && <SettingsTab />}
           </>

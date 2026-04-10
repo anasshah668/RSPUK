@@ -1,55 +1,60 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import NeonText from '../components/NeonText';
-import CommonCheckout from '../components/CommonCheckout';
-import { useCart } from '../context/CartContext';
 import { toPng } from 'html-to-image';
 import { quoteService } from '../services/quoteService';
-import { paymentService } from '../services/paymentService';
+import { neonPricingService } from '../services/neonPricingService';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 import { useNavigate } from 'react-router-dom';
 
+const NEON_LIVE_BG_IMAGES = [
+  { id: '1', src: '/NeonBg/1.jpg', label: 'Scene 1' },
+  { id: '2', src: '/NeonBg/2.jpg', label: 'Scene 2' },
+  { id: '3', src: '/NeonBg/3.jpg', label: 'Scene 3' },
+  { id: '5', src: '/NeonBg/5.jpg', label: 'Scene 5' },
+];
+
+/** Single solid option for live preview — dark enough for neon to read clearly. */
+const NEON_LIVE_BG_COLORS = [{ id: 'dark', label: 'Dark', hex: '#141620' }];
+
+/** Tick + line styling so dimensions read on light or dark backdrops */
+const dimLineClass = 'bg-white/90 shadow-[0_0_0_1px_rgba(0,0,0,0.35),0_0_2px_rgba(0,0,0,0.25)]';
+/** Smaller ticks for compact text-local dimensions */
+const dimLineSm = 'bg-white/90 shadow-[0_0_0_1px_rgba(0,0,0,0.3)]';
+
 const CustomNeonBuilder = () => {
   const navigate = useNavigate();
-  const { addToCart } = useCart();
   const previewRef = useRef(null);
   const [showPreview, setShowPreview] = useState(false);
   const [builderMode, setBuilderMode] = useState('design-light');
-  const [currentStep, setCurrentStep] = useState(1); // 1: Custom Design, 2: Pricing, 3: Preview, 4: Checkout
-  const [showEffects, setShowEffects] = useState(false);
-  const [showBuildOptions, setShowBuildOptions] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1); // 1: Custom Design, 2: Preview → checkout page
+  const [showBuildOptions, setShowBuildOptions] = useState(true);
+  const [previewNeonOn, setPreviewNeonOn] = useState(true);
+  const [previewZoom, setPreviewZoom] = useState(1.3);
   const [neonConfig, setNeonConfig] = useState({
     text: 'Start Typing',
-    font: 'Pacifico',
+    font: 'Allura',
     color: '#ff4df0',
     size: 40,
     glowIntensity: 8,
     letterSpacing: 2,
     flicker: false,
 
-    // New "Design a Light" options
-    environment: 'indoor', // indoor | outdoor
-    jacket: 'coloured', // coloured | white
-    backgroundStyle: 'cut-to-shape', // cut-to-shape
-    backgroundColor: 'white', // white | black | silver | yellow
-    mountingOption: 'wall-mounting-screws', // wall-mounting-screws
-    addOnShape: 'none', // none | heart | star
-    tubeThickness: 'bold', // classic | bold
-    remoteDimmer: 'yes', // yes | no
-    powerMode: 'power-adaptor', // battery-operated | power-adaptor
+    // Build options — null until customer selects (pricing stays £0 until complete)
+    environment: null,
+    jacket: null,
+    backgroundStyle: 'cut-to-shape',
+    backgroundColor: null,
+    mountingOption: null,
+    addOnShape: null,
+    tubeThickness: null,
+    remoteDimmer: null,
+    powerMode: null,
   });
   const [selectedSize, setSelectedSize] = useState(null);
   const [customSizeEnabled, setCustomSizeEnabled] = useState(false);
   const [customSize, setCustomSize] = useState({ width: '', height: '', unit: 'cm' });
-  const [customerInfo, setCustomerInfo] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    address: ''
-  });
-  const [paymentMethod, setPaymentMethod] = useState('worldpay-card');
-  const [acceptTerms, setAcceptTerms] = useState(false);
   const [countries, setCountries] = useState([{ code: 'GB', name: 'United Kingdom' }]);
   const [quoteSubmitting, setQuoteSubmitting] = useState(false);
   const [logoQuoteForm, setLogoQuoteForm] = useState({
@@ -66,6 +71,27 @@ const CustomNeonBuilder = () => {
   const fontPickerRef = useRef(null);
   const [fontSearch, setFontSearch] = useState('');
   const [showFontPicker, setShowFontPicker] = useState(false);
+  const [neonApiPrice, setNeonApiPrice] = useState(null);
+  const [neonPricingLoading, setNeonPricingLoading] = useState(false);
+  const [neonPricingSource, setNeonPricingSource] = useState('fallback');
+  const [liveViewBackdrop, setLiveViewBackdrop] = useState(() => ({
+    kind: 'color',
+    hex: NEON_LIVE_BG_COLORS[0].hex,
+  }));
+  const livePreviewTextSize = Math.round(neonConfig.size * 1.38);
+
+  const livePreviewBackdropStyle =
+    liveViewBackdrop.kind === 'image'
+      ? {
+          backgroundImage: `url(${liveViewBackdrop.src})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundColor: 'transparent',
+        }
+      : {
+          backgroundImage: 'none',
+          backgroundColor: liveViewBackdrop.hex,
+        };
 
   useEffect(() => {
     const loadCountries = async () => {
@@ -108,35 +134,54 @@ const CustomNeonBuilder = () => {
   const neonHeightOptionsCm = [8, 12, 16, 20, 24, 28, 32, 36, 40];
 
   const fonts = [
-    { name: 'Pacifico', label: 'Pacifico' },
-    { name: 'Dancing Script', label: 'Dancing Script' },
+    { name: 'Allura', label: 'Allura' },
     { name: 'Great Vibes', label: 'Great Vibes' },
+    { name: 'Alex Brush', label: 'Alex Brush' },
+    { name: 'Caveat', label: 'Caveat' },
+    { name: 'Dancing Script', label: 'Dancing Script' },
+    { name: 'Italianno', label: 'Italianno' },
     { name: 'Kalam', label: 'Kalam' },
+    { name: 'Lobster', label: 'Lobster' },
+    { name: 'Pacifico', label: 'Pacifico' },
+    { name: 'Parisienne', label: 'Parisienne' },
+    { name: 'Sacramento', label: 'Sacramento' },
+    { name: 'Satisfy', label: 'Satisfy' },
+    { name: 'Tangerine', label: 'Tangerine' },
+    { name: 'Yellowtail', label: 'Yellowtail' },
+    { name: 'Anton', label: 'Anton' },
+    { name: 'Archivo Black', label: 'Archivo Black' },
+    { name: 'Barlow Condensed', label: 'Barlow Condensed' },
+    { name: 'Bebas Neue', label: 'Bebas Neue' },
+    { name: 'Permanent Marker', label: 'Permanent Marker' },
+    { name: 'Inter', label: 'Inter' },
     { name: 'Lexend Deca', label: 'Lexend Deca' },
+    { name: 'Lato', label: 'Lato' },
+    { name: 'Merriweather', label: 'Merriweather' },
+    { name: 'Montserrat', label: 'Montserrat' },
+    { name: 'Nunito', label: 'Nunito' },
+    { name: 'Open Sans', label: 'Open Sans' },
+    { name: 'Oswald', label: 'Oswald' },
+    { name: 'Playfair Display', label: 'Playfair Display' },
+    { name: 'Poppins', label: 'Poppins' },
+    { name: 'Quicksand', label: 'Quicksand' },
+    { name: 'Raleway', label: 'Raleway' },
+    { name: 'Roboto', label: 'Roboto' },
+    { name: 'Roboto Serif', label: 'Roboto Serif' },
+    { name: 'Rubik', label: 'Rubik' },
     { name: 'Arial', label: 'Arial' },
-    { name: 'Helvetica', label: 'Helvetica' },
-    { name: 'Verdana', label: 'Verdana' },
-    { name: 'Tahoma', label: 'Tahoma' },
-    { name: 'Trebuchet MS', label: 'Trebuchet MS' },
-    { name: 'Times New Roman', label: 'Times New Roman' },
-    { name: 'Georgia', label: 'Georgia' },
-    { name: 'Garamond', label: 'Garamond' },
-    { name: 'Palatino', label: 'Palatino' },
+    { name: 'Comic Sans MS', label: 'Comic Sans MS' },
     { name: 'Courier New', label: 'Courier New' },
+    { name: 'Garamond', label: 'Garamond' },
+    { name: 'Georgia', label: 'Georgia' },
+    { name: 'Helvetica', label: 'Helvetica' },
+    { name: 'Impact', label: 'Impact' },
     { name: 'Lucida Console', label: 'Lucida Console' },
     { name: 'Monaco', label: 'Monaco' },
-    { name: 'Impact', label: 'Impact' },
-    { name: 'Comic Sans MS', label: 'Comic Sans MS' },
-    { name: 'Montserrat', label: 'Montserrat' },
-    { name: 'Roboto', label: 'Roboto' },
-    { name: 'Poppins', label: 'Poppins' },
-    { name: 'Open Sans', label: 'Open Sans' },
-    { name: 'Lato', label: 'Lato' },
-    { name: 'Raleway', label: 'Raleway' },
-    { name: 'Nunito', label: 'Nunito' },
-    { name: 'Merriweather', label: 'Merriweather' },
-    { name: 'Playfair Display', label: 'Playfair Display' },
-    { name: 'Oswald', label: 'Oswald' },
+    { name: 'Palatino', label: 'Palatino' },
+    { name: 'Tahoma', label: 'Tahoma' },
+    { name: 'Times New Roman', label: 'Times New Roman' },
+    { name: 'Trebuchet MS', label: 'Trebuchet MS' },
+    { name: 'Verdana', label: 'Verdana' },
   ];
   const filteredFonts = fonts.filter((font) =>
     font.label.toLowerCase().includes((fontSearch || '').toLowerCase())
@@ -152,36 +197,124 @@ const CustomNeonBuilder = () => {
     return () => window.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const getEstimatedAmount = () => {
-    if (selectedSize?.price && selectedSize.price > 0) return Number(selectedSize.price);
+  const pricingSelectionComplete = useMemo(() => {
+    const bg = neonConfig.backgroundColor;
+    const shape = neonConfig.addOnShape;
+    return (
+      Boolean(selectedSize?.width && selectedSize?.height) &&
+      (neonConfig.environment === 'indoor' || neonConfig.environment === 'outdoor') &&
+      (neonConfig.jacket === 'coloured' || neonConfig.jacket === 'white') &&
+      ['white', 'black', 'silver', 'yellow'].includes(bg) &&
+      neonConfig.mountingOption === 'wall-mounting-screws' &&
+      (shape === 'none' || shape === 'heart' || shape === 'star') &&
+      (neonConfig.tubeThickness === 'classic' || neonConfig.tubeThickness === 'bold') &&
+      (neonConfig.remoteDimmer === 'yes' || neonConfig.remoteDimmer === 'no') &&
+      (neonConfig.powerMode === 'battery-operated' || neonConfig.powerMode === 'power-adaptor')
+    );
+  }, [
+    selectedSize?.width,
+    selectedSize?.height,
+    neonConfig.environment,
+    neonConfig.jacket,
+    neonConfig.backgroundColor,
+    neonConfig.mountingOption,
+    neonConfig.addOnShape,
+    neonConfig.tubeThickness,
+    neonConfig.remoteDimmer,
+    neonConfig.powerMode,
+  ]);
 
-    const widthRaw = selectedSize?.width || '';
-    const heightRaw = selectedSize?.height || '';
-    const widthNum = parseFloat(widthRaw) || 0;
-    const heightNum = parseFloat(heightRaw) || 0;
+  /** Shown when there is no successful API response yet (no size, or request failed). */
+  const fallbackEstimatedAmount = 0;
+  const estimatedAmount = neonApiPrice != null ? neonApiPrice : fallbackEstimatedAmount;
 
-    const widthUnit = widthRaw.includes('ft') ? 'ft' : widthRaw.includes('mm') ? 'mm' : 'cm';
-    const heightUnit = heightRaw.includes('ft') ? 'ft' : heightRaw.includes('mm') ? 'mm' : 'cm';
+  useEffect(() => {
+    if (builderMode !== 'design-light') {
+      setNeonApiPrice(null);
+      setNeonPricingSource('fallback');
+      setNeonPricingLoading(false);
+      return undefined;
+    }
 
-    const widthCm = widthUnit === 'ft' ? widthNum * 30.48 : widthUnit === 'mm' ? widthNum / 10 : widthNum;
-    const heightCm = heightUnit === 'ft' ? heightNum * 30.48 : heightUnit === 'mm' ? heightNum / 10 : heightNum;
+    const hasSize = Boolean(selectedSize?.width && selectedSize?.height);
+    if (!hasSize) {
+      setNeonApiPrice(null);
+      setNeonPricingSource('fallback');
+      setNeonPricingLoading(false);
+      return undefined;
+    }
 
-    const base = 59;
-    const areaPart = Math.max(0, widthCm * 0.9 + heightCm * 1.2);
-    const addonPart = neonConfig.environment === 'outdoor' ? 25 : 0;
-    const total = base + areaPart + addonPart;
+    let cancelled = false;
+    setNeonPricingLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await neonPricingService.calculate({
+          width: selectedSize?.width || '',
+          height: selectedSize?.height || '',
+          environment: neonConfig.environment,
+          jacket: neonConfig.jacket,
+          tubeThickness: neonConfig.tubeThickness,
+          remoteDimmer: neonConfig.remoteDimmer,
+          powerMode: neonConfig.powerMode,
+          addOnShape: neonConfig.addOnShape,
+          backgroundColor: neonConfig.backgroundColor,
+          presetPrice:
+            selectedSize?.price != null && Number(selectedSize.price) > 0
+              ? Number(selectedSize.price)
+              : undefined,
+        });
+        if (!cancelled) {
+          setNeonApiPrice(Number(res.price));
+          setNeonPricingSource('api');
+        }
+      } catch {
+        if (!cancelled) {
+          setNeonApiPrice(null);
+          setNeonPricingSource('fallback');
+        }
+      } finally {
+        if (!cancelled) {
+          setNeonPricingLoading(false);
+        }
+      }
+    }, 400);
 
-    return Math.max(10, Number(total.toFixed(2)));
-  };
-
-  const estimatedAmount = getEstimatedAmount();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    builderMode,
+    selectedSize?.width,
+    selectedSize?.height,
+    selectedSize?.price,
+    neonConfig.environment,
+    neonConfig.jacket,
+    neonConfig.tubeThickness,
+    neonConfig.remoteDimmer,
+    neonConfig.powerMode,
+    neonConfig.addOnShape,
+    neonConfig.backgroundColor,
+  ]);
 
   const handleNext = () => {
     if (currentStep === 1 && !selectedSize) {
       toast.error('Please select a size to continue.');
       return;
     }
-    if (currentStep === 3) {
+    if (currentStep === 1 && !pricingSelectionComplete) {
+      toast.error('Please complete all build options (indoor/outdoor, jacket, background, mounting, tube, dimmer, power).');
+      return;
+    }
+    if (currentStep === 2) {
+      if (!selectedSize) {
+        toast.error('Please select a size to continue.');
+        return;
+      }
+      if (!pricingSelectionComplete) {
+        toast.error('Please complete all build options before checkout.');
+        return;
+      }
       navigate('/checkout', {
         state: {
           checkoutData: {
@@ -191,7 +324,7 @@ const CustomNeonBuilder = () => {
             summary: [
               {
                 label: 'Text',
-                value: `${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♥' : neonConfig.addOnShape === 'star' ? ' ★' : ''}`,
+                value: `${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♡' : neonConfig.addOnShape === 'star' ? ' ☆' : ''}`,
               },
               {
                 label: 'Size',
@@ -199,7 +332,7 @@ const CustomNeonBuilder = () => {
               },
               {
                 label: 'Build',
-                value: `${neonConfig.environment === 'outdoor' ? 'Outdoor' : 'Indoor'} • ${neonConfig.tubeThickness === 'classic' ? 'Classic Tube' : 'Bold Tube'}`,
+                value: `${neonConfig.environment === 'outdoor' ? 'Outdoor' : neonConfig.environment === 'indoor' ? 'Indoor' : '—'} • ${neonConfig.tubeThickness === 'classic' ? 'Classic Tube' : neonConfig.tubeThickness === 'bold' ? 'Bold Tube' : '—'}`,
               },
             ],
           },
@@ -207,7 +340,7 @@ const CustomNeonBuilder = () => {
       });
       return;
     }
-    if (currentStep < 4) {
+    if (currentStep < 2) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -218,49 +351,17 @@ const CustomNeonBuilder = () => {
     }
   };
 
-  const handleCheckout = async (paymentPayload = null) => {
-    if (!selectedSize) {
-      toast.error('Please select a size to continue.');
-      return;
-    }
-    if (!customerInfo.name || !customerInfo.email || !customerInfo.phone || !customerInfo.address) {
-      toast.error('Please complete all contact details.');
-      return;
-    }
-    if (!acceptTerms) {
-      toast.error('Please accept the Terms & Conditions to continue.');
-      return;
-    }
-    try {
-      let paymentId = null;
-      if (paymentMethod === 'worldpay-card' && paymentPayload?.sessionState) {
-        const paymentResult = await paymentService.chargeWorldpay({
-          sessionState: paymentPayload.sessionState,
-          amount: estimatedAmount,
-          currency: 'GBP',
-          orderReference: `NEON-${Date.now()}`,
-          customerInfo,
-        });
-        paymentId = paymentResult?.paymentId || null;
-      }
-
-      const order = {
-        id: `neon-${Date.now()}`,
-        type: 'neon-sign',
-        config: neonConfig,
-        size: selectedSize,
-        paymentMethod,
-        paymentId,
-        price: estimatedAmount,
-        quantity: 1
-      };
-      addToCart(order, 1);
-      toast.success('Order added to cart!');
-      navigate('/');
-    } catch (error) {
-      toast.error(error.message || 'Payment failed. Please try again.');
-    }
+  const bumpPreviewZoom = (delta) => {
+    setPreviewZoom((z) => {
+      const n = Math.round((z + delta) * 100) / 100;
+      return Math.min(1.55, Math.max(0.65, n));
+    });
   };
+
+  const previewControlBtn =
+    'px-2.5 py-1.5 rounded-md text-xs font-semibold border transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
+  const previewControlOn = 'bg-blue-600 border-blue-500 text-white';
+  const previewControlOff = 'bg-black/50 border-white/20 text-white hover:bg-black/65';
 
   const handleDownload = async () => {
     const element = document.getElementById('neon-preview-export');
@@ -268,11 +369,11 @@ const CustomNeonBuilder = () => {
 
     try {
       const dataUrl = await toPng(element, {
-        backgroundColor: '#1f2937',
         pixelRatio: 3,
         quality: 1.0,
         width: element.offsetWidth,
         height: element.offsetHeight,
+        cacheBust: true,
       });
 
       const link = document.createElement('a');
@@ -342,46 +443,201 @@ const CustomNeonBuilder = () => {
         return (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Left: Live Preview */}
-            <div className="bg-white rounded-xl shadow-lg p-4 md:p-5 lg:sticky lg:top-24 lg:col-span-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">
+            <div className="bg-white rounded-xl shadow-lg p-4 md:p-5 lg:sticky lg:top-24 lg:col-span-7">
+              <h3 className="text-2xl font-bold text-gray-900 mb-4">
                 Live Preview
               </h3>
-              <div className="bg-gray-900 rounded-xl p-4 md:p-5 min-h-[280px] md:min-h-[320px] flex items-center justify-center relative overflow-hidden">
-                    {/* Dark background with subtle pattern */}
-                    <div className="absolute inset-0 opacity-10 z-0" style={{
-                      backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)',
-                      backgroundSize: '20px 20px'
-                    }}></div>
+              <div className="flex flex-col gap-3">
+                <div className="rounded-xl relative overflow-visible shadow-inner border border-gray-200/80">
+                  <div
+                    id="neon-preview-export"
+                    className="relative overflow-visible rounded-xl min-h-[360px] md:min-h-[440px] lg:min-h-[520px] flex items-start justify-center px-6 md:px-8 pb-8 md:pb-10 pt-14 md:pt-20 lg:pt-24"
+                    style={livePreviewBackdropStyle}
+                  >
                     <div
-                      className="relative z-10 w-full lg:scale-90 xl:scale-100 origin-center transition-transform"
-                      id="neon-preview-export"
+                      className="relative z-10 w-full max-w-full flex justify-center origin-top transition-transform duration-150 ease-out will-change-transform"
+                      style={{ transform: `scale(${previewZoom})` }}
                     >
-                      <NeonText
-                        text={`${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♥' : neonConfig.addOnShape === 'star' ? ' ★' : ''}`}
-                        font={neonConfig.font}
-                        color={neonConfig.color}
-                        size={neonConfig.size}
-                        glowIntensity={neonConfig.glowIntensity}
-                        letterSpacing={neonConfig.letterSpacing}
-                        flicker={neonConfig.flicker}
-                    minHeightClass="min-h-[240px] md:min-h-[280px]"
-                      />
-                    </div>
-                    <div className="absolute top-4 left-4 z-20 space-y-2">
-                      <div className="bg-black/70 backdrop-blur-sm text-white px-3 py-1.5 rounded text-xs font-semibold inline-flex" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                        Live Preview
-                      </div>
                       {selectedSize?.width && selectedSize?.height ? (
-                        <div className="bg-black/60 backdrop-blur-sm text-white/90 px-3 py-1.5 rounded text-[11px] font-semibold inline-flex border border-white/10" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                          {selectedSize.width} wide {selectedSize.widthFt ? `(${selectedSize.widthFt})` : ''} • {selectedSize.height} height
+                        <div className="inline-flex flex-col items-center w-fit max-w-full mx-auto pointer-events-none">
+                          <div className="flex flex-row items-stretch gap-1 sm:gap-1.5 w-fit max-w-full">
+                            <div className="w-3.5 sm:w-4 shrink-0 flex flex-col self-stretch pr-0.5" aria-hidden>
+                              <div className="relative flex-1 min-h-[1.5rem] w-full">
+                                <div
+                                  className={`absolute left-1/2 top-0 bottom-0 w-px -translate-x-1/2 rounded-full ${dimLineSm}`}
+                                />
+                                <div
+                                  className={`absolute left-1/2 top-0 -translate-x-1/2 h-px w-1.5 ${dimLineSm}`}
+                                />
+                                <div
+                                  className={`absolute left-1/2 bottom-0 -translate-x-1/2 h-px w-1.5 ${dimLineSm}`}
+                                />
+                                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-90 whitespace-nowrap">
+                                  <span
+                                    className="inline-block rounded px-1 py-px text-[8px] sm:text-[9px] font-semibold text-white bg-black/60 backdrop-blur-sm border border-white/15 leading-tight"
+                                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                                  >
+                                    {selectedSize.height}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="min-w-0 flex flex-col items-stretch">
+                              <NeonText
+                                text={`${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♡' : neonConfig.addOnShape === 'star' ? ' ☆' : ''}`}
+                                font={neonConfig.font}
+                                color={neonConfig.color}
+                                size={livePreviewTextSize}
+                                glowIntensity={neonConfig.glowIntensity}
+                                letterSpacing={neonConfig.letterSpacing}
+                                flicker={neonConfig.flicker}
+                                tubeLit={previewNeonOn}
+                                thinTube
+                                compactForDimensions
+                                containerClassName="!items-center justify-center"
+                              />
+                              <div className="relative w-full h-5 mt-1 flex items-center justify-center">
+                                <div className={`absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 ${dimLineSm}`} />
+                                <div
+                                  className={`absolute left-0 top-1/2 -translate-y-1/2 w-px h-1.5 ${dimLineSm}`}
+                                />
+                                <div
+                                  className={`absolute right-0 top-1/2 -translate-y-1/2 w-px h-1.5 ${dimLineSm}`}
+                                />
+                                <span
+                                  className="relative z-10 rounded px-1 py-px text-[8px] sm:text-[9px] font-semibold text-white bg-black/60 backdrop-blur-sm border border-white/15 leading-tight max-w-full truncate"
+                                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                                  title={`${selectedSize.width}${selectedSize.widthFt ? ` (${selectedSize.widthFt})` : ''}`}
+                                >
+                                  {selectedSize.width}
+                                  {selectedSize.widthFt ? ` (${selectedSize.widthFt})` : ''}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                      ) : null}
+                      ) : (
+                        <NeonText
+                          text={`${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♡' : neonConfig.addOnShape === 'star' ? ' ☆' : ''}`}
+                          font={neonConfig.font}
+                          color={neonConfig.color}
+                          size={livePreviewTextSize}
+                          glowIntensity={neonConfig.glowIntensity}
+                          letterSpacing={neonConfig.letterSpacing}
+                          flicker={neonConfig.flicker}
+                          tubeLit={previewNeonOn}
+                          thinTube
+                          minHeightClass="min-h-[300px] md:min-h-[380px] lg:min-h-[440px]"
+                          containerClassName="!items-start justify-center !pt-2 !pb-10 md:!pt-3 md:!pb-14"
+                        />
+                      )}
+                    </div>
+                  </div>
+                  <div
+                    className="absolute top-4 right-4 z-30 flex flex-wrap items-center justify-end gap-1.5 rounded-lg bg-black/65 backdrop-blur-sm border border-white/15 px-2 py-2 max-w-[min(100%,280px)]"
+                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  >
+                    <span className="text-[10px] font-semibold text-white/80 uppercase w-full sm:w-auto sm:mr-1">Tube</span>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewNeonOn(true)}
+                      className={`${previewControlBtn} ${previewNeonOn ? previewControlOn : previewControlOff}`}
+                    >
+                      On
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewNeonOn(false)}
+                      className={`${previewControlBtn} ${!previewNeonOn ? previewControlOn : previewControlOff}`}
+                    >
+                      Off
+                    </button>
+                    <span className="hidden sm:inline w-px h-5 bg-white/25 mx-0.5" aria-hidden />
+                    <button
+                      type="button"
+                      onClick={() => bumpPreviewZoom(-0.1)}
+                      disabled={previewZoom <= 0.65}
+                      className={`${previewControlBtn} ${previewControlOff}`}
+                      title="Zoom out"
+                    >
+                      −
+                    </button>
+                    <span className="text-[11px] font-bold text-white tabular-nums min-w-[2.75rem] text-center">
+                      {Math.round(previewZoom * 100)}%
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => bumpPreviewZoom(0.1)}
+                      disabled={previewZoom >= 1.55}
+                      className={`${previewControlBtn} ${previewControlOff}`}
+                      title="Zoom in"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <div className="absolute top-4 left-4 z-20 space-y-2 pointer-events-none">
+                    <div className="bg-black/70 backdrop-blur-sm text-white px-3 py-1.5 rounded text-xs font-semibold inline-flex" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      Live Preview
                     </div>
                   </div>
                 </div>
+                <p className="text-xs text-amber-800/90 border border-amber-200/80 bg-amber-50/60 rounded-lg px-3 py-2.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  Colours may vary in real life compared to what you see in this preview.
+                </p>
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-3 py-3 md:px-4 md:py-3">
+                  <p className="text-xs font-semibold text-gray-600 mb-2.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    Live view background
+                  </p>
+                  <div className="flex flex-row flex-nowrap items-center gap-3 overflow-x-auto pb-0.5">
+                    {NEON_LIVE_BG_COLORS.map((c) => {
+                      const selected = liveViewBackdrop.kind === 'color' && liveViewBackdrop.hex === c.hex;
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setLiveViewBackdrop({ kind: 'color', hex: c.hex })}
+                          aria-label={`Background ${c.label}`}
+                          aria-pressed={selected}
+                          title={c.label}
+                          className={`shrink-0 w-[72px] h-[72px] md:w-20 md:h-20 rounded-lg border-2 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
+                            selected
+                              ? 'border-blue-500 shadow-[0_0_0_2px_rgba(59,130,246,0.35)]'
+                              : 'border-gray-300 hover:border-gray-400'
+                          }`}
+                          style={{ backgroundColor: c.hex }}
+                        />
+                      );
+                    })}
+                    <span
+                      className="hidden sm:block w-px h-14 bg-gray-200 shrink-0"
+                      aria-hidden
+                    />
+                    {NEON_LIVE_BG_IMAGES.map((img) => {
+                      const selected = liveViewBackdrop.kind === 'image' && liveViewBackdrop.src === img.src;
+                      return (
+                        <button
+                          key={img.id}
+                          type="button"
+                          onClick={() => setLiveViewBackdrop({ kind: 'image', src: img.src })}
+                          aria-label={`Use ${img.label}`}
+                          aria-pressed={selected}
+                          className={`shrink-0 w-[72px] h-[72px] md:w-20 md:h-20 rounded-lg overflow-hidden border-2 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
+                            selected
+                              ? 'border-blue-500 shadow-[0_0_0_2px_rgba(59,130,246,0.35)]'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          <img src={img.src} alt="" className="w-full h-full object-cover" loading="lazy" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {/* Right: Design controls */}
-            <div className="bg-white rounded-xl shadow-lg p-5 md:p-6 lg:col-span-6">
+            <div className="bg-white rounded-xl shadow-lg p-5 md:p-6 lg:col-span-5">
               <h3 className="text-xl font-bold text-gray-900 mb-6">
                 Customize Your Neon Sign
               </h3>
@@ -705,55 +961,7 @@ const CustomNeonBuilder = () => {
                     </div>
                   </div>
 
-                  {/* Text & Effects (collapsed by default to reduce scrolling) */}
-                  <div className="rounded-xl border border-gray-200 bg-white">
-                    <button
-                      type="button"
-                      onClick={() => setShowEffects((v) => !v)}
-                      className="w-full px-4 py-3 flex items-center justify-between gap-3"
-                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                    >
-                      <div className="text-left">
-                        <p className="text-sm font-bold text-gray-900">Text & Effects</p>
-                        <p className="text-xs text-gray-600 mt-0.5">Text size, glow, spacing, flicker</p>
-                      </div>
-                      <span className="text-gray-500 text-sm">{showEffects ? '−' : '+'}</span>
-                    </button>
-                    {showEffects ? (
-                      <div className="px-4 pb-4 space-y-4">
-                        {/* Fixed defaults (no sliders) */}
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="p-3 rounded-lg border border-gray-200 bg-gray-50">
-                            <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Text size</p>
-                            <p className="text-sm font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>{neonConfig.size}px</p>
-                          </div>
-                          <div className="p-3 rounded-lg border border-gray-200 bg-gray-50">
-                            <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Glow intensity</p>
-                            <p className="text-sm font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>{neonConfig.glowIntensity}</p>
-                          </div>
-                        </div>
-
-                        {/* Letter Spacing */}
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                            Letter Spacing: {neonConfig.letterSpacing}px
-                          </label>
-                          <input
-                            type="range"
-                            min="0"
-                            max="10"
-                            value={neonConfig.letterSpacing}
-                            onChange={(e) => setNeonConfig({ ...neonConfig, letterSpacing: parseInt(e.target.value) })}
-                            className="w-full"
-                          />
-                        </div>
-
-                        {/* Flicker toggle removed per request */}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  {/* Build Options (collapsed by default to reduce scrolling) */}
+                  {/* Build Options */}
                   <div className="rounded-xl border border-gray-200 bg-white">
                     <button
                       type="button"
@@ -847,7 +1055,7 @@ const CustomNeonBuilder = () => {
                         Choose Background
                       </label>
                       <div className="p-3 rounded-lg border border-gray-200 bg-gray-50">
-                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                               Cut to shape
@@ -856,9 +1064,15 @@ const CustomNeonBuilder = () => {
                               Acrylic background that follows the shape of your sign
                             </p>
                           </div>
-                          <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                            Selected
-                          </span>
+                          {neonConfig.backgroundColor ? (
+                            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              Selected
+                            </span>
+                          ) : (
+                            <span className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-1 rounded-full" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              Pick colour
+                            </span>
+                          )}
                         </div>
                         <div className="mt-3">
                           <p className="text-xs font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -900,7 +1114,11 @@ const CustomNeonBuilder = () => {
                       <button
                         type="button"
                         onClick={() => setNeonConfig({ ...neonConfig, mountingOption: 'wall-mounting-screws' })}
-                        className="w-full p-3 rounded-lg border border-blue-600 bg-blue-50 text-left"
+                        className={`w-full p-3 rounded-lg border text-left transition-colors ${
+                          neonConfig.mountingOption === 'wall-mounting-screws'
+                            ? 'border-blue-600 bg-blue-50'
+                            : 'border-gray-200 bg-white hover:border-gray-300'
+                        }`}
                         style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                       >
                         <p className="text-sm font-semibold text-gray-900">Wall mounting screws</p>
@@ -916,8 +1134,8 @@ const CustomNeonBuilder = () => {
                       <div className="grid grid-cols-3 gap-2">
                         {[
                           { key: 'none', label: 'None', icon: '—' },
-                          { key: 'heart', label: 'Heart', icon: '♥' },
-                          { key: 'star', label: 'Star', icon: '★' },
+                          { key: 'heart', label: 'Heart', icon: '♡' },
+                          { key: 'star', label: 'Star', icon: '☆' },
                         ].map((opt) => (
                           <button
                             key={opt.key}
@@ -1049,12 +1267,28 @@ const CustomNeonBuilder = () => {
                     ) : null}
                   </div>
 
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 mt-4">
+                    <p
+                      className="text-xs font-semibold text-emerald-900 uppercase tracking-wide"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    >
+                      Price from your selections
+                    </p>
+                    <p className="text-xl font-bold text-emerald-800 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      {neonPricingLoading ? 'Updating…' : `£${estimatedAmount.toFixed(2)}`}
+                    </p>
+                    {neonPricingSource !== 'api' ? (
+                      <p className="text-[11px] text-emerald-900/80 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Using built-in estimate — check API connection
+                      </p>
+                    ) : null}
+                  </div>
+
                   {/* Quick Info */}
                   <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                     <div className="text-xs text-blue-800 space-y-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                       <p>
-                        💡 <strong>Tip:</strong> Adjust the glow intensity to make your neon sign more or less bright.
-                        Higher values create a stronger glow effect.
+                        💡 <strong>Tip:</strong> Your text, font, and colour update the live preview as you type.
                       </p>
                       <ul className="list-disc ml-4 space-y-1">
                         <li>Use <strong>Custom size</strong> for exact width/height; pick units in mm, cm, or ft.</li>
@@ -1070,35 +1304,7 @@ const CustomNeonBuilder = () => {
           </div>
         );
 
-      case 2: // Pricing Step
-        return (
-          <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                Pricing
-              </h3>
-              <p className="text-sm text-gray-600 mb-6" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                Review estimated pricing before moving to final preview and secure checkout.
-              </p>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="rounded-xl border border-gray-200 p-4 bg-gray-50">
-                  <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Estimated Price</p>
-                  <p className="text-2xl font-bold text-blue-700 mt-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                    {`£${estimatedAmount.toFixed(2)}`}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-blue-200 p-4 bg-blue-50">
-                  <p className="text-sm font-semibold text-blue-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Klarna Pay in 3</p>
-                  <p className="text-sm font-bold text-blue-900 mt-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                    {`From £${(estimatedAmount / 3).toFixed(2)} x 3`}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-
-      case 3: // Preview Step
+      case 2: // Preview Step
         return (
           <div className="space-y-6">
             <div className="bg-white rounded-xl shadow-lg p-6">
@@ -1108,12 +1314,25 @@ const CustomNeonBuilder = () => {
               <p className="text-sm text-gray-600 mb-4" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                 Review all selected options before moving to checkout.
               </p>
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold text-blue-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    Estimated total
+                  </p>
+                  <p className="text-2xl font-bold text-blue-800" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {neonPricingLoading ? '…' : `£${estimatedAmount.toFixed(2)}`}
+                  </p>
+                </div>
+                <span className="text-xs text-blue-900/80" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  {neonPricingSource === 'api' ? 'Admin pricing' : 'Offline estimate'}
+                </span>
+              </div>
               <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 md:p-5">
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <div className="rounded-lg border border-gray-200 bg-white p-3">
                     <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Text</p>
                     <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {`${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♥' : neonConfig.addOnShape === 'star' ? ' ★' : ''}`}
+                      {`${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♡' : neonConfig.addOnShape === 'star' ? ' ☆' : ''}`}
                     </p>
                   </div>
                   <div className="rounded-lg border border-gray-200 bg-white p-3">
@@ -1136,90 +1355,69 @@ const CustomNeonBuilder = () => {
                   <div className="rounded-lg border border-gray-200 bg-white p-3">
                     <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Environment</p>
                     <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {neonConfig.environment === 'outdoor' ? 'Outdoor (IP67)' : 'Indoor'}
+                      {neonConfig.environment === 'outdoor' ? 'Outdoor (IP67)' : neonConfig.environment === 'indoor' ? 'Indoor' : 'Not selected'}
                     </p>
                   </div>
                   <div className="rounded-lg border border-gray-200 bg-white p-3">
                     <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Jacket</p>
                     <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {neonConfig.jacket === 'white' ? 'White' : 'Coloured'}
+                      {neonConfig.jacket === 'white' ? 'White' : neonConfig.jacket === 'coloured' ? 'Coloured' : 'Not selected'}
                     </p>
                   </div>
                   <div className="rounded-lg border border-gray-200 bg-white p-3">
                     <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Background</p>
                     <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {`Cut to shape • ${neonConfig.backgroundColor}`}
+                      {neonConfig.backgroundColor
+                        ? `Cut to shape • ${neonConfig.backgroundColor}`
+                        : 'Not selected'}
                     </p>
                   </div>
                   <div className="rounded-lg border border-gray-200 bg-white p-3">
                     <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Tube Thickness</p>
                     <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {neonConfig.tubeThickness === 'classic' ? 'Classic (6mm)' : 'Bold (8mm)'}
+                      {neonConfig.tubeThickness === 'classic' ? 'Classic (6mm)' : neonConfig.tubeThickness === 'bold' ? 'Bold (8mm)' : 'Not selected'}
                     </p>
                   </div>
                   <div className="rounded-lg border border-gray-200 bg-white p-3">
                     <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Remote Dimmer</p>
                     <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {neonConfig.remoteDimmer === 'yes' ? 'Yes' : 'No'}
+                      {neonConfig.remoteDimmer === 'yes' ? 'Yes' : neonConfig.remoteDimmer === 'no' ? 'No' : 'Not selected'}
                     </p>
                   </div>
                   <div className="rounded-lg border border-gray-200 bg-white p-3">
                     <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Power Mode</p>
                     <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {neonConfig.powerMode === 'battery-operated' ? 'Battery operated' : 'Power adaptor'}
+                      {neonConfig.powerMode === 'battery-operated'
+                        ? 'Battery operated'
+                        : neonConfig.powerMode === 'power-adaptor'
+                          ? 'Power adaptor'
+                          : 'Not selected'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-3">
+                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Mounting</p>
+                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      {neonConfig.mountingOption === 'wall-mounting-screws'
+                        ? 'Wall mounting screws'
+                        : 'Not selected'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-3">
+                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Add-on shape</p>
+                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      {neonConfig.addOnShape === 'heart'
+                        ? 'Heart'
+                        : neonConfig.addOnShape === 'star'
+                          ? 'Star'
+                          : neonConfig.addOnShape === 'none'
+                            ? 'None'
+                            : 'Not selected'}
                     </p>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        );
-
-      case 4: // Checkout Step
-        return (
-          <CommonCheckout
-            title="Review & Secure Checkout"
-            totalAmount={estimatedAmount}
-            orderSummary={(
-              <>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Text:</span>
-                  <span className="font-semibold text-gray-900">
-                    {`${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♥' : neonConfig.addOnShape === 'star' ? ' ★' : ''}`}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Size:</span>
-                  <span className="font-semibold text-gray-900">
-                    {selectedSize ? `${selectedSize.width} x ${selectedSize.height}` : 'Not selected'}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Environment:</span>
-                  <span className="font-semibold text-gray-900">{neonConfig.environment === 'outdoor' ? 'Outdoor (IP67)' : 'Indoor'}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Power Mode:</span>
-                  <span className="font-semibold text-gray-900">{neonConfig.powerMode === 'battery-operated' ? 'Battery operated' : 'Power adaptor'}</span>
-                </div>
-                <div className="border-t border-gray-200 pt-3 mt-3 flex justify-between">
-                  <span className="font-bold text-gray-900">Total:</span>
-                  <span className="font-bold text-blue-700">
-                    {`£${estimatedAmount.toFixed(2)}`}
-                  </span>
-                </div>
-              </>
-            )}
-            customerInfo={customerInfo}
-            onCustomerInfoChange={setCustomerInfo}
-            paymentMethod={paymentMethod}
-            onPaymentMethodChange={setPaymentMethod}
-            acceptTerms={acceptTerms}
-            onAcceptTermsChange={setAcceptTerms}
-            onSubmit={handleCheckout}
-            submitDisabled={!customerInfo.name || !customerInfo.email || !customerInfo.phone || !customerInfo.address || !acceptTerms}
-            submitLabel="Pay Securely"
-          />
         );
 
       default:
@@ -1290,9 +1488,7 @@ const CustomNeonBuilder = () => {
           <div className="max-w-5xl mx-auto flex items-center justify-between">
             {[
               { step: 1, label: 'Custom Design', icon: '✏️' },
-              { step: 2, label: 'Pricing', icon: '💷' },
-              { step: 3, label: 'Preview', icon: '👀' },
-              { step: 4, label: 'Checkout', icon: '🛒' }
+              { step: 2, label: 'Preview', icon: '👀' },
             ].map((item, index) => (
               <React.Fragment key={item.step}>
                 <div className="flex items-center">
@@ -1309,7 +1505,7 @@ const CustomNeonBuilder = () => {
                     </span>
                   </div>
                 </div>
-                {index < 3 && (
+                {index < 1 && (
                   <div className={`flex-1 h-0.5 mx-4 ${currentStep > item.step ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
                 )}
               </React.Fragment>
@@ -1362,15 +1558,13 @@ const CustomNeonBuilder = () => {
             </div>
           )}
           
-          {currentStep < 4 ? (
+          {currentStep <= 2 ? (
             <button
               onClick={handleNext}
-              className={`px-6 py-3 rounded-lg font-semibold text-white transition-colors ${
-                'bg-blue-600 hover:bg-blue-700'
-              }`}
+              className="px-6 py-3 rounded-lg font-semibold text-white transition-colors bg-blue-600 hover:bg-blue-700"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
-              Next
+              {currentStep === 2 ? 'Continue to checkout' : 'Next'}
             </button>
           ) : null}
         </div>
@@ -1507,24 +1701,70 @@ const CustomNeonBuilder = () => {
               </svg>
             </button>
 
-            {/* Preview Content */}
-            <div className="bg-gray-900 rounded-xl p-12 min-h-[500px] flex items-center justify-center relative overflow-hidden">
-              {/* Dark background with subtle pattern */}
-              <div className="absolute inset-0 opacity-10" style={{
-                backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)',
-                backgroundSize: '20px 20px'
-              }}></div>
-              <div className="relative z-10 w-full">
+            {/* Preview Content — same scene background as Live Preview */}
+            <div
+              className="rounded-xl px-12 pt-16 pb-20 min-h-[500px] flex items-start justify-center relative overflow-hidden border border-white/10"
+              style={livePreviewBackdropStyle}
+            >
+              <div
+                className="relative z-10 w-full origin-top transition-transform duration-150 ease-out"
+                style={{ transform: `scale(${previewZoom})` }}
+              >
                 <NeonText
-                  text={neonConfig.text}
+                  text={`${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♡' : neonConfig.addOnShape === 'star' ? ' ☆' : ''}`}
                   font={neonConfig.font}
                   color={neonConfig.color}
-                  size={neonConfig.size * 1.5}
+                  size={Math.round(neonConfig.size * 1.62)}
                   glowIntensity={neonConfig.glowIntensity}
                   letterSpacing={neonConfig.letterSpacing}
                   flicker={neonConfig.flicker}
+                  tubeLit={previewNeonOn}
+                  thinTube
                   minHeightClass="min-h-[300px] md:min-h-[360px]"
+                  containerClassName="!items-start justify-center !pt-2 !pb-8"
                 />
+              </div>
+              <div
+                className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex flex-wrap items-center justify-center gap-1.5 rounded-lg bg-black/65 backdrop-blur-sm border border-white/15 px-2 py-2"
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+              >
+                <span className="text-[10px] font-semibold text-white/80 uppercase">Tube</span>
+                <button
+                  type="button"
+                  onClick={() => setPreviewNeonOn(true)}
+                  className={`${previewControlBtn} ${previewNeonOn ? previewControlOn : previewControlOff}`}
+                >
+                  On
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewNeonOn(false)}
+                  className={`${previewControlBtn} ${!previewNeonOn ? previewControlOn : previewControlOff}`}
+                >
+                  Off
+                </button>
+                <span className="w-px h-5 bg-white/25 mx-0.5" aria-hidden />
+                <button
+                  type="button"
+                  onClick={() => bumpPreviewZoom(-0.1)}
+                  disabled={previewZoom <= 0.65}
+                  className={`${previewControlBtn} ${previewControlOff}`}
+                  title="Zoom out"
+                >
+                  −
+                </button>
+                <span className="text-[11px] font-bold text-white tabular-nums min-w-[2.75rem] text-center">
+                  {Math.round(previewZoom * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => bumpPreviewZoom(0.1)}
+                  disabled={previewZoom >= 1.55}
+                  className={`${previewControlBtn} ${previewControlOff}`}
+                  title="Zoom in"
+                >
+                  +
+                </button>
               </div>
             </div>
 
