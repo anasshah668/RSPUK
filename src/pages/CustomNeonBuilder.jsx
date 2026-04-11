@@ -3,10 +3,16 @@ import NeonText from '../components/NeonText';
 import { toPng } from 'html-to-image';
 import { quoteService } from '../services/quoteService';
 import { neonPricingService } from '../services/neonPricingService';
-import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { toast } from 'react-toastify';
 
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
+import { authService } from '../services/authService';
+import DesignerAuthModal from '../components/DesignerAuthModal';
+import { useNeonPreviewExit } from '../context/NeonPreviewExitContext';
+import { useVatInclusive } from '../hooks/useVatInclusive';
+import { grossFromNet, vatAmountFromNet } from '../utils/vatUtils';
 
 const NEON_LIVE_BG_IMAGES = [
   { id: '1', src: '/NeonBg/1.jpg', label: 'Scene 1' },
@@ -23,8 +29,57 @@ const dimLineClass = 'bg-white/90 shadow-[0_0_0_1px_rgba(0,0,0,0.35),0_0_2px_rgb
 /** Smaller ticks for compact text-local dimensions */
 const dimLineSm = 'bg-white/90 shadow-[0_0_0_1px_rgba(0,0,0,0.3)]';
 
+const NEON_ABOUT_POINTS = [
+  {
+    title: 'Hand-finished LED neon',
+    body: 'Your design is built with flexible LED neon-style tubing on a backing cut to your text or shape—bright, efficient, and ready to mount.',
+  },
+  {
+    title: 'Indoor and outdoor options',
+    body: 'Choose the environment that matches where you will install it. Outdoor builds use a weather-appropriate specification so your sign can cope with the elements.',
+  },
+  {
+    title: 'Sized to your space',
+    body: 'Pick a preset size or enter custom dimensions. The live preview helps you visualise layout; final production follows the specifications you confirm at checkout.',
+  },
+  {
+    title: 'What you see in the builder',
+    body: 'The on-screen preview is a guide. Tube thickness, glow, and colours can look slightly different in real life depending on lighting and camera settings—we note this in the builder so expectations stay clear.',
+  },
+];
+
+const NEON_BUILDER_FAQ = [
+  {
+    q: 'How accurate is the live preview?',
+    a: 'The preview shows your text, font, colour, and approximate layout. Final appearance may vary slightly with manufacturing, ambient light, and how the sign is photographed. Colours especially can differ a little from screen to finished product.',
+  },
+  {
+    q: 'What is the difference between indoor and outdoor?',
+    a: 'Outdoor options are specified for exterior use (for example IP-rated builds where applicable). Indoor signs are intended for dry, interior spaces. Pick the option that matches where you will install your sign.',
+  },
+  {
+    q: 'Do I get mounting hardware?',
+    a: 'When you select the wall mounting screws option, your sign is intended to ship with pre-drilled holes and fixings suitable for typical wall installation. Always follow safe installation practices for your wall type.',
+  },
+  {
+    q: 'Can I use a custom size?',
+    a: 'Yes. Enable custom size and enter width and height in your preferred unit (mm, cm, or ft). Pricing updates as you complete your selections.',
+  },
+  {
+    q: 'What happens after I continue to checkout?',
+    a: 'Your choices—text, size, colours, and build options—are carried through so you can complete purchase or enquiry on the checkout flow. Double-check everything on the preview step before you continue.',
+  },
+  {
+    q: 'Can I submit a logo instead of typing text?',
+    a: 'Use “Submit a Logo / Artwork” at the top of this page to upload a file and request a tailored quote. That path is for custom artwork rather than the text-based builder.',
+  },
+];
+
 const CustomNeonBuilder = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+  const { addToCart } = useCart();
+  const { setPreviewExitGuardActive, confirmLeavePreview } = useNeonPreviewExit();
   const previewRef = useRef(null);
   const [showPreview, setShowPreview] = useState(false);
   const [builderMode, setBuilderMode] = useState('design-light');
@@ -41,13 +96,13 @@ const CustomNeonBuilder = () => {
     letterSpacing: 2,
     flicker: false,
 
-    // Build options — null until customer selects (pricing stays £0 until complete)
+    // Build options — null until customer selects (single-choice fields defaulted below)
     environment: null,
     jacket: null,
     backgroundStyle: 'cut-to-shape',
     backgroundColor: null,
-    mountingOption: null,
-    addOnShape: null,
+    mountingOption: 'wall-mounting-screws',
+    addOnShape: 'none',
     tubeThickness: null,
     remoteDimmer: null,
     powerMode: null,
@@ -74,6 +129,10 @@ const CustomNeonBuilder = () => {
   const [neonApiPrice, setNeonApiPrice] = useState(null);
   const [neonPricingLoading, setNeonPricingLoading] = useState(false);
   const [neonPricingSource, setNeonPricingSource] = useState('fallback');
+  const [openFaqIndex, setOpenFaqIndex] = useState(null);
+  const [designerAuthOpen, setDesignerAuthOpen] = useState(false);
+  /** Which gated action opened the auth modal: preview, download, or basket */
+  const [designerAuthIntent, setDesignerAuthIntent] = useState(null);
   const [liveViewBackdrop, setLiveViewBackdrop] = useState(() => ({
     kind: 'color',
     hex: NEON_LIVE_BG_COLORS[0].hex,
@@ -224,9 +283,73 @@ const CustomNeonBuilder = () => {
     neonConfig.powerMode,
   ]);
 
+  const NEON_TEXT_PLACEHOLDER = 'Start Typing';
+  const isCustomNeonTextValid = useMemo(() => {
+    const t = (neonConfig.text || '').trim();
+    if (!t) return false;
+    return t.toLowerCase() !== NEON_TEXT_PLACEHOLDER.toLowerCase();
+  }, [neonConfig.text]);
+
+  const canProceedToPreview = useMemo(
+    () => pricingSelectionComplete && isCustomNeonTextValid,
+    [pricingSelectionComplete, isCustomNeonTextValid],
+  );
+
+  const buildMissingSelectionMessages = () => {
+    const msgs = [];
+    if (!isCustomNeonTextValid) msgs.push('enter your sign text (replace the placeholder)');
+    if (!selectedSize?.width || !selectedSize?.height) msgs.push('select sign width and height');
+    if (!(neonConfig.environment === 'indoor' || neonConfig.environment === 'outdoor')) {
+      msgs.push('choose indoor or outdoor');
+    }
+    if (!(neonConfig.jacket === 'white' || neonConfig.jacket === 'coloured')) {
+      msgs.push('choose jacket colour');
+    }
+    if (!['white', 'black', 'silver', 'yellow'].includes(neonConfig.backgroundColor)) {
+      msgs.push('choose a background colour');
+    }
+    if (neonConfig.mountingOption !== 'wall-mounting-screws') {
+      msgs.push('confirm wall mounting');
+    }
+    if (!['none', 'heart', 'star'].includes(neonConfig.addOnShape)) {
+      msgs.push('choose an add-on shape (or none)');
+    }
+    if (!(neonConfig.tubeThickness === 'classic' || neonConfig.tubeThickness === 'bold')) {
+      msgs.push('choose tube thickness');
+    }
+    if (!(neonConfig.remoteDimmer === 'yes' || neonConfig.remoteDimmer === 'no')) {
+      msgs.push('choose remote dimmer');
+    }
+    if (!(neonConfig.powerMode === 'battery-operated' || neonConfig.powerMode === 'power-adaptor')) {
+      msgs.push('choose power mode');
+    }
+    return msgs;
+  };
+
   /** Shown when there is no successful API response yet (no size, or request failed). */
   const fallbackEstimatedAmount = 0;
   const estimatedAmount = neonApiPrice != null ? neonApiPrice : fallbackEstimatedAmount;
+  const vatInclusive = useVatInclusive();
+  const neonNet = estimatedAmount;
+  const neonVat = vatAmountFromNet(neonNet);
+  const neonGross = grossFromNet(neonNet);
+  const neonMainDisplay = vatInclusive ? neonGross : neonNet;
+
+  useEffect(() => {
+    const guardOn = builderMode === 'design-light' && currentStep === 2;
+    setPreviewExitGuardActive(guardOn);
+    return () => setPreviewExitGuardActive(false);
+  }, [builderMode, currentStep, setPreviewExitGuardActive]);
+
+  useEffect(() => {
+    if (builderMode !== 'design-light' || currentStep !== 2) return undefined;
+    const onBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [builderMode, currentStep]);
 
   useEffect(() => {
     if (builderMode !== 'design-light') {
@@ -297,22 +420,195 @@ const CustomNeonBuilder = () => {
     neonConfig.backgroundColor,
   ]);
 
+  const neonSpecSummaryRows = useMemo(() => {
+    const textRaw = (neonConfig.text || '').trim();
+    const textDisplay = `${textRaw}${neonConfig.addOnShape === 'heart' ? ' ♡' : neonConfig.addOnShape === 'star' ? ' ☆' : ''}`;
+    const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Not selected');
+    const dim = selectedSize
+      ? `${selectedSize.width} × ${selectedSize.height}${
+          selectedSize.label ? ` • ${selectedSize.label}` : ''
+        }${selectedSize.widthFt ? ` • ${selectedSize.widthFt}` : ''}${
+          selectedSize.lettersPerLine != null ? ` • ${selectedSize.lettersPerLine} letters/line` : ''
+        }`
+      : 'Not selected';
+    const bgStyle =
+      neonConfig.backgroundStyle === 'cut-to-shape'
+        ? 'Cut to shape'
+        : neonConfig.backgroundStyle || '—';
+
+    return [
+      { key: 'text', label: 'Text', value: textDisplay },
+      {
+        key: 'sizeType',
+        label: 'Size type',
+        value: !selectedSize ? 'Not selected' : selectedSize.id === 'custom' ? 'Custom' : 'Preset',
+      },
+      { key: 'dimensions', label: 'Dimensions', value: dim },
+      { key: 'font', label: 'Font', value: neonConfig.font },
+      { key: 'color', label: 'Tube colour', value: neonConfig.color, variant: 'color' },
+      {
+        key: 'previewSize',
+        label: 'Preview text size',
+        value: `${neonConfig.size}px (on-screen guide only)`,
+      },
+      { key: 'glow', label: 'Glow intensity', value: String(neonConfig.glowIntensity) },
+      { key: 'spacing', label: 'Letter spacing', value: `${neonConfig.letterSpacing}px` },
+      { key: 'flicker', label: 'Flicker effect', value: neonConfig.flicker ? 'On' : 'Off' },
+      {
+        key: 'env',
+        label: 'Environment',
+        value:
+          neonConfig.environment === 'outdoor'
+            ? 'Outdoor (IP67)'
+            : neonConfig.environment === 'indoor'
+              ? 'Indoor'
+              : 'Not selected',
+      },
+      {
+        key: 'jacket',
+        label: 'Jacket',
+        value:
+          neonConfig.jacket === 'white'
+            ? 'White'
+            : neonConfig.jacket === 'coloured'
+              ? 'Coloured'
+              : 'Not selected',
+      },
+      { key: 'backing', label: 'Backing style', value: bgStyle },
+      {
+        key: 'bgcol',
+        label: 'Background colour',
+        value: neonConfig.backgroundColor ? cap(neonConfig.backgroundColor) : 'Not selected',
+      },
+      {
+        key: 'tube',
+        label: 'Tube thickness',
+        value:
+          neonConfig.tubeThickness === 'classic'
+            ? 'Classic (6mm)'
+            : neonConfig.tubeThickness === 'bold'
+              ? 'Bold (8mm)'
+              : 'Not selected',
+      },
+      {
+        key: 'dimmer',
+        label: 'Remote dimmer',
+        value:
+          neonConfig.remoteDimmer === 'yes'
+            ? 'Yes'
+            : neonConfig.remoteDimmer === 'no'
+              ? 'No'
+              : 'Not selected',
+      },
+      {
+        key: 'power',
+        label: 'Power mode',
+        value:
+          neonConfig.powerMode === 'battery-operated'
+            ? 'Battery operated'
+            : neonConfig.powerMode === 'power-adaptor'
+              ? 'Power adaptor'
+              : 'Not selected',
+      },
+      {
+        key: 'mount',
+        label: 'Mounting',
+        value:
+          neonConfig.mountingOption === 'wall-mounting-screws'
+            ? 'Wall mounting screws'
+            : 'Not selected',
+      },
+      {
+        key: 'addon',
+        label: 'Add-on shape',
+        value:
+          neonConfig.addOnShape === 'heart'
+            ? 'Heart'
+            : neonConfig.addOnShape === 'star'
+              ? 'Star'
+              : neonConfig.addOnShape === 'none'
+                ? 'None'
+                : 'Not selected',
+      },
+    ];
+  }, [
+    neonConfig.text,
+    neonConfig.addOnShape,
+    neonConfig.font,
+    neonConfig.color,
+    neonConfig.size,
+    neonConfig.glowIntensity,
+    neonConfig.letterSpacing,
+    neonConfig.flicker,
+    neonConfig.environment,
+    neonConfig.jacket,
+    neonConfig.backgroundStyle,
+    neonConfig.backgroundColor,
+    neonConfig.tubeThickness,
+    neonConfig.remoteDimmer,
+    neonConfig.powerMode,
+    neonConfig.mountingOption,
+    selectedSize,
+  ]);
+
+  const neonCheckoutSummary = useMemo(
+    () => [
+      ...neonSpecSummaryRows,
+      {
+        key: 'subEx',
+        label: 'Subtotal (ex VAT)',
+        value: neonPricingLoading ? 'Updating…' : `£${neonNet.toFixed(2)}`,
+      },
+      {
+        key: 'vat20',
+        label: 'VAT (20%)',
+        value: neonPricingLoading ? 'Updating…' : `£${neonVat.toFixed(2)}`,
+      },
+      {
+        key: 'totInc',
+        label: 'Total (inc VAT)',
+        value: neonPricingLoading ? 'Updating…' : `£${neonGross.toFixed(2)}`,
+      },
+      {
+        key: 'vatNote',
+        label: 'Matches header VAT',
+        value: neonPricingLoading
+          ? 'Updating…'
+          : vatInclusive
+            ? `Main price shown: £${neonGross.toFixed(2)} inc VAT`
+            : `Main price shown: £${neonNet.toFixed(2)} ex VAT`,
+      },
+      {
+        key: 'pricingSrc',
+        label: 'Pricing basis',
+        value: neonPricingSource === 'api' ? 'Live admin pricing' : 'Offline estimate',
+      },
+    ],
+    [neonSpecSummaryRows, neonPricingLoading, neonNet, neonVat, neonGross, neonPricingSource, vatInclusive],
+  );
+
   const handleNext = () => {
-    if (currentStep === 1 && !selectedSize) {
-      toast.error('Please select a size to continue.');
-      return;
-    }
-    if (currentStep === 1 && !pricingSelectionComplete) {
-      toast.error('Please complete all build options (indoor/outdoor, jacket, background, mounting, tube, dimmer, power).');
+    if (currentStep === 1) {
+      if (!canProceedToPreview) {
+        const missing = buildMissingSelectionMessages();
+        toast.error(
+          missing.length
+            ? `Please complete: ${missing.join('; ')}`
+            : 'Please complete all required options to continue.',
+        );
+        return;
+      }
+      setCurrentStep(2);
       return;
     }
     if (currentStep === 2) {
-      if (!selectedSize) {
-        toast.error('Please select a size to continue.');
-        return;
-      }
-      if (!pricingSelectionComplete) {
-        toast.error('Please complete all build options before checkout.');
+      if (!canProceedToPreview) {
+        const missing = buildMissingSelectionMessages();
+        toast.error(
+          missing.length
+            ? `Please complete: ${missing.join('; ')}`
+            : 'Please complete all required options before checkout.',
+        );
         return;
       }
       navigate('/checkout', {
@@ -321,27 +617,21 @@ const CustomNeonBuilder = () => {
             title: 'Custom Neon Sign Checkout',
             description: 'Complete your custom neon sign purchase securely.',
             amount: estimatedAmount,
+            amountBasis: 'net',
             summary: [
+              ...neonSpecSummaryRows.map((row) => ({
+                label: row.label,
+                value: String(row.value),
+              })),
               {
-                label: 'Text',
-                value: `${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♡' : neonConfig.addOnShape === 'star' ? ' ☆' : ''}`,
-              },
-              {
-                label: 'Size',
-                value: selectedSize ? `${selectedSize.width} x ${selectedSize.height}` : 'Not selected',
-              },
-              {
-                label: 'Build',
-                value: `${neonConfig.environment === 'outdoor' ? 'Outdoor' : neonConfig.environment === 'indoor' ? 'Indoor' : '—'} • ${neonConfig.tubeThickness === 'classic' ? 'Classic Tube' : neonConfig.tubeThickness === 'bold' ? 'Bold Tube' : '—'}`,
+                label: 'Pricing basis',
+                value: neonPricingSource === 'api' ? 'Live admin pricing' : 'Offline estimate',
               },
             ],
           },
         },
       });
       return;
-    }
-    if (currentStep < 2) {
-      setCurrentStep(currentStep + 1);
     }
   };
 
@@ -384,6 +674,94 @@ const CustomNeonBuilder = () => {
       console.error('Export failed:', error);
       toast.error('Failed to export image. Please try again.');
     }
+  };
+
+  const validateDesignerSession = async () => {
+    const token = localStorage.getItem('token');
+    if (!token || !isAuthenticated()) return false;
+    try {
+      await authService.getProfile();
+      return true;
+    } catch (e) {
+      // Only block when the server rejects the token. Missing profile route, network, etc.
+      // should not force the auth modal for users who are already signed in.
+      if (e?.status === 401) return false;
+      return true;
+    }
+  };
+
+  const openDesignerAuth = (intent) => {
+    setDesignerAuthIntent(intent);
+    setDesignerAuthOpen(true);
+  };
+
+  const closeDesignerAuth = () => {
+    setDesignerAuthOpen(false);
+    setDesignerAuthIntent(null);
+  };
+
+  const addNeonToBasket = () => {
+    const summaryPayload = neonCheckoutSummary.map(({ label, value }) => ({ label, value: String(value) }));
+    const textLine = summaryPayload.find((s) => s.label === 'Text')?.value || (neonConfig.text || '').trim();
+    addToCart(
+      {
+        id: `custom-neon-${Date.now()}`,
+        type: 'custom-neon',
+        title: 'Custom Neon Sign',
+        description: textLine.length > 140 ? `${textLine.slice(0, 137)}…` : textLine,
+        price: Number(estimatedAmount) || 0,
+        quantity: 1,
+        summary: summaryPayload,
+      },
+      1,
+    );
+    toast.success('Added to basket');
+    window.dispatchEvent(new CustomEvent('rspuk-basket-open'));
+  };
+
+  const handleDesignerAuthSuccess = async () => {
+    if (designerAuthIntent === 'preview') setShowPreview(true);
+    if (designerAuthIntent === 'download') await handleDownload();
+    if (designerAuthIntent === 'basket') addNeonToBasket();
+  };
+
+  const handlePreviewProtected = async () => {
+    if (await validateDesignerSession()) {
+      setShowPreview(true);
+      return;
+    }
+    openDesignerAuth('preview');
+  };
+
+  const handleDownloadProtected = async () => {
+    if (await validateDesignerSession()) {
+      await handleDownload();
+      return;
+    }
+    openDesignerAuth('download');
+  };
+
+  const handleAddToBasketProtected = async () => {
+    if (!canProceedToPreview) {
+      toast.error('Please complete all options on the design step before adding to basket.');
+      return;
+    }
+    if (await validateDesignerSession()) {
+      addNeonToBasket();
+      return;
+    }
+    openDesignerAuth('basket');
+  };
+
+  const handleContinueExploreProducts = async () => {
+    if (!(await confirmLeavePreview())) return;
+    navigate('/');
+    window.setTimeout(() => {
+      const el = document.getElementById('products');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 150);
   };
 
   const handleLogoQuoteSubmit = async (e) => {
@@ -1275,7 +1653,13 @@ const CustomNeonBuilder = () => {
                       Price from your selections
                     </p>
                     <p className="text-xl font-bold text-emerald-800 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {neonPricingLoading ? 'Updating…' : `£${estimatedAmount.toFixed(2)}`}
+                      {neonPricingLoading ? 'Updating…' : `£${neonMainDisplay.toFixed(2)}`}
+                    </p>
+                    <p className="text-[11px] text-emerald-800/90 mt-0.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      {vatInclusive ? 'Shown inc. VAT (header)' : 'Shown ex. VAT (header)'}
+                    </p>
+                    <p className="text-[10px] text-emerald-900/75 mt-1.5 leading-snug" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      £{neonNet.toFixed(2)} ex VAT · £{neonGross.toFixed(2)} inc VAT (20%) — same switch as the site header.
                     </p>
                     {neonPricingSource !== 'api' ? (
                       <p className="text-[11px] text-emerald-900/80 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -1320,101 +1704,80 @@ const CustomNeonBuilder = () => {
                     Estimated total
                   </p>
                   <p className="text-2xl font-bold text-blue-800" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                    {neonPricingLoading ? '…' : `£${estimatedAmount.toFixed(2)}`}
+                    {neonPricingLoading ? '…' : `£${neonMainDisplay.toFixed(2)}`}
+                  </p>
+                  <p className="text-[11px] text-blue-900/85 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {vatInclusive ? 'inc. VAT' : 'ex. VAT'} · £{neonNet.toFixed(2)} ex / £{neonGross.toFixed(2)} inc
                   </p>
                 </div>
-                <span className="text-xs text-blue-900/80" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  {neonPricingSource === 'api' ? 'Admin pricing' : 'Offline estimate'}
-                </span>
               </div>
               <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 md:p-5">
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  <div className="rounded-lg border border-gray-200 bg-white p-3">
-                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Text</p>
-                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {`${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♡' : neonConfig.addOnShape === 'star' ? ' ☆' : ''}`}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-white p-3">
-                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Size</p>
-                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {selectedSize ? `${selectedSize.width} x ${selectedSize.height}` : 'Not selected'}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-white p-3">
-                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Font</p>
-                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>{neonConfig.font}</p>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-white p-3">
-                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Color</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="w-4 h-4 rounded-full border border-gray-300" style={{ backgroundColor: neonConfig.color }} />
-                      <p className="text-sm font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>{neonConfig.color}</p>
+                  {neonSpecSummaryRows.map((row) => (
+                    <div key={row.key} className="rounded-lg border border-gray-200 bg-white p-3">
+                      <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        {row.label}
+                      </p>
+                      {row.variant === 'color' ? (
+                        <div className="flex items-center gap-2 mt-1">
+                          <span
+                            className="w-4 h-4 rounded-full border border-gray-300 shrink-0"
+                            style={{ backgroundColor: row.value }}
+                          />
+                          <p className="text-sm font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            {row.value}
+                          </p>
+                        </div>
+                      ) : (
+                        <p
+                          className="text-sm font-bold text-gray-900 mt-1 break-words"
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        >
+                          {row.value}
+                        </p>
+                      )}
                     </div>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-white p-3">
-                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Environment</p>
-                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {neonConfig.environment === 'outdoor' ? 'Outdoor (IP67)' : neonConfig.environment === 'indoor' ? 'Indoor' : 'Not selected'}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-white p-3">
-                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Jacket</p>
-                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {neonConfig.jacket === 'white' ? 'White' : neonConfig.jacket === 'coloured' ? 'Coloured' : 'Not selected'}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-white p-3">
-                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Background</p>
-                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {neonConfig.backgroundColor
-                        ? `Cut to shape • ${neonConfig.backgroundColor}`
-                        : 'Not selected'}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-white p-3">
-                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Tube Thickness</p>
-                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {neonConfig.tubeThickness === 'classic' ? 'Classic (6mm)' : neonConfig.tubeThickness === 'bold' ? 'Bold (8mm)' : 'Not selected'}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-white p-3">
-                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Remote Dimmer</p>
-                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {neonConfig.remoteDimmer === 'yes' ? 'Yes' : neonConfig.remoteDimmer === 'no' ? 'No' : 'Not selected'}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-white p-3">
-                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Power Mode</p>
-                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {neonConfig.powerMode === 'battery-operated'
-                        ? 'Battery operated'
-                        : neonConfig.powerMode === 'power-adaptor'
-                          ? 'Power adaptor'
-                          : 'Not selected'}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-white p-3">
-                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Mounting</p>
-                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {neonConfig.mountingOption === 'wall-mounting-screws'
-                        ? 'Wall mounting screws'
-                        : 'Not selected'}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-white p-3">
-                    <p className="text-[11px] font-semibold text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Add-on shape</p>
-                    <p className="text-sm font-bold text-gray-900 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {neonConfig.addOnShape === 'heart'
-                        ? 'Heart'
-                        : neonConfig.addOnShape === 'star'
-                          ? 'Star'
-                          : neonConfig.addOnShape === 'none'
-                            ? 'None'
-                            : 'Not selected'}
-                    </p>
-                  </div>
+                  ))}
                 </div>
+              </div>
+              <div className="mt-6 flex flex-col gap-4">
+                <div className="flex flex-wrap items-stretch gap-3">
+                  <button
+                    type="button"
+                    onClick={handleAddToBasketProtected}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-sm"
+                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  >
+                    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
+                      />
+                    </svg>
+                    Add to basket
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleContinueExploreProducts}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg font-semibold text-blue-800 bg-white border-2 border-blue-200 hover:bg-blue-50 transition-colors shadow-sm"
+                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  >
+                    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+                      />
+                    </svg>
+                    Continue exploring products and services
+                  </button>
+                </div>
+                <p className="text-xs text-gray-600 max-w-2xl" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  Open the basket in the site header to review items. Sign in is required so you can track orders and chat with our team about your quote.
+                </p>
               </div>
             </div>
           </div>
@@ -1425,13 +1788,33 @@ const CustomNeonBuilder = () => {
     }
   };
 
+  const designerAuthModalCopy =
+    designerAuthIntent === 'basket'
+      ? {
+          title: 'Sign in to add to basket',
+          subtitle:
+            'Sign in or create a free account to save your neon to your basket. Order tracking and quote discussions with our team are available when you are signed in.',
+          verifyOtpButtonLabel: 'Verify & add to basket',
+          signInButtonLabel: 'Sign In & add to basket',
+        }
+      : {
+          title: 'Sign in to preview & download',
+          subtitle: '',
+          verifyOtpButtonLabel: 'Verify & Continue',
+          signInButtonLabel: 'Sign In & Continue',
+        };
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="container mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 max-w-[1600px]">
         {/* Header */}
         <div className="mb-6">
           <button
-            onClick={() => navigate('/')}
+            type="button"
+            onClick={async () => {
+              if (!(await confirmLeavePreview())) return;
+              navigate('/');
+            }}
             className="text-gray-600 hover:text-gray-900 font-medium flex items-center gap-2 transition-colors text-sm mb-4"
             style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >
@@ -1465,7 +1848,16 @@ const CustomNeonBuilder = () => {
             </button>
             <button
               type="button"
-              onClick={() => setBuilderMode('submit-artwork')}
+              onClick={async () => {
+                if (
+                  builderMode === 'design-light' &&
+                  currentStep === 2 &&
+                  !(await confirmLeavePreview())
+                ) {
+                  return;
+                }
+                setBuilderMode('submit-artwork');
+              }}
               className={`w-full rounded-lg px-4 py-3 text-left transition-colors ${
                 builderMode === 'submit-artwork'
                   ? 'bg-blue-600 text-white'
@@ -1535,7 +1927,8 @@ const CustomNeonBuilder = () => {
           {currentStep === 1 && (
             <div className="flex gap-3">
               <button
-                onClick={() => setShowPreview(true)}
+                type="button"
+                onClick={handlePreviewProtected}
                 className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded-lg font-semibold transition-colors flex items-center gap-2"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
@@ -1546,7 +1939,8 @@ const CustomNeonBuilder = () => {
                 Preview
               </button>
               <button
-                onClick={handleDownload}
+                type="button"
+                onClick={handleDownloadProtected}
                 className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded-lg font-semibold transition-colors flex items-center gap-2"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
@@ -1560,6 +1954,7 @@ const CustomNeonBuilder = () => {
           
           {currentStep <= 2 ? (
             <button
+              type="button"
               onClick={handleNext}
               className="px-6 py-3 rounded-lg font-semibold text-white transition-colors bg-blue-600 hover:bg-blue-700"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
@@ -1685,6 +2080,122 @@ const CustomNeonBuilder = () => {
             </form>
           </div>
         )}
+
+        <section
+          className="mt-14 md:mt-16 space-y-8 pb-6"
+          aria-labelledby="neon-impact-heading neon-about-heading"
+        >
+          <div className="relative overflow-hidden rounded-xl border border-blue-500/25 bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 text-white shadow-xl px-6 py-10 md:px-10 md:py-12">
+            <div
+              className="pointer-events-none absolute -right-16 -top-24 h-56 w-56 rounded-full bg-blue-500/15 blur-3xl"
+              aria-hidden
+            />
+            <div
+              className="pointer-events-none absolute -bottom-20 -left-12 h-48 w-48 rounded-full bg-cyan-400/10 blur-3xl"
+              aria-hidden
+            />
+            <p
+              className="relative text-[11px] font-semibold uppercase tracking-[0.22em] text-blue-300/95 mb-3"
+              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+            >
+              Built around what you choose
+            </p>
+            <h2
+              id="neon-impact-heading"
+              className="relative text-2xl md:text-3xl lg:text-[2rem] xl:text-4xl font-bold leading-[1.15] tracking-tight max-w-4xl"
+              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+            >
+              What you like—illuminated with precision and care.
+            </h2>
+            <p
+              className="relative mt-4 text-sm md:text-base text-slate-200/95 max-w-2xl leading-relaxed"
+              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+            >
+              Your words, palette, and build options are deliberate. We turn that intent into a finished sign you will be proud to install—clear process, honest preview expectations, and craftsmanship that respects the vision you define in this builder.
+            </p>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 md:p-8">
+            <h2
+              id="neon-about-heading"
+              className="text-xl md:text-2xl font-bold text-gray-900 mb-2"
+              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+            >
+              About custom neon signs
+            </h2>
+            <p className="text-sm text-gray-600 mb-6 max-w-3xl" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              Every sign is configured by you in this builder, then produced to match the options you confirm. Below is a quick overview of what you are ordering and how the process works.
+            </p>
+            <ul className="grid gap-4 sm:grid-cols-2">
+              {NEON_ABOUT_POINTS.map((item) => (
+                <li
+                  key={item.title}
+                  className="rounded-lg border border-gray-100 bg-gray-50/80 p-4"
+                >
+                  <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {item.title}
+                  </p>
+                  <p className="text-sm text-gray-600 mt-1.5 leading-relaxed" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {item.body}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 md:p-8">
+            <h2
+              className="text-xl md:text-2xl font-bold text-gray-900 mb-2"
+              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+            >
+              Frequently asked questions
+            </h2>
+            <p className="text-sm text-gray-600 mb-5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              Quick answers about the builder, preview, and ordering. Open a question to read more.
+            </p>
+            <div className="divide-y divide-gray-200 border border-gray-200 rounded-lg overflow-hidden">
+              {NEON_BUILDER_FAQ.map((item, index) => {
+                const open = openFaqIndex === index;
+                return (
+                  <div key={item.q} className="bg-white">
+                    <button
+                      type="button"
+                      id={`faq-trigger-${index}`}
+                      aria-expanded={open}
+                      aria-controls={`faq-panel-${index}`}
+                      onClick={() => setOpenFaqIndex(open ? null : index)}
+                      className="w-full flex items-center justify-between gap-3 text-left px-4 py-3.5 hover:bg-gray-50 transition-colors"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    >
+                      <span className="text-sm font-semibold text-gray-900 pr-2">{item.q}</span>
+                      <span
+                        className={`shrink-0 text-gray-500 text-lg leading-none w-6 text-center transition-transform ${open ? 'rotate-180' : ''}`}
+                        aria-hidden
+                      >
+                        ▼
+                      </span>
+                    </button>
+                    <div
+                      id={`faq-panel-${index}`}
+                      role="region"
+                      aria-labelledby={`faq-trigger-${index}`}
+                      className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+                    >
+                      <div className="overflow-hidden">
+                        <p
+                          className="px-4 pb-4 pt-0 text-sm text-gray-600 leading-relaxed border-t border-transparent"
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        >
+                          {item.a}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
       </div>
 
       {/* Preview Modal */}
@@ -1771,7 +2282,8 @@ const CustomNeonBuilder = () => {
             {/* Download Button in Modal */}
             <div className="mt-4 flex justify-center">
               <button
-                onClick={handleDownload}
+                type="button"
+                onClick={handleDownloadProtected}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors flex items-center gap-2"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
@@ -1784,7 +2296,16 @@ const CustomNeonBuilder = () => {
           </div>
         </div>
       )}
-      <ToastContainer position="top-right" autoClose={2500} hideProgressBar={false} newestOnTop closeOnClick pauseOnHover />
+
+      <DesignerAuthModal
+        open={designerAuthOpen}
+        onClose={closeDesignerAuth}
+        onAuthenticated={handleDesignerAuthSuccess}
+        title={designerAuthModalCopy.title}
+        subtitle={designerAuthModalCopy.subtitle}
+        verifyOtpButtonLabel={designerAuthModalCopy.verifyOtpButtonLabel}
+        signInButtonLabel={designerAuthModalCopy.signInButtonLabel}
+      />
     </div>
   );
 };

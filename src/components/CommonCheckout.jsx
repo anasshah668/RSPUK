@@ -30,6 +30,65 @@ const paymentLogos = [
   { src: '/payment-logos/american-express.png', alt: 'American Express' },
 ];
 
+/** Access Checkout Web SDK uses a callback API, not `await generateSessionState()`. */
+const worldpaySessionStateFromInstance = (instance) => new Promise((resolve, reject) => {
+  if (!instance) {
+    reject(new Error('Worldpay checkout is not initialized.'));
+    return;
+  }
+
+  let settled = false;
+  const finish = (err, value) => {
+    if (settled) return;
+    settled = true;
+    if (err) {
+      const msg = err?.message || (typeof err === 'string' ? err : 'Could not create secure card session.');
+      reject(new Error(msg));
+      return;
+    }
+    const sessionState = typeof value === 'string' ? value : value?.sessionState ?? value;
+    if (sessionState == null || sessionState === '') {
+      reject(new Error('Worldpay returned an empty session. Check your card details and try again.'));
+      return;
+    }
+    resolve(sessionState);
+  };
+
+  if (typeof instance.generateSessionState === 'function') {
+    try {
+      const maybePromise = instance.generateSessionState((error, sessionState) => {
+        finish(error, sessionState);
+      });
+      if (maybePromise != null && typeof maybePromise.then === 'function') {
+        maybePromise
+          .then((data) => finish(null, data?.sessionState ?? data))
+          .catch((e) => finish(e, null));
+      }
+    } catch (e) {
+      finish(e, null);
+    }
+    return;
+  }
+
+  if (typeof instance.generateSessions === 'function') {
+    instance.generateSessions((error, sessions) => {
+      if (error) {
+        finish(error, null);
+        return;
+      }
+      const card = sessions?.card;
+      if (card == null || card === '') {
+        finish(new Error('Worldpay did not return a card session.'), null);
+        return;
+      }
+      finish(null, card);
+    });
+    return;
+  }
+
+  reject(new Error('Worldpay session API is not available on this checkout instance.'));
+});
+
 const CommonCheckout = ({
   title = 'Secure Checkout',
   orderSummary,
@@ -42,6 +101,10 @@ const CommonCheckout = ({
   onAcceptTermsChange,
   onSubmit,
   submitDisabled = false,
+  /** First reason checkout details block payment (shown under the button when disabled). */
+  submitBlockedReason = null,
+  /** When true, do not show pay-button hints (e.g. while charging). */
+  isProcessingPayment = false,
   submitLabel = 'Complete Order',
 }) => {
   const [loadingWorldpay, setLoadingWorldpay] = useState(false);
@@ -49,11 +112,14 @@ const CommonCheckout = ({
   const [worldpayInitError, setWorldpayInitError] = useState('');
   const defaultWorldpayScriptSrc = 'https://try.access.worldpay.com/access-checkout/v2/checkout.js';
   const checkoutInstanceRef = useRef(null);
+  /** Bumps on each effect run so async Worldpay init from Strict Mode’s first mount is ignored. */
+  const worldpayInitGenerationRef = useRef(0);
 
   const getCheckoutApi = () => window?.Worldpay?.checkout || null;
 
   useEffect(() => {
     let cancelled = false;
+    const runId = ++worldpayInitGenerationRef.current;
 
     const loadScript = async (scriptSrc) => {
       await new Promise((resolve, reject) => {
@@ -94,22 +160,35 @@ const CommonCheckout = ({
 
         await loadScript(resolvedScriptUrl);
 
+        if (cancelled || runId !== worldpayInitGenerationRef.current) return;
+
         const checkoutApi = getCheckoutApi();
         const panEl = document.querySelector('#card-pan');
         const expEl = document.querySelector('#card-expiry');
-        const cvvEl = document.querySelector('#card-cvc');
+        const cvvEl = document.querySelector('#card-cvv');
         if (!panEl || !expEl || !cvvEl) {
           throw new Error('Card input containers are missing in checkout form.');
         }
 
+        // Access Checkout v2 only accepts these field keys (not expiryDate / cvc).
         const initConfig = {
           id: checkoutId,
           form: '#worldpay-card-form',
           fields: {
-            pan: { selector: '#card-pan' },
-            expiryDate: { selector: '#card-expiry' },
-            cvc: { selector: '#card-cvc' },
+            pan: {
+              selector: '#card-pan',
+              placeholder: 'Card number',
+            },
+            expiry: {
+              selector: '#card-expiry',
+              placeholder: 'MM/YY',
+            },
+            cvv: {
+              selector: '#card-cvv',
+              placeholder: 'CVV',
+            },
           },
+          enablePanFormatting: true,
         };
 
         if (!checkoutApi) {
@@ -117,68 +196,92 @@ const CommonCheckout = ({
         }
 
         const initCheckout = () => new Promise((resolve, reject) => {
-          try {
-            const assignInstance = (instanceCandidate) => {
-              const fallbackCandidate = getCheckoutApi();
-              const instance = instanceCandidate || fallbackCandidate;
-              if (instance && typeof instance.generateSessionState === 'function') {
-                checkoutInstanceRef.current = instance;
-                resolve();
-                return true;
-              }
-              return false;
-            };
+          let settled = false;
+          const finish = (fn) => {
+            if (settled) return;
+            settled = true;
+            fn();
+          };
 
+          const useInstance = (instance) => {
+            if (!instance) return false;
+            const canPay =
+              typeof instance.generateSessionState === 'function'
+              || typeof instance.generateSessions === 'function';
+            if (!canPay) return false;
+            checkoutInstanceRef.current = instance;
+            return true;
+          };
+
+          const failInit = (message) => {
+            finish(() => reject(new Error(message)));
+          };
+
+          try {
             if (checkoutApi && typeof checkoutApi.init === 'function') {
-              // Signature supported by Access Checkout: init(config, callback)
               const maybeReturn = checkoutApi.init(initConfig, (error, instance) => {
-                if (error) {
-                  reject(new Error(error.message || 'Worldpay secure fields initialization failed.'));
+                if (runId !== worldpayInitGenerationRef.current) {
+                  finish(() => resolve());
                   return;
                 }
-                if (!assignInstance(instance)) {
-                  reject(new Error('Worldpay did not provide a valid checkout instance.'));
+                if (error) {
+                  failInit(error.message || 'Worldpay secure fields initialization failed.');
+                  return;
                 }
+                if (!useInstance(instance)) {
+                  failInit('Worldpay did not provide a valid checkout instance.');
+                  return;
+                }
+                finish(() => resolve());
               });
 
-              // Some builds may return instance directly instead of callback.
-              if (assignInstance(maybeReturn)) return;
+              if (runId !== worldpayInitGenerationRef.current) {
+                finish(() => resolve());
+                return;
+              }
 
-              // Fallback: wait a tick and inspect global object.
+              if (maybeReturn && useInstance(maybeReturn)) {
+                finish(() => resolve());
+                return;
+              }
+
+              const hangMs = 15000;
               setTimeout(() => {
-                if (!assignInstance(null)) {
-                  reject(new Error('Worldpay secure fields are unavailable after initialization.'));
-                }
-              }, 100);
+                if (settled || runId !== worldpayInitGenerationRef.current) return;
+                failInit('Worldpay secure fields are unavailable after initialization.');
+              }, hangMs);
               return;
             }
 
             if (typeof checkoutApi === 'function') {
               const maybeReturn = checkoutApi(initConfig);
-              if (assignInstance(maybeReturn)) return;
-              setTimeout(() => {
-                if (!assignInstance(null)) {
-                  reject(new Error('Worldpay checkout function did not create a usable instance.'));
-                }
-              }, 100);
+              if (runId !== worldpayInitGenerationRef.current) {
+                finish(() => resolve());
+                return;
+              }
+              if (maybeReturn && useInstance(maybeReturn)) {
+                finish(() => resolve());
+                return;
+              }
+              failInit('Worldpay checkout function did not create a usable instance.');
               return;
             }
 
-            reject(new Error('Worldpay checkout init method not found.'));
+            failInit('Worldpay checkout init method not found.');
           } catch (e) {
             reject(e);
           }
         });
 
         await initCheckout();
-        if (!cancelled) setWorldpayReady(true);
+        if (!cancelled && runId === worldpayInitGenerationRef.current) setWorldpayReady(true);
       } catch (error) {
-        if (!cancelled) {
+        if (!cancelled && runId === worldpayInitGenerationRef.current) {
           setWorldpayInitError(error.message || 'Worldpay initialization failed.');
           toast.error(error.message || 'Worldpay initialization failed.');
         }
       } finally {
-        if (!cancelled) setLoadingWorldpay(false);
+        if (runId === worldpayInitGenerationRef.current) setLoadingWorldpay(false);
       }
     };
 
@@ -190,25 +293,39 @@ const CommonCheckout = ({
     };
   }, [paymentMethod, totalAmount]);
 
+  const worldpayBlocksPay =
+    paymentMethod === 'worldpay-card' && totalAmount > 0 && (!worldpayReady || loadingWorldpay);
+  const payButtonDisabled = submitDisabled || worldpayBlocksPay;
+  const payButtonHint = (() => {
+    if (isProcessingPayment) return null;
+    if (!payButtonDisabled) return null;
+    if (submitBlockedReason) return submitBlockedReason;
+    if (paymentMethod !== 'worldpay-card' || totalAmount <= 0) return null;
+    if (loadingWorldpay) return 'Secure card fields are still loading. Wait until the status shows “Worldpay fields ready”.';
+    if (!worldpayReady) {
+      return worldpayInitError || 'Card fields are not ready to take payment. Check for errors above or refresh the page.';
+    }
+    return null;
+  })();
+
   const handleSubmit = async () => {
     try {
       if (paymentMethod === 'worldpay-card' && totalAmount > 0) {
         const instance = checkoutInstanceRef.current;
         const checkoutApi = getCheckoutApi();
-        const generateSessionState = instance && typeof instance.generateSessionState === 'function'
-          ? instance.generateSessionState.bind(instance)
-          : (checkoutApi && typeof checkoutApi.generateSessionState === 'function'
-            ? checkoutApi.generateSessionState.bind(checkoutApi)
-            : null);
+        const payInstance =
+          instance
+          || (checkoutApi && typeof checkoutApi.generateSessionState === 'function' ? checkoutApi : null);
 
-        if (loadingWorldpay || !worldpayReady || !generateSessionState) {
+        if (loadingWorldpay || !worldpayReady || !payInstance) {
           toast.error('Worldpay is not ready yet. Please wait a second and try again.');
           return;
         }
-        const worldpayPayload = await generateSessionState();
+
+        const sessionState = await worldpaySessionStateFromInstance(payInstance);
         await onSubmit({
           provider: 'worldpay',
-          sessionState: worldpayPayload?.sessionState || worldpayPayload,
+          sessionState,
         });
         return;
       }
@@ -326,20 +443,24 @@ const CommonCheckout = ({
                 </div>
                 <div className="grid grid-cols-1 gap-2 mt-2">
                   <form id="worldpay-card-form" className="space-y-2">
+                    {/*
+                      Worldpay mounts iframes into these nodes. Use fixed height + min-w-0 (grid) per Access Checkout docs.
+                      React Strict Mode: init is gated by runId so only the latest effect run owns the instance.
+                    */}
                     <div
                       id="card-pan"
-                      className="w-full px-3 py-2 border border-blue-200 bg-white rounded-lg text-sm min-h-[44px]"
+                      className="field w-full px-3 py-2 border border-blue-200 bg-white rounded-lg text-sm min-h-[44px] h-11 overflow-visible"
                       style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                     />
                     <div className="grid grid-cols-2 gap-2">
                       <div
                         id="card-expiry"
-                        className="w-full px-3 py-2 border border-blue-200 bg-white rounded-lg text-sm min-h-[44px]"
+                        className="field w-full min-w-0 px-3 py-2 border border-blue-200 bg-white rounded-lg text-sm min-h-[44px] h-11 overflow-visible"
                         style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                       />
                       <div
-                        id="card-cvc"
-                        className="w-full px-3 py-2 border border-blue-200 bg-white rounded-lg text-sm min-h-[44px]"
+                        id="card-cvv"
+                        className="field w-full min-w-0 px-3 py-2 border border-blue-200 bg-white rounded-lg text-sm min-h-[44px] h-11 overflow-visible"
                         style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                       />
                     </div>
@@ -376,14 +497,22 @@ const CommonCheckout = ({
             <span>I agree to the Terms & Conditions and understand this order will be processed securely.</span>
           </label>
 
+          {payButtonHint && (
+            <p
+              className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2"
+              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+              role="status"
+            >
+              {payButtonHint}
+            </p>
+          )}
+
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={submitDisabled || (paymentMethod === 'worldpay-card' && (!worldpayReady || loadingWorldpay))}
+            disabled={payButtonDisabled}
             className={`w-full px-6 py-3.5 rounded-xl font-semibold text-white transition-colors ${
-              submitDisabled || (paymentMethod === 'worldpay-card' && (!worldpayReady || loadingWorldpay))
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow'
+              payButtonDisabled ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow'
             }`}
             style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >

@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { toast } from 'react-toastify';
 import CommonCheckout from '../components/CommonCheckout';
 import { paymentService } from '../services/paymentService';
 import { useCart } from '../context/CartContext';
+import { useVatInclusive } from '../hooks/useVatInclusive';
+import { grossFromNet, payableFromNet, vatAmountFromNet } from '../utils/vatUtils';
 
 const sliderItems = [
   {
@@ -25,6 +26,7 @@ const CheckoutPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { addToCart } = useCart();
+  const vatInclusive = useVatInclusive();
 
   const checkoutData = location.state?.checkoutData || {
     title: 'Custom Neon Sign',
@@ -55,7 +57,9 @@ const CheckoutPage = () => {
     return () => clearInterval(timer);
   }, []);
 
-  const amount = Number(checkoutData.amount) > 0 ? Number(checkoutData.amount) : 50;
+  const netAmount = Number(checkoutData.amount) > 0 ? Number(checkoutData.amount) : 50;
+  const isNeonNetCheckout = checkoutData.amountBasis === 'net';
+  const payAmount = isNeonNetCheckout ? payableFromNet(netAmount, vatInclusive) : netAmount;
   const sanitizedCustomerInfo = {
     name: String(customerInfo.name || '').trim(),
     email: String(customerInfo.email || '').trim().toLowerCase(),
@@ -64,7 +68,19 @@ const CheckoutPage = () => {
   };
 
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sanitizedCustomerInfo.email);
-  const isPhoneValid = /^[+0-9()\-\s]{7,20}$/.test(sanitizedCustomerInfo.phone);
+  const isPhoneValid = /^[+0-9()\-\s]{7,30}$/.test(sanitizedCustomerInfo.phone);
+
+  const submitBlockedReason = (() => {
+    if (isPaying) return null;
+    if (!sanitizedCustomerInfo.name) return 'Enter your full name in Contact & Delivery.';
+    if (!sanitizedCustomerInfo.email) return 'Enter your email address.';
+    if (!isEmailValid) return 'Enter a valid email address.';
+    if (!sanitizedCustomerInfo.phone) return 'Enter your phone number.';
+    if (!isPhoneValid) return 'Enter a valid phone number (digits, spaces, + and brackets allowed).';
+    if (!sanitizedCustomerInfo.address) return 'Enter your delivery address.';
+    if (!acceptTerms) return 'Tick the box to accept the Terms & Conditions.';
+    return null;
+  })();
 
   const handleCheckout = async (paymentPayload = null) => {
     if (isPaying) return;
@@ -94,7 +110,7 @@ const CheckoutPage = () => {
         }
         const paymentResult = await paymentService.chargeWorldpay({
           sessionState: paymentPayload.sessionState,
-          amount,
+          amount: payAmount,
           currency: 'GBP',
           orderReference: `CHECKOUT-${Date.now()}`,
           customerInfo: sanitizedCustomerInfo,
@@ -114,7 +130,7 @@ const CheckoutPage = () => {
           description: checkoutData.description,
           paymentMethod,
           paymentId,
-          price: amount,
+          price: payAmount,
           quantity: 1,
           customer: sanitizedCustomerInfo,
         },
@@ -180,7 +196,7 @@ const CheckoutPage = () => {
 
         <CommonCheckout
           title={checkoutData.title || 'Secure Checkout'}
-          totalAmount={amount}
+          totalAmount={payAmount}
           orderSummary={(
             <>
               {(checkoutData.summary || []).map((item) => (
@@ -189,10 +205,34 @@ const CheckoutPage = () => {
                   <span className="font-semibold text-gray-900">{item.value}</span>
                 </div>
               ))}
-              <div className="border-t border-gray-200 pt-3 mt-3 flex justify-between">
-                <span className="font-bold text-gray-900">Total:</span>
-                <span className="font-bold text-blue-700">£{amount.toFixed(2)}</span>
-              </div>
+              {isNeonNetCheckout ? (
+                <div className="border-t border-gray-200 pt-3 mt-3 space-y-2 text-sm" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  <p className="text-xs text-gray-500">
+                    Custom neon is priced <strong>ex VAT</strong>. Totals below follow the header VAT switch (UK 20%).
+                  </p>
+                  <div className="flex justify-between text-gray-700">
+                    <span>Subtotal (ex VAT)</span>
+                    <span className="font-semibold tabular-nums">£{netAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-700">
+                    <span>VAT (20%)</span>
+                    <span className="font-semibold tabular-nums">£{vatAmountFromNet(netAmount).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-700">
+                    <span>Total (inc VAT)</span>
+                    <span className="font-semibold tabular-nums">£{grossFromNet(netAmount).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-gray-900 pt-2 border-t border-dashed border-gray-200">
+                    <span>Due now {vatInclusive ? '(inc VAT)' : '(ex VAT)'}</span>
+                    <span className="text-blue-700 tabular-nums">£{payAmount.toFixed(2)}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="border-t border-gray-200 pt-3 mt-3 flex justify-between">
+                  <span className="font-bold text-gray-900">Total:</span>
+                  <span className="font-bold text-blue-700">£{netAmount.toFixed(2)}</span>
+                </div>
+              )}
             </>
           )}
           customerInfo={customerInfo}
@@ -202,6 +242,8 @@ const CheckoutPage = () => {
           acceptTerms={acceptTerms}
           onAcceptTermsChange={setAcceptTerms}
           onSubmit={handleCheckout}
+          submitBlockedReason={submitBlockedReason}
+          isProcessingPayment={isPaying}
           submitDisabled={
             isPaying
             || !sanitizedCustomerInfo.name
@@ -215,7 +257,6 @@ const CheckoutPage = () => {
           submitLabel={isPaying ? 'Processing Payment...' : 'Pay Securely'}
         />
       </div>
-      <ToastContainer position="top-right" autoClose={2500} hideProgressBar={false} newestOnTop closeOnClick pauseOnHover />
     </div>
   );
 };

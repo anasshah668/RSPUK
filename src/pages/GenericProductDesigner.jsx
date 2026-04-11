@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/authService';
+import DesignerAuthModal from '../components/DesignerAuthModal';
 
 const SIZE_PRESETS = [
   { id: 'a4-portrait', label: 'A4 Portrait (794 x 1123)', width: 794, height: 1123 },
@@ -61,7 +62,7 @@ const FONT_OPTIONS = [
 
 const GenericProductDesigner = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated } = useAuth();
   const canvasElRef = useRef(null);
   const uploadRef = useRef(null);
   const projectLoadRef = useRef(null);
@@ -93,16 +94,8 @@ const GenericProductDesigner = () => {
   const [openInsertSection, setOpenInsertSection] = useState(null);
   const [fontSearch, setFontSearch] = useState('');
   const [showFontPicker, setShowFontPicker] = useState(false);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [authMode, setAuthMode] = useState('signup'); // signup | signin
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState('');
-  const [pendingDownload, setPendingDownload] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState('');
-  const [otpExpiresIn, setOtpExpiresIn] = useState(0);
-  const [showPassword, setShowPassword] = useState(false);
-  const [authForm, setAuthForm] = useState({ email: '', password: '' });
+  const [designerAuthOpen, setDesignerAuthOpen] = useState(false);
+  const pendingExportRef = useRef(false);
   const fontPickerRef = useRef(null);
 
   const currentPage = pages[currentPageIndex];
@@ -119,14 +112,6 @@ const GenericProductDesigner = () => {
     window.addEventListener('mousedown', handleClickOutside);
     return () => window.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  useEffect(() => {
-    if (!authModalOpen || !otpSent || otpExpiresIn <= 0) return undefined;
-    const timer = setInterval(() => {
-      setOtpExpiresIn((prev) => Math.max(0, prev - 1));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [authModalOpen, otpSent, otpExpiresIn]);
 
   const getCanvasThumbnail = () => {
     if (!canvas) return null;
@@ -698,130 +683,36 @@ const GenericProductDesigner = () => {
     pdf.save('design.pdf');
   };
 
-  const closeAuthModal = () => {
-    setAuthModalOpen(false);
-    setAuthError('');
-    setAuthLoading(false);
-    setOtp('');
-    setOtpSent(false);
-    setOtpExpiresIn(0);
-  };
-
-  const completeAuth = async (data) => {
-    if (!data) return;
-    login(
-      {
-        _id: data._id,
-        name: data.name,
-        email: data.email,
-        role: data.role
-      },
-      data.token
-    );
-    closeAuthModal();
-    if (pendingDownload) {
-      setPendingDownload(false);
-      await exportCurrentPage();
-    }
-  };
-
-  const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
-
-  const sendSignupOtp = async () => {
-    if (!authForm.email.trim()) {
-      setAuthError('Email is required');
-      return;
-    }
-    if (!isValidEmail(authForm.email)) {
-      setAuthError('Please enter a valid email address');
-      return;
-    }
-    setAuthError('');
-    setAuthLoading(true);
-    try {
-      const generatedPassword = `Temp#${Math.random().toString(36).slice(2, 10)}A1`;
-      const response = await authService.registerSendOtp({
-        name: 'Designer User',
-        email: authForm.email.trim(),
-        password: generatedPassword
-      });
-      setAuthForm((prev) => ({ ...prev, password: generatedPassword }));
-      setOtpSent(true);
-      setOtp('');
-      setOtpExpiresIn(Number(response?.expiresInSeconds || 600));
-    } catch (error) {
-      const message = String(error?.message || '');
-      if (message.toLowerCase().includes('already exists')) {
-        setAuthMode('signin');
-        setOtpSent(false);
-        setAuthError('Account already exists. Please sign in to download.');
-      } else {
-        setAuthError(message || 'Unable to send OTP');
-      }
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const verifySignupOtp = async () => {
-    if (!otp.trim()) {
-      setAuthError('OTP code is required');
-      return;
-    }
-    setAuthError('');
-    setAuthLoading(true);
-    try {
-      const data = await authService.registerVerifyOtp({
-        email: authForm.email.trim(),
-        otp: otp.trim()
-      });
-      await completeAuth(data);
-    } catch (error) {
-      setAuthError(error?.message || 'OTP verification failed');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const signInAndDownload = async () => {
-    if (!authForm.email.trim() || !authForm.password) {
-      setAuthError('Email and password are required');
-      return;
-    }
-    if (!isValidEmail(authForm.email)) {
-      setAuthError('Please enter a valid email address');
-      return;
-    }
-    setAuthError('');
-    setAuthLoading(true);
-    try {
-      const data = await authService.login({
-        email: authForm.email.trim(),
-        password: authForm.password
-      });
-      await completeAuth(data);
-    } catch (error) {
-      setAuthError(error?.message || 'Sign in failed');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
   const handleDownloadClick = async () => {
     if (isAuthenticated() && localStorage.getItem('token')) {
       try {
         await authService.getProfile();
         await exportCurrentPage();
         return;
-      } catch (_) {
-        localStorage.removeItem('token');
+      } catch (e) {
+        if (e?.status === 401) {
+          pendingExportRef.current = true;
+          setDesignerAuthOpen(true);
+          return;
+        }
+        await exportCurrentPage();
+        return;
       }
     }
-    setPendingDownload(true);
-    setAuthMode('signup');
-    setAuthModalOpen(true);
-    setAuthError('');
-    setOtpSent(false);
+    pendingExportRef.current = true;
+    setDesignerAuthOpen(true);
+  };
+
+  const handleDesignerAuthSuccess = async () => {
+    if (pendingExportRef.current) {
+      pendingExportRef.current = false;
+      await exportCurrentPage();
+    }
+  };
+
+  const closeDesignerAuth = () => {
+    pendingExportRef.current = false;
+    setDesignerAuthOpen(false);
   };
 
   const saveProject = () => {
@@ -1458,179 +1349,11 @@ const GenericProductDesigner = () => {
 
       </aside>
 
-      {authModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px] flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden animate-[fadeIn_.2s_ease-out]">
-            <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-5 py-4 text-white">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-12 rounded-lg bg-slate-700 p-1.5 flex items-center justify-center">
-                    <img src="/logo.png" alt="RSP UK" className="h-full w-full object-contain drop-shadow-[0_0_2px_rgba(255,255,255,0.6)]" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-semibold leading-tight">Continue to Download</h3>
-                    <p className="text-xs text-white/80 mt-0.5">Sign in once and download your artwork instantly.</p>
-                  </div>
-                </div>
-                <button onClick={closeAuthModal} className="text-white/80 hover:text-white text-xl leading-none">×</button>
-              </div>
-            </div>
-            <div className="p-5">
-              <div className="mb-3 text-xs text-gray-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-                Secure authentication required for export.
-              </div>
-            <div className="mb-3 text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 font-medium">
-              Trusted by 1000+ people for fast and secure printing services.
-            </div>
-            <div className="mb-4 grid grid-cols-3 gap-2">
-              {[
-                { label: 'SSL Secure', icon: 'lock' },
-                { label: 'OTP Verified', icon: 'shield' },
-                { label: 'Private Data', icon: 'user' }
-              ].map((item) => (
-                <div key={item.label} className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-center">
-                  <div className="flex justify-center mb-1">
-                    {item.icon === 'lock' && (
-                      <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2h-1V9a5 5 0 10-10 0v2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>
-                    )}
-                    {item.icon === 'shield' && (
-                      <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l8 4v5c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V7l8-4z" /></svg>
-                    )}
-                    {item.icon === 'user' && (
-                      <svg className="w-3.5 h-3.5 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A9.955 9.955 0 0112 15c2.354 0 4.518.813 6.225 2.172M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                    )}
-                  </div>
-                  <div className="text-[10px] font-medium text-gray-600">{item.label}</div>
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-2 mb-4">
-              <button
-                onClick={() => { setAuthMode('signup'); setOtpSent(false); setAuthError(''); }}
-                className={`p-2 rounded-lg text-sm border ${authMode === 'signup' ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300'}`}
-              >
-                Quick Signup
-              </button>
-              <button
-                onClick={() => { setAuthMode('signin'); setOtpSent(false); setAuthError(''); }}
-                className={`p-2 rounded-lg text-sm border ${authMode === 'signin' ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300'}`}
-              >
-                Sign In
-              </button>
-            </div>
-
-            {authMode === 'signup' && (
-              <div className="space-y-3">
-                <input
-                  type="email"
-                  value={authForm.email}
-                  onChange={(e) => setAuthForm((prev) => ({ ...prev, email: e.target.value }))}
-                  placeholder="Enter your email"
-                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm"
-                />
-                {authForm.email && !isValidEmail(authForm.email) && (
-                  <div className="text-xs text-amber-600">Please enter a valid email format.</div>
-                )}
-
-                {!otpSent ? (
-                  <button
-                    onClick={sendSignupOtp}
-                    disabled={authLoading}
-                    className="w-full p-2.5 rounded-lg bg-blue-600 text-white text-sm disabled:opacity-50"
-                  >
-                    {authLoading ? 'Sending...' : 'Send OTP'}
-                  </button>
-                ) : (
-                  <>
-                    <input
-                      type="text"
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value)}
-                      placeholder="Enter OTP"
-                      className="w-full p-2.5 border border-gray-300 rounded-lg text-sm"
-                    />
-                    <div className="text-xs text-gray-500">
-                      Expires in: {Math.floor(otpExpiresIn / 60).toString().padStart(2, '0')}:
-                      {(otpExpiresIn % 60).toString().padStart(2, '0')}
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        onClick={verifySignupOtp}
-                        disabled={authLoading}
-                        className="p-2.5 rounded-lg bg-blue-600 text-white text-sm disabled:opacity-50"
-                      >
-                        {authLoading ? 'Verifying...' : 'Verify & Download'}
-                      </button>
-                      <button
-                        onClick={sendSignupOtp}
-                        disabled={authLoading}
-                        className="p-2.5 rounded-lg border border-gray-300 text-sm disabled:opacity-50"
-                      >
-                        Resend OTP
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
-            {authMode === 'signin' && (
-              <div className="space-y-3">
-                <input
-                  type="email"
-                  value={authForm.email}
-                  onChange={(e) => setAuthForm((prev) => ({ ...prev, email: e.target.value }))}
-                  placeholder="Email"
-                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm"
-                />
-                {authForm.email && !isValidEmail(authForm.email) && (
-                  <div className="text-xs text-amber-600">Please enter a valid email format.</div>
-                )}
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={authForm.password}
-                    onChange={(e) => setAuthForm((prev) => ({ ...prev, password: e.target.value }))}
-                    placeholder="Password"
-                    className="w-full p-2.5 pr-10 border border-gray-300 rounded-lg text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                    title={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.956 9.956 0 012.042-3.368M6.223 6.223A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a9.969 9.969 0 01-4.125 5.168M15 12a3 3 0 11-6 0 3 3 0 016 0zM3 3l18 18" />
-                      </svg>
-                    ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-                <button
-                  onClick={signInAndDownload}
-                  disabled={authLoading}
-                  className="w-full p-2.5 rounded-lg bg-blue-600 text-white text-sm disabled:opacity-50"
-                >
-                  {authLoading ? 'Signing in...' : 'Sign In & Download'}
-                </button>
-              </div>
-            )}
-
-            {authError && (
-              <div className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-2.5">
-                {authError}
-              </div>
-            )}
-            </div>
-          </div>
-        </div>
-      )}
+      <DesignerAuthModal
+        open={designerAuthOpen}
+        onClose={closeDesignerAuth}
+        onAuthenticated={handleDesignerAuthSuccess}
+      />
     </div>
   );
 };

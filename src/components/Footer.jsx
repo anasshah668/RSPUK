@@ -1,9 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getRoutePath } from '../config/routes.config';
+import { useNeonPreviewExit } from '../context/NeonPreviewExitContext';
 
 const Footer = () => {
   const navigate = useNavigate();
+  const { confirmLeavePreview } = useNeonPreviewExit();
   const paymentLogos = [
     { name: 'Visa', src: '/payment-logos/visa.png', logoClass: 'h-9 md:h-10' },
     { name: 'American Express', src: '/payment-logos/american-express.png', logoClass: 'h-8 md:h-9' },
@@ -12,7 +14,8 @@ const Footer = () => {
     { name: 'PayPal', src: '/payment-logos/paypal.png', logoClass: 'h-9 md:h-10' },
   ];
 
-  const handleNavClick = (section) => {
+  const handleNavClick = async (section) => {
+    if (!(await confirmLeavePreview())) return;
     const routeMap = {
       'services': '/#services',
       'about': '/about-us',
