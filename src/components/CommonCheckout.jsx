@@ -30,6 +30,29 @@ const paymentLogos = [
   { src: '/payment-logos/american-express.png', alt: 'American Express' },
 ];
 
+/** Normalize SDK output to a string URL or token for the charge API (backend maps to sessionHref). */
+const coerceWorldpaySessionPayload = (value) => {
+  if (value == null) return '';
+  if (typeof value === 'string') {
+    const s = value.trim();
+    if (s.startsWith('{')) {
+      try {
+        const p = JSON.parse(s);
+        if (p && typeof p === 'object') {
+          return String(p.href || p.sessionHref || p.sessionState || p.url || s).trim();
+        }
+      } catch {
+        return s;
+      }
+    }
+    return s;
+  }
+  if (typeof value === 'object') {
+    return String(value.href || value.sessionHref || value.sessionState || value.url || '').trim();
+  }
+  return String(value).trim();
+};
+
 /** Access Checkout Web SDK uses a callback API, not `await generateSessionState()`. */
 const worldpaySessionStateFromInstance = (instance) => new Promise((resolve, reject) => {
   if (!instance) {
@@ -46,7 +69,9 @@ const worldpaySessionStateFromInstance = (instance) => new Promise((resolve, rej
       reject(new Error(msg));
       return;
     }
-    const sessionState = typeof value === 'string' ? value : value?.sessionState ?? value;
+    const sessionState = coerceWorldpaySessionPayload(
+      typeof value === 'string' ? value : value?.sessionState ?? value?.sessionHref ?? value?.href ?? value,
+    );
     if (sessionState == null || sessionState === '') {
       reject(new Error('Worldpay returned an empty session. Check your card details and try again.'));
       return;
@@ -322,10 +347,11 @@ const CommonCheckout = ({
           return;
         }
 
-        const sessionState = await worldpaySessionStateFromInstance(payInstance);
+        const sessionPayload = await worldpaySessionStateFromInstance(payInstance);
         await onSubmit({
           provider: 'worldpay',
-          sessionState,
+          sessionState: sessionPayload,
+          ...(sessionPayload.startsWith('http') ? { sessionHref: sessionPayload } : {}),
         });
         return;
       }
@@ -394,12 +420,30 @@ const CommonCheckout = ({
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               />
               <textarea
-                placeholder="Delivery Address"
+                placeholder="Street address (line 1)"
                 value={customerInfo.address}
                 onChange={(e) => onCustomerInfoChange({ ...customerInfo, address: e.target.value })}
                 rows="2"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent md:col-span-1"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent md:col-span-2"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+              />
+              <input
+                type="text"
+                placeholder="City / Town"
+                value={customerInfo.city || ''}
+                onChange={(e) => onCustomerInfoChange({ ...customerInfo, city: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                autoComplete="address-level2"
+              />
+              <input
+                type="text"
+                placeholder="Postcode (e.g. SW1A 1AA)"
+                value={customerInfo.postalCode || ''}
+                onChange={(e) => onCustomerInfoChange({ ...customerInfo, postalCode: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                autoComplete="postal-code"
               />
             </div>
           </div>

@@ -48,6 +48,8 @@ const CheckoutPage = () => {
     email: '',
     phone: '',
     address: '',
+    city: '',
+    postalCode: '',
   });
 
   useEffect(() => {
@@ -65,10 +67,13 @@ const CheckoutPage = () => {
     email: String(customerInfo.email || '').trim().toLowerCase(),
     phone: String(customerInfo.phone || '').trim(),
     address: String(customerInfo.address || '').trim(),
+    city: String(customerInfo.city || '').trim(),
+    postalCode: String(customerInfo.postalCode || '').trim(),
   };
 
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sanitizedCustomerInfo.email);
   const isPhoneValid = /^[+0-9()\-\s]{7,30}$/.test(sanitizedCustomerInfo.phone);
+  const isUkPostcodeLoose = /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(sanitizedCustomerInfo.postalCode.replace(/\s+/g, ' ').trim());
 
   const submitBlockedReason = (() => {
     if (isPaying) return null;
@@ -77,15 +82,23 @@ const CheckoutPage = () => {
     if (!isEmailValid) return 'Enter a valid email address.';
     if (!sanitizedCustomerInfo.phone) return 'Enter your phone number.';
     if (!isPhoneValid) return 'Enter a valid phone number (digits, spaces, + and brackets allowed).';
-    if (!sanitizedCustomerInfo.address) return 'Enter your delivery address.';
+    if (!sanitizedCustomerInfo.address) return 'Enter your street address.';
+    if (!sanitizedCustomerInfo.city) return 'Enter your city or town.';
+    if (!sanitizedCustomerInfo.postalCode) return 'Enter your postcode.';
+    if (!isUkPostcodeLoose) return 'Enter a valid UK postcode (e.g. SW1A 1AA).';
     if (!acceptTerms) return 'Tick the box to accept the Terms & Conditions.';
     return null;
   })();
 
   const handleCheckout = async (paymentPayload = null) => {
     if (isPaying) return;
-    if (!sanitizedCustomerInfo.name || !sanitizedCustomerInfo.email || !sanitizedCustomerInfo.phone || !sanitizedCustomerInfo.address) {
-      toast.error('Please complete all contact details.');
+    if (!sanitizedCustomerInfo.name || !sanitizedCustomerInfo.email || !sanitizedCustomerInfo.phone
+      || !sanitizedCustomerInfo.address || !sanitizedCustomerInfo.city || !sanitizedCustomerInfo.postalCode) {
+      toast.error('Please complete all contact and address fields (including city and postcode).');
+      return;
+    }
+    if (!isUkPostcodeLoose) {
+      toast.error('Please enter a valid UK postcode.');
       return;
     }
     if (!isEmailValid) {
@@ -105,17 +118,20 @@ const CheckoutPage = () => {
       setIsPaying(true);
       let paymentId = null;
       if (paymentMethod === 'worldpay-card') {
-        if (!paymentPayload?.sessionState) {
+        const sessionForCharge = paymentPayload?.sessionHref || paymentPayload?.sessionState;
+        if (!sessionForCharge) {
           throw new Error('Secure card session was not generated. Please re-enter card details and try again.');
         }
         const paymentResult = await paymentService.chargeWorldpay({
-          sessionState: paymentPayload.sessionState,
+          sessionState: sessionForCharge,
           amount: payAmount,
           currency: 'GBP',
           orderReference: `CHECKOUT-${Date.now()}`,
           customerInfo: sanitizedCustomerInfo,
           billingAddress: {
             address1: sanitizedCustomerInfo.address,
+            city: sanitizedCustomerInfo.city,
+            postalCode: sanitizedCustomerInfo.postalCode,
             countryCode: 'GB',
           },
         });
@@ -250,8 +266,11 @@ const CheckoutPage = () => {
             || !sanitizedCustomerInfo.email
             || !sanitizedCustomerInfo.phone
             || !sanitizedCustomerInfo.address
+            || !sanitizedCustomerInfo.city
+            || !sanitizedCustomerInfo.postalCode
             || !isEmailValid
             || !isPhoneValid
+            || !isUkPostcodeLoose
             || !acceptTerms
           }
           submitLabel={isPaying ? 'Processing Payment...' : 'Pay Securely'}
