@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { paymentService } from '../services/paymentService';
+import { formatWorldpayClientError } from '../utils/worldpayClientErrorMessage';
 
 const paymentOptions = [
   {
@@ -65,8 +66,7 @@ const worldpaySessionStateFromInstance = (instance) => new Promise((resolve, rej
     if (settled) return;
     settled = true;
     if (err) {
-      const msg = err?.message || (typeof err === 'string' ? err : 'Could not create secure card session.');
-      reject(new Error(msg));
+      reject(new Error(formatWorldpayClientError(err)));
       return;
     }
     const sessionState = coerceWorldpaySessionPayload(
@@ -135,16 +135,50 @@ const CommonCheckout = ({
   const [loadingWorldpay, setLoadingWorldpay] = useState(false);
   const [worldpayReady, setWorldpayReady] = useState(false);
   const [worldpayInitError, setWorldpayInitError] = useState('');
+  /** null = no wp:form:change yet (do not block Pay); false = SDK says form invalid; true = valid */
+  const [worldpayFormValid, setWorldpayFormValid] = useState(null);
   const defaultWorldpayScriptSrc = 'https://try.access.worldpay.com/access-checkout/v2/checkout.js';
   const checkoutInstanceRef = useRef(null);
   /** Bumps on each effect run so async Worldpay init from Strict Mode’s first mount is ignored. */
   const worldpayInitGenerationRef = useRef(0);
+  const worldpayFormListenerCleanupRef = useRef(null);
 
   const getCheckoutApi = () => window?.Worldpay?.checkout || null;
 
   useEffect(() => {
     let cancelled = false;
     const runId = ++worldpayInitGenerationRef.current;
+
+    const detachWorldpayFormHooks = () => {
+      if (typeof worldpayFormListenerCleanupRef.current === 'function') {
+        worldpayFormListenerCleanupRef.current();
+        worldpayFormListenerCleanupRef.current = null;
+      }
+    };
+
+    const attachWorldpayFormHooks = () => {
+      detachWorldpayFormHooks();
+      const formEl = document.querySelector('#worldpay-card-form');
+      if (!formEl) return;
+      const onFormChange = (e) => {
+        const valid = e?.detail?.['is-valid'] === true;
+        setWorldpayFormValid(valid);
+      };
+      formEl.addEventListener('wp:form:change', onFormChange);
+      worldpayFormListenerCleanupRef.current = () => {
+        formEl.removeEventListener('wp:form:change', onFormChange);
+      };
+    };
+
+    if (paymentMethod !== 'worldpay-card' || totalAmount <= 0) {
+      detachWorldpayFormHooks();
+      setWorldpayFormValid(null);
+      return () => {
+        cancelled = true;
+        checkoutInstanceRef.current = null;
+        detachWorldpayFormHooks();
+      };
+    }
 
     const loadScript = async (scriptSrc) => {
       await new Promise((resolve, reject) => {
@@ -170,6 +204,8 @@ const CommonCheckout = ({
     const initWorldpay = async () => {
       if (paymentMethod !== 'worldpay-card' || totalAmount <= 0) return;
       try {
+        detachWorldpayFormHooks();
+        setWorldpayFormValid(null);
         setWorldpayReady(false);
         setWorldpayInitError('');
         setLoadingWorldpay(true);
@@ -250,7 +286,7 @@ const CommonCheckout = ({
                   return;
                 }
                 if (error) {
-                  failInit(error.message || 'Worldpay secure fields initialization failed.');
+                  failInit(formatWorldpayClientError(error));
                   return;
                 }
                 if (!useInstance(instance)) {
@@ -299,11 +335,15 @@ const CommonCheckout = ({
         });
 
         await initCheckout();
-        if (!cancelled && runId === worldpayInitGenerationRef.current) setWorldpayReady(true);
+        if (!cancelled && runId === worldpayInitGenerationRef.current) {
+          attachWorldpayFormHooks();
+          setWorldpayReady(true);
+        }
       } catch (error) {
         if (!cancelled && runId === worldpayInitGenerationRef.current) {
-          setWorldpayInitError(error.message || 'Worldpay initialization failed.');
-          toast.error(error.message || 'Worldpay initialization failed.');
+          const msg = formatWorldpayClientError(error);
+          setWorldpayInitError(msg);
+          toast.error(msg);
         }
       } finally {
         if (runId === worldpayInitGenerationRef.current) setLoadingWorldpay(false);
@@ -315,17 +355,27 @@ const CommonCheckout = ({
     return () => {
       cancelled = true;
       checkoutInstanceRef.current = null;
+      detachWorldpayFormHooks();
     };
   }, [paymentMethod, totalAmount]);
 
   const worldpayBlocksPay =
     paymentMethod === 'worldpay-card' && totalAmount > 0 && (!worldpayReady || loadingWorldpay);
-  const payButtonDisabled = submitDisabled || worldpayBlocksPay;
+  const worldpayFormInvalid =
+    paymentMethod === 'worldpay-card'
+    && totalAmount > 0
+    && worldpayReady
+    && !loadingWorldpay
+    && worldpayFormValid === false;
+  const payButtonDisabled = submitDisabled || worldpayBlocksPay || worldpayFormInvalid;
   const payButtonHint = (() => {
     if (isProcessingPayment) return null;
     if (!payButtonDisabled) return null;
     if (submitBlockedReason) return submitBlockedReason;
     if (paymentMethod !== 'worldpay-card' || totalAmount <= 0) return null;
+    if (worldpayFormInvalid) {
+      return 'Enter a valid card number, expiry (MM/YY), and security code before paying.';
+    }
     if (loadingWorldpay) return 'Secure card fields are still loading. Wait until the status shows “Worldpay fields ready”.';
     if (!worldpayReady) {
       return worldpayInitError || 'Card fields are not ready to take payment. Check for errors above or refresh the page.';
@@ -360,7 +410,7 @@ const CommonCheckout = ({
         provider: paymentMethod === 'klarna-3' ? 'klarna' : 'manual',
       });
     } catch (error) {
-      toast.error(error.message || 'Checkout failed.');
+      toast.error(formatWorldpayClientError(error));
     }
   };
 
@@ -512,6 +562,20 @@ const CommonCheckout = ({
                   <div className="text-[11px] text-blue-700">
                     {loadingWorldpay ? 'Initializing Worldpay secure fields...' : worldpayReady ? 'Worldpay fields ready' : 'Preparing secure fields...'}
                   </div>
+                  {worldpayReady && !loadingWorldpay && worldpayFormValid === true && (
+                    <p className="text-[11px] text-emerald-800 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      Card details complete — you can pay securely.
+                    </p>
+                  )}
+                  {worldpayReady && !loadingWorldpay && worldpayFormValid === false && (
+                    <p
+                      className="text-[11px] text-amber-900 bg-amber-50 border border-amber-100 rounded-md px-2 py-1 mt-1"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                      role="status"
+                    >
+                      Check your card number, expiry (MM/YY), and CVV — one or more fields are not valid yet.
+                    </p>
+                  )}
                   {worldpayInitError && (
                     <div className="text-[11px] text-red-600 bg-red-50 border border-red-100 rounded-md px-2 py-1">
                       {worldpayInitError}
