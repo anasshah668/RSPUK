@@ -57,8 +57,8 @@ const Login = () => {
         localStorage.setItem('token', data.token);
       }
 
-      // Login user
-      login({
+      // Login user (merges guest basket on the server when possible)
+      await login({
         _id: data._id,
         name: data.name,
         email: data.email,

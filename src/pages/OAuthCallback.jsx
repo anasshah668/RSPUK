@@ -21,7 +21,7 @@ const OAuthCallback = () => {
         localStorage.setItem('token', token);
         const profile = await authService.getProfile();
 
-        login(
+        await login(
           {
             _id: profile._id,
             name: profile.name,

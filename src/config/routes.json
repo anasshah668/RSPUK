@@ -66,5 +66,12 @@
   "payments": {
     "worldpayCheckoutSession": "payments/worldpay/checkout-session",
     "worldpayCharge": "payments/worldpay/charge"
+  },
+  "cart": {
+    "get": "cart",
+    "addItem": "cart/items",
+    "merge": "cart/merge",
+    "clear": "cart",
+    "item": "cart/items"
   }
 }

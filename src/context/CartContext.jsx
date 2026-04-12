@@ -1,4 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useAuth } from './AuthContext';
+import httpClient from '../utils/httpClient';
+import { apiRoutes } from '../config/routes';
+import { ensureClientId } from '../utils/clientIdentity';
 
 const CartContext = createContext();
 
@@ -11,65 +15,91 @@ export const useCart = () => {
 };
 
 export const CartProvider = ({ children }) => {
+  const { authReady, user } = useAuth();
   const [cartItems, setCartItems] = useState([]);
 
-  // Load cart from localStorage on mount
-  useEffect(() => {
-    const savedCart = localStorage.getItem('cart');
-    if (savedCart) {
-      try {
-        setCartItems(JSON.parse(savedCart));
-      } catch (error) {
-        console.error('Error loading cart from localStorage:', error);
-      }
-    }
-  }, []);
-
-  // Save cart to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem('cart', JSON.stringify(cartItems));
-  }, [cartItems]);
-
-  const addToCart = (product, quantity = 1) => {
-    setCartItems(prevItems => {
-      const existingItem = prevItems.find(item => item.id === product.id);
-      
-      if (existingItem) {
-        return prevItems.map(item =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        );
-      } else {
-        return [...prevItems, { ...product, quantity }];
-      }
-    });
-  };
-
-  const removeFromCart = (productId) => {
-    setCartItems(prevItems => prevItems.filter(item => item.id !== productId));
-  };
-
-  const updateQuantity = (productId, quantity) => {
-    if (quantity <= 0) {
-      removeFromCart(productId);
+  const applyItems = useCallback((items) => {
+    if (!Array.isArray(items)) {
+      setCartItems([]);
       return;
     }
-    
-    setCartItems(prevItems =>
-      prevItems.map(item =>
-        item.id === productId ? { ...item, quantity } : item
-      )
+    setCartItems(
+      items.map((row) => ({
+        ...row,
+        quantity: Math.max(1, Number(row.quantity) || 1),
+      })),
     );
+  }, []);
+
+  const refreshCart = useCallback(async () => {
+    ensureClientId();
+    try {
+      const data = await httpClient.get(apiRoutes.cart.get);
+      applyItems(data?.items);
+    } catch (e) {
+      console.error('[cart] load failed', e);
+      setCartItems([]);
+    }
+  }, [applyItems]);
+
+  useEffect(() => {
+    if (!authReady) return;
+    refreshCart();
+  }, [authReady, user?._id, refreshCart]);
+
+  const addToCart = async (product, quantity = 1) => {
+    ensureClientId();
+    const qty = Math.max(1, Number(quantity) || 1);
+    const data = await httpClient.post(apiRoutes.cart.addItem, {
+      item: product,
+      quantity: qty,
+    });
+    applyItems(data?.items);
   };
 
-  const clearCart = () => {
-    setCartItems([]);
+  const removeFromCart = async (productId) => {
+    ensureClientId();
+    const line = cartItems.find((item) => String(item.id) === String(productId));
+    if (!line?.lineId) {
+      setCartItems((prev) => prev.filter((item) => String(item.id) !== String(productId)));
+      return;
+    }
+    const data = await httpClient.delete(`${apiRoutes.cart.item}/${encodeURIComponent(line.lineId)}`);
+    applyItems(data?.items);
+  };
+
+  const updateQuantity = async (productId, quantity) => {
+    if (quantity <= 0) {
+      await removeFromCart(productId);
+      return;
+    }
+    ensureClientId();
+    const line = cartItems.find((item) => String(item.id) === String(productId));
+    if (!line?.lineId) {
+      setCartItems((prev) =>
+        prev.map((item) =>
+          String(item.id) === String(productId) ? { ...item, quantity } : item,
+        ),
+      );
+      return;
+    }
+    const data = await httpClient.patch(`${apiRoutes.cart.item}/${encodeURIComponent(line.lineId)}`, {
+      quantity,
+    });
+    applyItems(data?.items);
+  };
+
+  const clearCart = async () => {
+    ensureClientId();
+    const data = await httpClient.delete(apiRoutes.cart.clear);
+    applyItems(data?.items);
   };
 
   const getCartTotal = () => {
     return cartItems.reduce((total, item) => {
-      return total + (item.price * item.quantity);
+      const price = Number(item.price);
+      if (!Number.isFinite(price)) return total;
+      return total + price * item.quantity;
     }, 0);
   };
 
@@ -79,6 +109,7 @@ export const CartProvider = ({ children }) => {
 
   const value = {
     cartItems,
+    refreshCart,
     addToCart,
     removeFromCart,
     updateQuantity,

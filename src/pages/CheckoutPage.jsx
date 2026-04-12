@@ -147,7 +147,7 @@ const CheckoutPage = () => {
         const receiptEmailSent = Boolean(paymentResult?.receiptEmailSent);
         const receiptEmailReason = paymentResult?.receiptEmailReason ?? null;
 
-        addToCart(
+        await addToCart(
           {
             id: `checkout-${Date.now()}`,
             type: 'checkout-order',
@@ -182,7 +182,7 @@ const CheckoutPage = () => {
 
       toast.success('Your order details have been saved. Complete payment when card checkout is available.');
 
-      addToCart(
+      await addToCart(
         {
           id: `checkout-${Date.now()}`,
           type: 'checkout-order',

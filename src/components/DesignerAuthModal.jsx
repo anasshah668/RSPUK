@@ -69,7 +69,7 @@ const DesignerAuthModal = ({
 
   const completeAuth = async (data) => {
     if (!data) return;
-    login(
+    await login(
       {
         _id: data._id,
         name: data.name,

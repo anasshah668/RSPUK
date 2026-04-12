@@ -59,17 +59,18 @@ const CartDropdown = ({ isOpen, onClose }) => {
             <div className="p-4 space-y-4">
               {cartItems.map((item) => (
                 <div
-                  key={item.id}
+                  key={item.lineId || item.id}
                   className="flex gap-4 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                 >
                   {/* Product Image */}
                   <div className="w-20 h-20 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
                     <img
                       src={item.image}
-                      alt={item.name}
+                      alt={item.name || item.title || 'Item'}
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        e.target.src = 'https://via.placeholder.com/80x80?text=' + encodeURIComponent(item.name);
+                        const label = item.name || item.title || 'Item';
+                        e.target.src = 'https://via.placeholder.com/80x80?text=' + encodeURIComponent(label);
                       }}
                     />
                   </div>
@@ -79,13 +80,13 @@ const CartDropdown = ({ isOpen, onClose }) => {
                     <h4 
                       className="font-semibold text-gray-900 mb-1 truncate"
                     >
-                      {item.name}
+                      {item.name || item.title || 'Item'}
                     </h4>
                     <p 
                       className="text-sm text-gray-500 mb-2"
                       style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                     >
-                      {item.category}
+                      {item.category || item.type || ''}
                     </p>
                     
                     {/* Quantity Controls */}

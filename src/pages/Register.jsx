@@ -112,7 +112,7 @@ const Register = () => {
         localStorage.setItem('token', data.token);
       }
 
-      login({
+      await login({
         _id: data._id,
         name: data.name,
         email: data.email,

@@ -3,6 +3,7 @@ import { BrowserRouter as Router } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { AuthProvider } from './context/AuthContext';
+import { CartProvider } from './context/CartContext';
 import { NeonPreviewExitProvider } from './context/NeonPreviewExitContext';
 import RouteRenderer from './components/RouteRenderer';
 import ScrollToTop from './components/ScrollToTop';
@@ -60,6 +61,7 @@ function App() {
             pauseOnHover
           />
         </div>
+        </CartProvider>
       </AuthProvider>
       </NeonPreviewExitProvider>
     </Router>
