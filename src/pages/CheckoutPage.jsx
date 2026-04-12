@@ -144,14 +144,43 @@ const CheckoutPage = () => {
         paymentId = paymentResult?.paymentId || null;
 
         const ref = paymentResult?.orderReference || paymentId || '—';
-        const receiptSent = Boolean(paymentResult?.receiptEmailSent);
-        const successMsg = receiptSent
-          ? `Payment successful. Order reference: ${ref}. Amount: £${Number(payAmount).toFixed(2)}. A receipt has been sent to ${sanitizedCustomerInfo.email}.`
-          : `Payment successful. Order reference: ${ref}. Amount: £${Number(payAmount).toFixed(2)}. Receipt email was not sent—ask your site admin to configure SMTP if needed.`;
-        toast.success(successMsg);
-      } else {
-        toast.success('Your order details have been saved. Complete payment when card checkout is available.');
+        const receiptEmailSent = Boolean(paymentResult?.receiptEmailSent);
+        const receiptEmailReason = paymentResult?.receiptEmailReason ?? null;
+
+        addToCart(
+          {
+            id: `checkout-${Date.now()}`,
+            type: 'checkout-order',
+            title: checkoutData.title,
+            description: checkoutData.description,
+            paymentMethod,
+            paymentId,
+            price: payAmount,
+            quantity: 1,
+            customer: sanitizedCustomerInfo,
+          },
+          1
+        );
+
+        navigate('/payment-success', {
+          replace: true,
+          state: {
+            paymentSuccess: true,
+            orderReference: ref,
+            paymentId,
+            amount: payAmount,
+            currency: 'GBP',
+            email: sanitizedCustomerInfo.email,
+            customerName: sanitizedCustomerInfo.name,
+            orderTitle: checkoutData.title,
+            receiptEmailSent,
+            receiptEmailReason,
+          },
+        });
+        return;
       }
+
+      toast.success('Your order details have been saved. Complete payment when card checkout is available.');
 
       addToCart(
         {

@@ -146,10 +146,10 @@ class HttpClient {
   }
 
   // Convenience methods
-  async get(endpoint, params = {}) {
+  async get(endpoint, params = {}, options = {}) {
     const queryString = new URLSearchParams(params).toString();
     const url = queryString ? `${endpoint}?${queryString}` : endpoint;
-    return this.request(url, { method: 'GET' });
+    return this.request(url, { method: 'GET', ...options });
   }
 
   async post(endpoint, data = null, options = {}) {
