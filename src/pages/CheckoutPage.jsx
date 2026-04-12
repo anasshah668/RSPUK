@@ -6,6 +6,7 @@ import { paymentService } from '../services/paymentService';
 import { useCart } from '../context/CartContext';
 import { useVatInclusive } from '../hooks/useVatInclusive';
 import { grossFromNet, payableFromNet, vatAmountFromNet } from '../utils/vatUtils';
+import { formatPaymentErrorForToast } from '../utils/formatPaymentChargeError';
 
 const sliderItems = [
   {
@@ -134,8 +135,22 @@ const CheckoutPage = () => {
             postalCode: sanitizedCustomerInfo.postalCode,
             countryCode: 'GB',
           },
+          orderDetails: {
+            title: checkoutData.title,
+            description: checkoutData.description,
+            summary: checkoutData.summary || [],
+          },
         });
         paymentId = paymentResult?.paymentId || null;
+
+        const ref = paymentResult?.orderReference || paymentId || '—';
+        const receiptSent = Boolean(paymentResult?.receiptEmailSent);
+        const successMsg = receiptSent
+          ? `Payment successful. Order reference: ${ref}. Amount: £${Number(payAmount).toFixed(2)}. A receipt has been sent to ${sanitizedCustomerInfo.email}.`
+          : `Payment successful. Order reference: ${ref}. Amount: £${Number(payAmount).toFixed(2)}. Receipt email was not sent—ask your site admin to configure SMTP if needed.`;
+        toast.success(successMsg);
+      } else {
+        toast.success('Your order details have been saved. Complete payment when card checkout is available.');
       }
 
       addToCart(
@@ -153,10 +168,9 @@ const CheckoutPage = () => {
         1
       );
 
-      toast.success('Payment processed and order added to cart!');
       navigate('/');
     } catch (error) {
-      toast.error(error.message || 'Payment failed. Please try again.');
+      toast.error(formatPaymentErrorForToast(error));
     } finally {
       setIsPaying(false);
     }

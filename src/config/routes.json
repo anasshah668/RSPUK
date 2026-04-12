@@ -44,7 +44,8 @@
   "admin": {
     "analytics": "admin/analytics",
     "topAnnouncement": "settings/top-announcement",
-    "neonPricing": "admin/neon-pricing"
+    "neonPricing": "admin/neon-pricing",
+    "ordersFromCheckout": "admin/orders-from-checkout"
   },
   "neonPricing": {
     "calculate": "neon-pricing/calculate"
