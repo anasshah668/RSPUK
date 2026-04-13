@@ -93,7 +93,7 @@ const CartDropdown = ({ isOpen, onClose }) => {
                     <div className="flex items-center gap-3">
                       <div className="flex items-center border border-gray-300 rounded-lg">
                         <button
-                          onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                          onClick={() => updateQuantity(item.lineId || item.id, item.quantity - 1)}
                           className="px-2 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-200 transition-colors"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -107,7 +107,7 @@ const CartDropdown = ({ isOpen, onClose }) => {
                           {item.quantity}
                         </span>
                         <button
-                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                          onClick={() => updateQuantity(item.lineId || item.id, item.quantity + 1)}
                           className="px-2 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-200 transition-colors"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -126,7 +126,7 @@ const CartDropdown = ({ isOpen, onClose }) => {
                       </div>
 
                       <button
-                        onClick={() => removeFromCart(item.id)}
+                        onClick={() => removeFromCart(item.lineId || item.id)}
                         className="text-red-500 hover:text-red-700 transition-colors p-1"
                         title="Remove item"
                       >

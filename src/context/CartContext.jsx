@@ -57,28 +57,35 @@ export const CartProvider = ({ children }) => {
     applyItems(data?.items);
   };
 
-  const removeFromCart = async (productId) => {
+  const resolveCartLine = (identifier) => {
+    const key = String(identifier);
+    return cartItems.find(
+      (item) => String(item.lineId) === key || String(item.id) === key,
+    );
+  };
+
+  const removeFromCart = async (identifier) => {
     ensureClientId();
-    const line = cartItems.find((item) => String(item.id) === String(productId));
+    const line = resolveCartLine(identifier);
     if (!line?.lineId) {
-      setCartItems((prev) => prev.filter((item) => String(item.id) !== String(productId)));
+      setCartItems((prev) => prev.filter((item) => String(item.id) !== String(identifier)));
       return;
     }
     const data = await httpClient.delete(`${apiRoutes.cart.item}/${encodeURIComponent(line.lineId)}`);
     applyItems(data?.items);
   };
 
-  const updateQuantity = async (productId, quantity) => {
+  const updateQuantity = async (identifier, quantity) => {
     if (quantity <= 0) {
-      await removeFromCart(productId);
+      await removeFromCart(identifier);
       return;
     }
     ensureClientId();
-    const line = cartItems.find((item) => String(item.id) === String(productId));
+    const line = resolveCartLine(identifier);
     if (!line?.lineId) {
       setCartItems((prev) =>
         prev.map((item) =>
-          String(item.id) === String(productId) ? { ...item, quantity } : item,
+          String(item.id) === String(identifier) ? { ...item, quantity } : item,
         ),
       );
       return;

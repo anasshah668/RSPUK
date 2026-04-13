@@ -21,6 +21,15 @@ export function payableFromNet(net, vatInclusive) {
   return vatInclusive ? grossFromNet(n) : n;
 }
 
+/** Per-line amount for basket / checkout (matches header basket total). */
+export function lineBasketPayableAmount(item, vatInclusive) {
+  const qty = Number(item?.quantity || 1);
+  const lineNet = Number(item?.price || 0) * qty;
+  if (item?.type === 'checkout-order') return lineNet;
+  if (item?.type === 'custom-neon') return payableFromNet(lineNet, vatInclusive);
+  return lineNet;
+}
+
 /** Line display in basket: same rule as payable. */
 export function displayMoneyFromNet(net, vatInclusive) {
   return payableFromNet(net, vatInclusive);

@@ -74,10 +74,11 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  /** Does not clear the basket in MongoDB or via cart APIs — only ends the session. */
   const logout = () => {
-    setUser(null);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    setUser(null);
   };
 
   const isAuthenticated = () => user !== null;

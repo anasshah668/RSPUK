@@ -14,6 +14,7 @@ function App() {
       <NeonPreviewExitProvider>
       <ScrollToTop />
       <AuthProvider>
+        <CartProvider>
         <div className="min-h-screen bg-blue-50">
           {/* Flicker Animation CSS */}
           <style>{`

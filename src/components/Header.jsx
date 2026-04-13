@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useNeonPreviewExit } from '../context/NeonPreviewExitContext';
-import { payableFromNet, SUMMARY_LINES_EXCLUDE_FROM_CHECKOUT_NAV } from '../utils/vatUtils';
+import { lineBasketPayableAmount, SUMMARY_LINES_EXCLUDE_FROM_CHECKOUT_NAV } from '../utils/vatUtils';
 
 const Header = () => {
   const navigate = useNavigate();
@@ -173,13 +173,7 @@ const Header = () => {
 
   const basketCount = getCartItemCount();
 
-  const lineBasketPayable = (item) => {
-    const qty = Number(item.quantity || 1);
-    const lineNet = Number(item.price || 0) * qty;
-    if (item.type === 'checkout-order') return lineNet;
-    if (item.type === 'custom-neon') return payableFromNet(lineNet, isVatInclusive);
-    return lineNet;
-  };
+  const lineBasketPayable = (item) => lineBasketPayableAmount(item, isVatInclusive);
 
   const basketTotalDisplay = cartItems.reduce((sum, item) => sum + lineBasketPayable(item), 0);
 
@@ -211,6 +205,27 @@ const Header = () => {
     setMobileMenuOpen(false);
   };
 
+  const goToCheckoutAll = () => {
+    if (!cartItems.length) return;
+    navigate('/checkout', {
+      state: {
+        checkoutItems: cartItems.map((item) => ({
+          lineId: item.lineId,
+          id: item.id,
+          type: item.type,
+          title: item.title,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          amountBasis: item.amountBasis,
+          paymentId: item.paymentId,
+        })),
+      },
+    });
+    setBasketOpen(false);
+    setMobileMenuOpen(false);
+  };
+
   const showBasketCheckoutCta = (item) =>
     Array.isArray(item.summary) &&
     item.summary.length > 0 &&
@@ -234,12 +249,12 @@ const Header = () => {
             <p className="text-sm text-gray-600 text-center py-8 px-2">Your basket is empty.</p>
           ) : (
             cartItems.map((item) => (
-              <div key={item.id} className="rounded-lg border border-gray-100 p-3 text-sm bg-white">
+              <div key={item.lineId || item.id} className="rounded-lg border border-gray-100 p-3 text-sm bg-white">
                 <div className="flex justify-between gap-2 items-start">
                   <p className="font-semibold text-gray-900 leading-snug">{item.title}</p>
                   <button
                     type="button"
-                    onClick={() => removeFromCart(item.id)}
+                    onClick={() => removeFromCart(item.lineId || item.id)}
                     className="text-red-600 text-xs font-semibold shrink-0 hover:underline"
                   >
                     Remove
@@ -252,7 +267,7 @@ const Header = () => {
                   <div className="flex items-center gap-1 border border-gray-200 rounded-lg">
                     <button
                       type="button"
-                      onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                      onClick={() => updateQuantity(item.lineId || item.id, item.quantity - 1)}
                       className="px-2 py-1 text-gray-700 hover:bg-gray-50 rounded-l-lg text-sm font-bold"
                       aria-label="Decrease quantity"
                     >
@@ -263,7 +278,7 @@ const Header = () => {
                     </span>
                     <button
                       type="button"
-                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                      onClick={() => updateQuantity(item.lineId || item.id, item.quantity + 1)}
                       className="px-2 py-1 text-gray-700 hover:bg-gray-50 rounded-r-lg text-sm font-bold"
                       aria-label="Increase quantity"
                     >
@@ -291,14 +306,21 @@ const Header = () => {
           )}
         </div>
         {cartItems.length > 0 ? (
-          <div className="border-t border-gray-100 p-3 bg-gray-50 shrink-0">
+          <div className="border-t border-gray-100 p-3 bg-gray-50 shrink-0 space-y-2">
             <div className="flex justify-between text-sm font-bold text-gray-900">
               <span>Basket total</span>
               <span className="tabular-nums">£{basketTotalDisplay.toFixed(2)}</span>
             </div>
-            <p className="text-[10px] text-gray-500 mt-1.5 leading-snug">
+            <p className="text-[10px] text-gray-500 leading-snug">
               Includes UK VAT on custom neon only when Inc VAT is selected in the header.
             </p>
+            <button
+              type="button"
+              onClick={goToCheckoutAll}
+              className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors"
+            >
+              Proceed to checkout
+            </button>
           </div>
         ) : null}
       </div>
@@ -344,7 +366,7 @@ const Header = () => {
 
   const handleLogout = async () => {
     if (!(await confirmLeavePreview())) return;
-    logout();
+    await logout();
     setUserMenuOpen(false);
     navigate('/');
   };

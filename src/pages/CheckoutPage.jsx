@@ -1,11 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import CommonCheckout from '../components/CommonCheckout';
 import { paymentService } from '../services/paymentService';
 import { useCart } from '../context/CartContext';
 import { useVatInclusive } from '../hooks/useVatInclusive';
-import { grossFromNet, payableFromNet, vatAmountFromNet } from '../utils/vatUtils';
+import {
+  grossFromNet,
+  lineBasketPayableAmount,
+  payableFromNet,
+  vatAmountFromNet,
+} from '../utils/vatUtils';
 import { formatPaymentErrorForToast } from '../utils/formatPaymentChargeError';
 
 const sliderItems = [
@@ -18,16 +23,49 @@ const sliderItems = [
     text: 'Payments are authorized quickly so your order can move to production immediately.',
   },
   {
-    title: 'Trusted Methods',
-    text: 'Pay with Visa, Mastercard, American Express, Maestro, or Klarna Pay in 3.',
+    title: 'Trusted methods',
+    text: 'Major cards, Maestro, Apple Pay, Google Pay, PayPal, and more where enabled.',
   },
 ];
+
+const ORDER_REVIEW_SUMMARY_LABELS = new Set([
+  'Size',
+  'Backing',
+  'Colour',
+  'Color',
+  'Font',
+  'Tube',
+  'Mounting',
+  'Quantity',
+  'Material',
+  'Product',
+  'Product type',
+  'Item',
+]);
+
+function pickOrderReviewSummaryRows(summary) {
+  if (!Array.isArray(summary)) return [];
+  return summary
+    .filter((row) => {
+      if (!row?.label) return false;
+      const label = String(row.label);
+      const val = String(row.value ?? '').trim();
+      if (!val) return false;
+      if (ORDER_REVIEW_SUMMARY_LABELS.has(label)) return val.length <= 72;
+      if (/detail|description|^text$/i.test(label)) return false;
+      return val.length <= 44;
+    })
+    .slice(0, 4);
+}
 
 const CheckoutPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { addToCart } = useCart();
+  const { addToCart, clearCart, refreshCart } = useCart();
   const vatInclusive = useVatInclusive();
+
+  const checkoutItems = Array.isArray(location.state?.checkoutItems) ? location.state.checkoutItems : null;
+  const isMultiCheckout = Boolean(checkoutItems?.length);
 
   const checkoutData = location.state?.checkoutData || {
     title: 'Custom Neon Sign',
@@ -60,9 +98,43 @@ const CheckoutPage = () => {
     return () => clearInterval(timer);
   }, []);
 
-  const netAmount = Number(checkoutData.amount) > 0 ? Number(checkoutData.amount) : 50;
-  const isNeonNetCheckout = checkoutData.amountBasis === 'net';
-  const payAmount = isNeonNetCheckout ? payableFromNet(netAmount, vatInclusive) : netAmount;
+  const allCustomNeon =
+    isMultiCheckout && checkoutItems.every((i) => i.type === 'custom-neon');
+  const multiNeonNetTotal = useMemo(() => {
+    if (!isMultiCheckout || !allCustomNeon) return 0;
+    return checkoutItems.reduce(
+      (s, i) => s + Number(i.price || 0) * Number(i.quantity || 1),
+      0
+    );
+  }, [isMultiCheckout, allCustomNeon, checkoutItems]);
+
+  const singleNetAmount = Number(checkoutData.amount) > 0 ? Number(checkoutData.amount) : 50;
+  const isNeonNetCheckout = isMultiCheckout ? allCustomNeon : checkoutData.amountBasis === 'net';
+  const netAmount = isMultiCheckout && allCustomNeon ? multiNeonNetTotal : singleNetAmount;
+  const payAmount = useMemo(() => {
+    if (isMultiCheckout) {
+      return checkoutItems.reduce(
+        (s, i) => s + lineBasketPayableAmount(i, vatInclusive),
+        0
+      );
+    }
+    return isNeonNetCheckout ? payableFromNet(singleNetAmount, vatInclusive) : singleNetAmount;
+  }, [
+    isMultiCheckout,
+    checkoutItems,
+    vatInclusive,
+    isNeonNetCheckout,
+    singleNetAmount,
+  ]);
+
+  const checkoutBannerTitle = isMultiCheckout
+    ? `Your order (${checkoutItems.length} ${checkoutItems.length === 1 ? 'item' : 'items'})`
+    : checkoutData.title || 'Secure Checkout';
+
+  const reviewSummaryRows = useMemo(
+    () => pickOrderReviewSummaryRows(checkoutData.summary),
+    [checkoutData.summary]
+  );
   const sanitizedCustomerInfo = {
     name: String(customerInfo.name || '').trim(),
     email: String(customerInfo.email || '').trim().toLowerCase(),
@@ -135,11 +207,20 @@ const CheckoutPage = () => {
             postalCode: sanitizedCustomerInfo.postalCode,
             countryCode: 'GB',
           },
-          orderDetails: {
-            title: checkoutData.title,
-            description: checkoutData.description,
-            summary: checkoutData.summary || [],
-          },
+          orderDetails: isMultiCheckout
+            ? {
+                title: `Order (${checkoutItems.length} items)`,
+                description: 'Multi-item checkout',
+                summary: checkoutItems.map((item, idx) => ({
+                  label: (item.title || item.name || `Item ${idx + 1}`).slice(0, 100),
+                  value: `Qty ${item.quantity || 1} · £${lineBasketPayableAmount(item, vatInclusive).toFixed(2)}`,
+                })),
+              }
+            : {
+                title: checkoutData.title,
+                description: checkoutData.description,
+                summary: checkoutData.summary || [],
+              },
         });
         paymentId = paymentResult?.paymentId || null;
 
@@ -147,20 +228,16 @@ const CheckoutPage = () => {
         const receiptEmailSent = Boolean(paymentResult?.receiptEmailSent);
         const receiptEmailReason = paymentResult?.receiptEmailReason ?? null;
 
-        await addToCart(
-          {
-            id: `checkout-${Date.now()}`,
-            type: 'checkout-order',
-            title: checkoutData.title,
-            description: checkoutData.description,
-            paymentMethod,
-            paymentId,
-            price: payAmount,
-            quantity: 1,
-            customer: sanitizedCustomerInfo,
-          },
-          1
-        );
+        try {
+          await clearCart();
+        } catch (clearErr) {
+          console.warn('[checkout] payment succeeded but basket clear failed', clearErr);
+        }
+        try {
+          await refreshCart();
+        } catch (refreshErr) {
+          console.warn('[checkout] payment succeeded but basket refresh failed', refreshErr);
+        }
 
         navigate('/payment-success', {
           replace: true,
@@ -172,7 +249,11 @@ const CheckoutPage = () => {
             currency: 'GBP',
             email: sanitizedCustomerInfo.email,
             customerName: sanitizedCustomerInfo.name,
-            orderTitle: checkoutData.title,
+            orderTitle: isMultiCheckout
+              ? checkoutItems.length === 1
+                ? checkoutItems[0].title || checkoutItems[0].name || 'Order'
+                : `${checkoutItems.length} items`
+              : checkoutData.title,
             receiptEmailSent,
             receiptEmailReason,
           },
@@ -186,8 +267,12 @@ const CheckoutPage = () => {
         {
           id: `checkout-${Date.now()}`,
           type: 'checkout-order',
-          title: checkoutData.title,
-          description: checkoutData.description,
+          title: isMultiCheckout
+            ? `Order (${checkoutItems.length} items)`
+            : checkoutData.title,
+          description: isMultiCheckout
+            ? 'Multi-item checkout (pending payment)'
+            : checkoutData.description,
           paymentMethod,
           paymentId,
           price: payAmount,
@@ -254,46 +339,108 @@ const CheckoutPage = () => {
         </div>
 
         <CommonCheckout
-          title={checkoutData.title || 'Secure Checkout'}
+          title={checkoutBannerTitle}
           totalAmount={payAmount}
-          orderSummary={(
-            <>
-              {(checkoutData.summary || []).map((item) => (
-                <div key={item.label} className="flex justify-between text-sm">
-                  <span className="text-gray-600">{item.label}:</span>
-                  <span className="font-semibold text-gray-900">{item.value}</span>
+          orderSummary={
+            isMultiCheckout ? (
+              <div className="space-y-3">
+                <ul className="divide-y divide-gray-100 rounded-lg border border-gray-100 overflow-hidden bg-gray-50/40">
+                  {checkoutItems.map((item, idx) => (
+                    <li
+                      key={item.lineId || item.id || `line-${idx}`}
+                      className="flex justify-between gap-3 px-3 py-2.5"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-gray-900 leading-snug line-clamp-2">
+                          {item.title || item.name || 'Item'}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5 tabular-nums">
+                          Qty {item.quantity || 1}
+                        </p>
+                      </div>
+                      <p className="shrink-0 font-semibold text-gray-900 tabular-nums self-start">
+                        £{lineBasketPayableAmount(item, vatInclusive).toFixed(2)}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex justify-between items-baseline gap-3 pt-1">
+                  <span className="text-sm font-semibold text-gray-900">Total due</span>
+                  <span className="text-lg font-bold text-blue-700 tabular-nums">
+                    £{payAmount.toFixed(2)}
+                  </span>
                 </div>
-              ))}
-              {isNeonNetCheckout ? (
-                <div className="border-t border-gray-200 pt-3 mt-3 space-y-2 text-sm" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  <p className="text-xs text-gray-500">
-                    Custom neon is priced <strong>ex VAT</strong>. Totals below follow the header VAT switch (UK 20%).
+                {allCustomNeon ? (
+                  <p className="text-[11px] text-gray-500 leading-relaxed">
+                    Neon lines use your header VAT setting (UK 20% when Inc VAT is on).
                   </p>
-                  <div className="flex justify-between text-gray-700">
-                    <span>Subtotal (ex VAT)</span>
-                    <span className="font-semibold tabular-nums">£{netAmount.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-gray-700">
-                    <span>VAT (20%)</span>
-                    <span className="font-semibold tabular-nums">£{vatAmountFromNet(netAmount).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-gray-700">
-                    <span>Total (inc VAT)</span>
-                    <span className="font-semibold tabular-nums">£{grossFromNet(netAmount).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-gray-900 pt-2 border-t border-dashed border-gray-200">
-                    <span>Due now {vatInclusive ? '(inc VAT)' : '(ex VAT)'}</span>
-                    <span className="text-blue-700 tabular-nums">£{payAmount.toFixed(2)}</span>
-                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                    Item
+                  </p>
+                  <p
+                    className="font-semibold text-gray-900 mt-1 leading-snug"
+                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  >
+                    {checkoutData.title}
+                  </p>
                 </div>
-              ) : (
-                <div className="border-t border-gray-200 pt-3 mt-3 flex justify-between">
-                  <span className="font-bold text-gray-900">Total:</span>
-                  <span className="font-bold text-blue-700">£{netAmount.toFixed(2)}</span>
-                </div>
-              )}
-            </>
-          )}
+                {reviewSummaryRows.length > 0 ? (
+                  <dl className="grid gap-2 text-sm">
+                    {reviewSummaryRows.map((row) => (
+                      <div key={row.label} className="flex justify-between gap-3 min-w-0">
+                        <dt className="text-gray-500 shrink-0">{row.label}</dt>
+                        <dd className="text-gray-900 font-medium text-right truncate" title={row.value}>
+                          {row.value}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : null}
+                {isNeonNetCheckout ? (
+                  <div
+                    className="border-t border-gray-100 pt-3 mt-1 space-y-2 text-sm"
+                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  >
+                    <p className="text-xs text-gray-500">
+                      Custom neon is priced <strong>ex VAT</strong>. Totals follow the header VAT switch (UK 20%).
+                    </p>
+                    <div className="flex justify-between text-gray-700">
+                      <span>Subtotal (ex VAT)</span>
+                      <span className="font-semibold tabular-nums">£{netAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-700">
+                      <span>VAT (20%)</span>
+                      <span className="font-semibold tabular-nums">
+                        £{vatAmountFromNet(netAmount).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-gray-700">
+                      <span>Total (inc VAT)</span>
+                      <span className="font-semibold tabular-nums">
+                        £{grossFromNet(netAmount).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between font-bold text-gray-900 pt-2 border-t border-dashed border-gray-200">
+                      <span>Due now {vatInclusive ? '(inc VAT)' : '(ex VAT)'}</span>
+                      <span className="text-blue-700 tabular-nums">£{payAmount.toFixed(2)}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border-t border-gray-100 pt-3 flex justify-between items-baseline">
+                    <span className="font-semibold text-gray-900">Total due</span>
+                    <span className="text-lg font-bold text-blue-700 tabular-nums">
+                      £{payAmount.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )
+          }
           customerInfo={customerInfo}
           onCustomerInfoChange={setCustomerInfo}
           paymentMethod={paymentMethod}

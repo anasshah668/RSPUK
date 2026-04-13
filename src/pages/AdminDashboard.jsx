@@ -143,8 +143,8 @@ const AdminDashboard = () => {
                 Back to site
               </button>
               <button
-                onClick={() => {
-                  logout();
+                onClick={async () => {
+                  await logout();
                   toast.info('Logged out');
                   navigate('/admin/login');
                 }}

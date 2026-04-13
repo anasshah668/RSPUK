@@ -7,7 +7,8 @@ const paymentOptions = [
   {
     key: 'worldpay-card',
     title: 'Worldpay - Card Payment',
-    description: 'Pay securely with Visa, Mastercard, or AMEX via Worldpay gateway.',
+    description:
+      'Visa, Mastercard, American Express, Maestro, Apple Pay, Google Pay, and more — processed securely by Worldpay.',
     badge: 'Recommended',
   },
   {
@@ -25,10 +26,15 @@ const trustBadges = [
   { title: 'Secure Delivery', subtitle: 'Tracked and insured' },
 ];
 
+/** Major schemes & wallets commonly available via Worldpay (assets in /public/payment-logos). */
 const paymentLogos = [
   { src: '/payment-logos/visa.png', alt: 'Visa' },
   { src: '/payment-logos/mastercard.png', alt: 'Mastercard' },
   { src: '/payment-logos/american-express.png', alt: 'American Express' },
+  { src: '/payment-logos/maestro.png', alt: 'Maestro' },
+  { src: '/payment-logos/apple-pay.png', alt: 'Apple Pay' },
+  { src: '/payment-logos/google-pay.png', alt: 'Google Pay' },
+  { src: '/payment-logos/paypal.png', alt: 'PayPal' },
 ];
 
 /** Normalize SDK output to a string URL or token for the charge API (backend maps to sessionHref). */
@@ -424,10 +430,14 @@ const CommonCheckout = ({
               Secure checkout powered by Worldpay
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-1.5 max-w-md md:max-w-lg">
             {paymentLogos.map((logo) => (
-              <div key={logo.alt} className="rounded-lg bg-white px-3 py-1.5 border border-gray-200 shadow-sm">
-                <img src={logo.src} alt={logo.alt} className="h-5 w-auto object-contain" />
+              <div
+                key={logo.alt}
+                className="rounded-md bg-white px-2 py-1 border border-gray-200 shadow-sm"
+                title={logo.alt}
+              >
+                <img src={logo.src} alt={logo.alt} className="h-6 w-auto max-w-[52px] object-contain" />
               </div>
             ))}
           </div>
@@ -630,23 +640,28 @@ const CommonCheckout = ({
 
         {/* Sticky read-only right panel */}
         <div className="space-y-4 lg:sticky lg:top-24 self-start">
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <h4 className="font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-              Order Review
-            </h4>
-            <div className="space-y-2">
-              {orderSummary}
+          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2 mb-3 pb-2 border-b border-gray-100">
+              <h4 className="font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                Order review
+              </h4>
+              <span className="text-[10px] font-medium uppercase tracking-wider text-gray-400">Summary</span>
             </div>
+            <div className="text-sm">{orderSummary}</div>
           </div>
 
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
             <p className="text-xs font-semibold text-emerald-800 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
               Safe & Secure Checkout
             </p>
-            <div className="mb-3 flex flex-wrap items-center gap-2">
+            <div className="mb-3 flex flex-wrap items-center gap-1.5">
               {paymentLogos.map((logo) => (
-                <div key={`safe-${logo.alt}`} className="rounded-lg bg-white px-3 py-1.5 border border-emerald-200 shadow-sm">
-                  <img src={logo.src} alt={logo.alt} className="h-5 w-auto object-contain" />
+                <div
+                  key={`safe-${logo.alt}`}
+                  className="rounded-md bg-white px-2 py-1 border border-emerald-200 shadow-sm"
+                  title={logo.alt}
+                >
+                  <img src={logo.src} alt={logo.alt} className="h-6 w-auto max-w-[52px] object-contain" />
                 </div>
               ))}
             </div>

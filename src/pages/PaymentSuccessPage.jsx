@@ -8,10 +8,12 @@ function receiptHelpText(receiptEmailSent, receiptEmailReason) {
     return null;
   }
   switch (receiptEmailReason) {
+    case 'no_sendgrid':
+      return 'Receipt email was not sent because SendGrid is not configured (set SENDGRID_API_KEY and SENDGRID_FROM_EMAIL on the server).';
     case 'no_smtp':
-      return 'Receipt email was not sent because outgoing mail (SMTP) is not configured on the server yet.';
+      return 'Receipt email was not sent because outgoing mail is not configured on the server yet.';
     case 'no_nodemailer':
-      return 'Receipt email was not sent — install the nodemailer package on the server.';
+      return 'Receipt email was not sent — mail is not configured on the server.';
     case 'disabled':
       return 'Receipt emails are turned off (RECEIPT_EMAIL_ENABLED=false).';
     case 'send_failed':
