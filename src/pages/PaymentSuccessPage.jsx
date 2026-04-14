@@ -57,6 +57,46 @@ const PaymentSuccessPage = () => {
       : `£${amount}`;
 
   const receiptNote = receiptHelpText(Boolean(receiptEmailSent), receiptEmailReason);
+  const handleDownloadReceiptPdf = () => {
+    const popup = window.open('', '_blank', 'width=900,height=1100');
+    if (!popup) return;
+    const html = `
+      <!doctype html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Receipt ${orderReference || ''}</title>
+        <style>
+          body { font-family: Arial, sans-serif; color: #111827; padding: 24px; }
+          .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; }
+          .row { display: flex; justify-content: space-between; gap: 8px; margin: 8px 0; }
+          .muted { color: #6b7280; }
+          .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+          .title { font-size: 20px; font-weight: 700; margin-bottom: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="title">Payment receipt</div>
+        <div class="card">
+          <div class="row"><span class="muted">Order reference</span><span class="mono">${orderReference || '—'}</span></div>
+          <div class="row"><span class="muted">Payment reference</span><span class="mono">${paymentId || '—'}</span></div>
+          <div class="row"><span class="muted">Tracking ID</span><span class="mono">${trackingId || '—'}</span></div>
+          <div class="row"><span class="muted">Amount paid</span><strong>${amountLabel}</strong></div>
+          <div class="row"><span class="muted">Customer</span><span>${customerName || 'Customer'}</span></div>
+          <div class="row"><span class="muted">Email</span><span>${email || '—'}</span></div>
+          <p style="margin-top:14px; color:#1d4ed8;">
+            You can track your order in My Account > Track Order using Tracking ID: <strong>${trackingId || '—'}</strong>.
+          </p>
+        </div>
+      </body>
+      </html>
+    `;
+    popup.document.open();
+    popup.document.write(html);
+    popup.document.close();
+    popup.focus();
+    popup.print();
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4" style={font}>
@@ -119,6 +159,13 @@ const PaymentSuccessPage = () => {
             )}
 
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleDownloadReceiptPdf}
+                className="flex-1 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm"
+              >
+                Download receipt (PDF)
+              </button>
               <button
                 type="button"
                 onClick={() => navigate('/')}
