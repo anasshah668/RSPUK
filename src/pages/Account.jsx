@@ -444,6 +444,14 @@ const TrackOrder = () => {
     if (v === 'waiting') return 'Waiting';
     return v ? `${v.charAt(0).toUpperCase()}${v.slice(1)}` : '—';
   };
+  const statusBadgeClass = (s) => {
+    const v = String(s || '').toLowerCase();
+    if (v === 'completed' || v === 'delivered') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+    if (v === 'inprocess' || v === 'processing' || v === 'shipped') return 'bg-blue-100 text-blue-800 border-blue-200';
+    if (v === 'waiting' || v === 'pending') return 'bg-amber-100 text-amber-800 border-amber-200';
+    if (v === 'cancelled') return 'bg-red-100 text-red-800 border-red-200';
+    return 'bg-gray-100 text-gray-700 border-gray-200';
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -478,16 +486,42 @@ const TrackOrder = () => {
             </div>
             <div>
               <div className="text-sm text-gray-500">Status</div>
-              <div className="font-semibold">{prettyStatus(result.status)}</div>
+              <div className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border ${statusBadgeClass(result.status)}`}>
+                {prettyStatus(result.status)}
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 grid sm:grid-cols-2 gap-3 text-sm">
+            <div className="rounded-md border border-gray-200 p-3 bg-gray-50">
+              <div className="text-gray-500">Order title</div>
+              <div className="font-semibold text-gray-900">{result.orderTitle || 'Order'}</div>
+            </div>
+            <div className="rounded-md border border-gray-200 p-3 bg-gray-50">
+              <div className="text-gray-500">Total bill</div>
+              <div className="font-semibold text-gray-900">
+                {(result.currency || 'GBP') === 'GBP' ? '£' : `${result.currency || ''} `}
+                {Number(result.total || 0).toFixed(2)}
+              </div>
             </div>
           </div>
           <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-            {(result.items || []).map((it, idx) => (
-              <div key={idx} className="flex items-center gap-3 border rounded-md p-3">
+            {(result.items || []).length === 0 ? (
+              <div className="md:col-span-2 text-sm text-gray-500 border rounded-md p-3 bg-gray-50">
+                Item details are not available yet for this order.
+              </div>
+            ) : (result.items || []).map((it, idx) => (
+              <div key={idx} className="flex items-center gap-3 border rounded-md p-3 bg-white">
                 {it.imageUrl ? <img src={it.imageUrl} alt="" className="w-12 h-12 object-cover rounded-md" /> : <div className="w-12 h-12 bg-gray-100 rounded-md" />}
-                <div>
+                <div className="min-w-0">
                   <div className="font-medium">{it.productName}</div>
-                  <div className="text-sm text-gray-600">Qty: {it.quantity}</div>
+                  <div className="text-sm text-gray-600">Qty: {it.quantity || 1}</div>
+                  {it.note ? <div className="text-xs text-gray-500 truncate" title={it.note}>{it.note}</div> : null}
+                  {it.price != null ? (
+                    <div className="text-xs font-semibold text-gray-800 mt-0.5">
+                      {(result.currency || 'GBP') === 'GBP' ? '£' : `${result.currency || ''} `}
+                      {Number(it.price || 0).toFixed(2)}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ))}

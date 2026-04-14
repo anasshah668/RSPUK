@@ -1039,6 +1039,35 @@ const OrderDetailModal = ({ order, onClose }) => {
   const user = order.user;
   const od = order.orderDetails && typeof order.orderDetails === 'object' ? order.orderDetails : {};
   const summaryLines = Array.isArray(od.summary) ? od.summary : [];
+  const shopItems =
+    Array.isArray(order.items) && order.items.length > 0
+      ? order.items
+      : (Array.isArray(order.orderItems) ? order.orderItems : []);
+  const shopGlobalInputsEntries =
+    !isCheckout && order.globalInputs && typeof order.globalInputs === 'object'
+      ? Object.entries(order.globalInputs).filter(([, v]) => v != null && String(v).trim() !== '')
+      : [];
+  const itemOptionEntries = (it) => {
+    const fromObjects = [
+      it?.customization,
+      it?.variant,
+      it?.selectedAttributes,
+    ]
+      .filter((o) => o && typeof o === 'object')
+      .flatMap((obj) => Object.entries(obj));
+    const explicit = [
+      ['Size', it?.size],
+      ['Material', it?.material],
+      ['Sides Printed', it?.sidesPrinted],
+      ['Lamination', it?.lamination],
+      ['Round Corners', it?.roundCorners],
+      ['Delivery Option', it?.deliveryOption],
+      ['Design Option', it?.designOption],
+    ];
+    return [...fromObjects, ...explicit]
+      .filter(([k, v]) => k && v != null && String(v).trim() !== '')
+      .filter(([k]) => !['id', '_id', 'product', 'price', 'quantity', 'name'].includes(String(k).toLowerCase()));
+  };
 
   return (
     <div
@@ -1095,7 +1124,8 @@ const OrderDetailModal = ({ order, onClose }) => {
               ) : (
                 <>
                   <p><span className="text-gray-500">Name:</span> {user?.name || order.shippingAddress?.name || '—'}</p>
-                  <p><span className="text-gray-500">Email:</span> {user?.email || '—'}</p>
+                  <p><span className="text-gray-500">Email:</span> {user?.email || order.customer?.email || '—'}</p>
+                  <p><span className="text-gray-500">Phone:</span> {order.shippingAddress?.phone || order.customer?.phone || '—'}</p>
                   {order.shippingAddress ? (
                     <p>
                       <span className="text-gray-500">Ship to:</span>{' '}
@@ -1146,19 +1176,63 @@ const OrderDetailModal = ({ order, onClose }) => {
               </div>
             ) : (
               <div className="space-y-3">
-                {(order.items || []).length === 0 ? (
+                {shopGlobalInputsEntries.length > 0 ? (
+                  <div className="rounded-lg border border-gray-200 overflow-hidden">
+                    <div className="px-3 py-2 bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Selected options
+                    </div>
+                    <dl className="divide-y divide-gray-100">
+                      {shopGlobalInputsEntries.map(([k, v]) => (
+                        <div key={k} className="px-3 py-2 flex items-start justify-between gap-3">
+                          <dt className="text-gray-500 capitalize">{String(k).replace(/([A-Z])/g, ' $1')}</dt>
+                          <dd className="text-gray-900 text-right break-words">{String(v)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                ) : null}
+                {shopItems.length === 0 ? (
                   <p className="text-gray-500">No line items on record.</p>
                 ) : (
-                  <ul className="divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
-                    {(order.items || []).map((it, i) => (
-                      <li key={i} className="px-3 py-2 flex justify-between gap-2 bg-white">
-                        <span className="text-gray-800">
-                          {it.product?.name || 'Product'} × {it.quantity}
-                        </span>
-                        <span className="tabular-nums font-medium">£{Number(it.price || 0).toFixed(2)}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="space-y-2">
+                    {shopItems.map((it, i) => {
+                      const optEntries = itemOptionEntries(it);
+                      return (
+                        <div key={i} className="border border-gray-200 rounded-lg p-3 bg-white">
+                          <div className="flex justify-between gap-3">
+                            <div>
+                              <p className="font-semibold text-gray-900">
+                                {it.product?.name || it.name || 'Product'} × {Number(it.quantity || 1)}
+                              </p>
+                              {it.design?.previewImage ? (
+                                <a
+                                  href={it.design.previewImage}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-xs text-blue-600 hover:underline"
+                                >
+                                  View artwork preview
+                                </a>
+                              ) : null}
+                            </div>
+                            <p className="tabular-nums font-semibold text-gray-900">
+                              £{Number(it.price || 0).toFixed(2)}
+                            </p>
+                          </div>
+                          {optEntries.length > 0 ? (
+                            <dl className="mt-2 pt-2 border-t border-gray-100 grid gap-1.5">
+                              {optEntries.map(([k, v], idx) => (
+                                <div key={`${k}-${idx}`} className="flex justify-between gap-3 text-xs">
+                                  <dt className="text-gray-500 capitalize">{String(k).replace(/([A-Z])/g, ' $1')}</dt>
+                                  <dd className="text-gray-900 text-right break-words">{String(v)}</dd>
+                                </div>
+                              ))}
+                            </dl>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-gray-700">
                   {order.subtotal != null ? <span>Subtotal: £{Number(order.subtotal).toFixed(2)}</span> : null}
