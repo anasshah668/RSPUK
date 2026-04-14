@@ -41,6 +41,7 @@ const PaymentSuccessPage = () => {
   const {
     orderReference,
     paymentId,
+    trackingId,
     amount,
     currency = 'GBP',
     email,
@@ -87,11 +88,23 @@ const PaymentSuccessPage = () => {
                   <span className="font-mono text-xs text-right break-all">{paymentId}</span>
                 </div>
               )}
+              {trackingId && (
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-500">Tracking ID</span>
+                  <span className="font-mono text-xs text-right break-all">{trackingId}</span>
+                </div>
+              )}
               <div className="flex justify-between gap-4 pt-1 border-t border-gray-200">
                 <span className="text-gray-500">Amount paid</span>
                 <span className="font-bold text-emerald-700 tabular-nums">{amountLabel}</span>
               </div>
             </div>
+            {trackingId && (
+              <p className="text-sm text-blue-800 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                You can track your order in <strong>My Account &gt; Track Order</strong> using Tracking ID{' '}
+                <strong className="font-mono">{trackingId}</strong>.
+              </p>
+            )}
 
             {receiptEmailSent && email && (
               <p className="text-sm text-gray-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">

@@ -225,6 +225,7 @@ const CheckoutPage = () => {
         paymentId = paymentResult?.paymentId || null;
 
         const ref = paymentResult?.orderReference || paymentId || '—';
+        const trackingId = paymentResult?.trackingId || null;
         const receiptEmailSent = Boolean(paymentResult?.receiptEmailSent);
         const receiptEmailReason = paymentResult?.receiptEmailReason ?? null;
 
@@ -245,6 +246,7 @@ const CheckoutPage = () => {
             paymentSuccess: true,
             orderReference: ref,
             paymentId,
+            trackingId,
             amount: payAmount,
             currency: 'GBP',
             email: sanitizedCustomerInfo.email,

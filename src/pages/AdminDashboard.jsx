@@ -75,7 +75,7 @@ const AdminDashboard = () => {
 
   const handleOrderStatusUpdate = async (orderId, newStatus) => {
     try {
-      await orderService.updateStatus(orderId, newStatus);
+      await orderService.updateStatus(String(orderId), newStatus);
       toast.success('Order status updated');
       fetchData();
     } catch (error) {
@@ -1026,9 +1026,181 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
   );
 };
 
+const orderIdShort = (order) => {
+  const raw = order?._id != null ? String(order._id) : '';
+  if (raw.length <= 10) return raw || '—';
+  return `#${raw.slice(-8)}`;
+};
+
+const OrderDetailModal = ({ order, onClose }) => {
+  if (!order) return null;
+  const isCheckout = order.orderKind === 'checkout';
+  const cust = isCheckout ? order.customer : null;
+  const user = order.user;
+  const od = order.orderDetails && typeof order.orderDetails === 'object' ? order.orderDetails : {};
+  const summaryLines = Array.isArray(od.summary) ? od.summary : [];
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="order-detail-title"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3 shrink-0">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Order details</p>
+            <h3 id="order-detail-title" className="text-lg font-bold text-gray-900 mt-0.5">
+              {orderIdShort(order)}
+              {isCheckout ? (
+                <span className="ml-2 text-xs font-semibold align-middle px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                  Paid · Worldpay
+                </span>
+              ) : (
+                <span className="ml-2 text-xs font-semibold align-middle px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
+                  Shop
+                </span>
+              )}
+            </h3>
+            <p className="text-xs text-gray-500 mt-1">
+              {order.createdAt ? new Date(order.createdAt).toLocaleString() : '—'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-700 text-2xl leading-none px-1"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="overflow-y-auto p-5 space-y-5 text-sm">
+          <section>
+            <h4 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Customer</h4>
+            <div className="rounded-lg border border-gray-100 bg-gray-50/80 p-3 space-y-1 text-gray-800">
+              {isCheckout ? (
+                <>
+                  <p><span className="text-gray-500">Name:</span> {cust?.name || '—'}</p>
+                  <p><span className="text-gray-500">Email:</span> {cust?.email || '—'}</p>
+                  <p><span className="text-gray-500">Phone:</span> {cust?.phone || '—'}</p>
+                  <p><span className="text-gray-500">Address:</span> {[cust?.address, cust?.city, cust?.postalCode].filter(Boolean).join(', ') || '—'}</p>
+                </>
+              ) : (
+                <>
+                  <p><span className="text-gray-500">Name:</span> {user?.name || order.shippingAddress?.name || '—'}</p>
+                  <p><span className="text-gray-500">Email:</span> {user?.email || '—'}</p>
+                  {order.shippingAddress ? (
+                    <p>
+                      <span className="text-gray-500">Ship to:</span>{' '}
+                      {[order.shippingAddress.street, order.shippingAddress.city, order.shippingAddress.zipCode, order.shippingAddress.country].filter(Boolean).join(', ') || '—'}
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </div>
+          </section>
+
+          {isCheckout ? (
+            <section>
+              <h4 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Payment</h4>
+              <div className="rounded-lg border border-gray-100 p-3 space-y-1 font-mono text-xs">
+                <p><span className="text-gray-500 font-sans">Reference:</span> {order.orderReference || '—'}</p>
+                <p><span className="text-gray-500 font-sans">Payment ID:</span> {order.paymentId || '—'}</p>
+                <p><span className="text-gray-500 font-sans">Tracking ID:</span> {order.trackingNumber || '—'}</p>
+                <p><span className="text-gray-500 font-sans">Outcome:</span> {order.worldpay?.outcome || order.worldpay?.paymentStatus || '—'}</p>
+              </div>
+            </section>
+          ) : null}
+
+          <section>
+            <h4 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">
+              {isCheckout ? 'Order' : 'Items & totals'}
+            </h4>
+            {isCheckout ? (
+              <div className="space-y-3">
+                {od.title ? <p className="font-semibold text-gray-900">{od.title}</p> : null}
+                {od.description ? <p className="text-gray-600 text-sm whitespace-pre-wrap">{od.description}</p> : null}
+                {summaryLines.length > 0 ? (
+                  <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+                    <tbody className="divide-y divide-gray-100">
+                      {summaryLines.map((row, i) => (
+                        <tr key={`${row.label}-${i}`} className="bg-white">
+                          <td className="px-3 py-2 text-gray-500 w-2/5">{row.label}</td>
+                          <td className="px-3 py-2 text-gray-900">{row.value}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : null}
+                <p className="text-base font-bold text-gray-900 pt-1">
+                  Total: {order.currency === 'GBP' ? '£' : `${order.currency || ''} `}
+                  {Number(order.total || 0).toFixed(2)}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {(order.items || []).length === 0 ? (
+                  <p className="text-gray-500">No line items on record.</p>
+                ) : (
+                  <ul className="divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+                    {(order.items || []).map((it, i) => (
+                      <li key={i} className="px-3 py-2 flex justify-between gap-2 bg-white">
+                        <span className="text-gray-800">
+                          {it.product?.name || 'Product'} × {it.quantity}
+                        </span>
+                        <span className="tabular-nums font-medium">£{Number(it.price || 0).toFixed(2)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-gray-700">
+                  {order.subtotal != null ? <span>Subtotal: £{Number(order.subtotal).toFixed(2)}</span> : null}
+                  {order.shippingCost != null ? <span>Shipping: £{Number(order.shippingCost).toFixed(2)}</span> : null}
+                  {order.tax != null ? <span>Tax: £{Number(order.tax).toFixed(2)}</span> : null}
+                </div>
+                <p className="text-base font-bold text-gray-900">
+                  Total: £{Number(order.total || 0).toFixed(2)}
+                  {order.paymentStatus ? (
+                    <span className="ml-2 text-xs font-normal text-gray-500">({order.paymentStatus})</span>
+                  ) : null}
+                </p>
+                {order.trackingNumber ? (
+                  <p className="text-sm"><span className="text-gray-500">Tracking:</span> {order.trackingNumber}</p>
+                ) : null}
+              </div>
+            )}
+          </section>
+        </div>
+
+        <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full sm:w-auto px-4 py-2 rounded-lg bg-gray-800 text-white text-sm font-semibold hover:bg-gray-900"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Orders Tab Component
 const OrdersTab = ({ orders, onStatusUpdate }) => {
+  const [detailOrder, setDetailOrder] = useState(null);
+
   const statusColors = {
+    waiting: 'bg-amber-100 text-amber-800',
+    inprocess: 'bg-blue-100 text-blue-800',
+    completed: 'bg-emerald-100 text-emerald-800',
     pending: 'bg-yellow-100 text-yellow-800',
     processing: 'bg-blue-100 text-blue-800',
     shipped: 'bg-purple-100 text-purple-800',
@@ -1041,12 +1213,16 @@ const OrdersTab = ({ orders, onStatusUpdate }) => {
       <h2 className="text-2xl font-bold text-gray-900">
         Orders Management
       </h2>
+      <p className="text-sm text-gray-600 max-w-3xl">
+        Includes shop orders and successful Worldpay checkouts. Open <strong>View</strong> for full customer, payment reference, and line details.
+      </p>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order ID</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Source</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
@@ -1056,57 +1232,106 @@ const OrdersTab = ({ orders, onStatusUpdate }) => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {orders.map((order) => (
-              <tr key={order._id}>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-medium text-gray-900">
-                    #{order._id.toString().slice(-8)}
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="text-sm text-gray-900">{order.user?.name || 'N/A'}</div>
-                  <div className="text-sm text-gray-500">{order.user?.email || ''}</div>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="text-sm font-medium text-gray-900">
-                    {order.productType || order.globalInputs?.productType || order.orderItems?.[0]?.name || 'General Order'}
-                  </div>
-                  {order.globalInputs?.width && order.globalInputs?.height ? (
-                    <div className="text-xs text-gray-500">
-                      {order.globalInputs.width} x {order.globalInputs.height} {order.globalInputs.unit || ''}
-                      {order.globalInputs?.quantity ? `  • Qty ${order.globalInputs.quantity}` : ''}
-                    </div>
-                  ) : null}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-medium text-gray-900">£{order.total}</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <select
-                    value={order.status}
-                    onChange={(e) => onStatusUpdate(order._id, e.target.value)}
-                    className={`px-3 py-1 text-xs rounded-full border-0 ${statusColors[order.status]}`}
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="processing">Processing</option>
-                    <option value="shipped">Shipped</option>
-                    <option value="delivered">Delivered</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-500">
-                    {new Date(order.createdAt).toLocaleDateString()}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <button className="text-blue-600 hover:text-blue-900">View</button>
+            {orders.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="px-6 py-12 text-center text-sm text-gray-500">
+                  No orders yet. Successful checkouts will appear here after payment.
                 </td>
               </tr>
-            ))}
+            ) : (
+              orders.map((order) => {
+                const isCheckout = order.orderKind === 'checkout';
+                const custName = isCheckout ? order.customer?.name : order.user?.name;
+                const custEmail = isCheckout ? order.customer?.email : order.user?.email;
+                const projectLabel =
+                  order.orderDetails?.title
+                  || order.productType
+                  || order.globalInputs?.productType
+                  || order.orderItems?.[0]?.name
+                  || (isCheckout ? 'Checkout' : 'General order');
+                const cur = order.currency || 'GBP';
+                const sym = cur === 'GBP' ? '£' : `${cur} `;
+
+                return (
+                  <tr key={String(order._id)}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        {orderIdShort(order)}
+                      </div>
+                      {order.trackingNumber ? (
+                        <div className="text-[11px] text-gray-500 font-mono mt-0.5">{order.trackingNumber}</div>
+                      ) : null}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {isCheckout ? (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800">
+                          Worldpay
+                        </span>
+                      ) : (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
+                          Shop
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-900">{custName || '—'}</div>
+                      <div className="text-sm text-gray-500">{custEmail || ''}</div>
+                    </td>
+                    <td className="px-6 py-4 max-w-xs">
+                      <div className="text-sm font-medium text-gray-900 line-clamp-2">
+                        {projectLabel}
+                      </div>
+                      {!isCheckout && order.globalInputs?.width && order.globalInputs?.height ? (
+                        <div className="text-xs text-gray-500">
+                          {order.globalInputs.width} × {order.globalInputs.height} {order.globalInputs.unit || ''}
+                          {order.globalInputs?.quantity ? ` · Qty ${order.globalInputs.quantity}` : ''}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900 tabular-nums">
+                        {sym}{Number(order.total || 0).toFixed(2)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <select
+                        value={order.status || 'waiting'}
+                        onChange={(e) => onStatusUpdate(order._id, e.target.value)}
+                        className={`px-3 py-1 text-xs rounded-full border-0 ${statusColors[order.status] || statusColors.waiting}`}
+                      >
+                        <option value="waiting">Waiting</option>
+                        <option value="inprocess">In Process</option>
+                        <option value="completed">Completed</option>
+                        <option value="pending">Pending</option>
+                        <option value="processing">Processing</option>
+                        <option value="shipped">Shipped</option>
+                        <option value="delivered">Delivered</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">
+                        {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : '—'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <button
+                        type="button"
+                        onClick={() => setDetailOrder(order)}
+                        className="text-blue-600 hover:text-blue-900 font-medium"
+                      >
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
+
+      <OrderDetailModal order={detailOrder} onClose={() => setDetailOrder(null)} />
     </div>
   );
 };

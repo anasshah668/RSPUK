@@ -437,6 +437,13 @@ const TrackOrder = () => {
   const [result, setResult] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
+  const prettyStatus = (s) => {
+    const v = String(s || '').toLowerCase();
+    if (v === 'inprocess') return 'In Process';
+    if (v === 'completed') return 'Completed';
+    if (v === 'waiting') return 'Waiting';
+    return v ? `${v.charAt(0).toUpperCase()}${v.slice(1)}` : '—';
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -456,7 +463,7 @@ const TrackOrder = () => {
   return (
     <div>
       <form onSubmit={handleSubmit} className="flex gap-3 mb-4">
-        <input value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)} placeholder="Enter tracking number" className="flex-1 border rounded-lg px-3 py-2" />
+        <input value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)} placeholder="Enter tracking ID (e.g. RSP-2026-AB12CD34)" className="flex-1 border rounded-lg px-3 py-2" />
         <button type="submit" disabled={loading || !trackingNumber} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg">
           {loading ? 'Tracking...' : 'Track'}
         </button>
@@ -471,7 +478,7 @@ const TrackOrder = () => {
             </div>
             <div>
               <div className="text-sm text-gray-500">Status</div>
-              <div className="font-semibold capitalize">{result.status}</div>
+              <div className="font-semibold">{prettyStatus(result.status)}</div>
             </div>
           </div>
           <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
