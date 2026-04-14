@@ -31,6 +31,8 @@ function firstNonEmpty(...candidates) {
 export function parsePaymentChargeError(error) {
   const data = error?.data;
   const status = error?.status;
+  const topMessage = String(error?.message || "").trim();
+  const lowerTopMessage = topMessage.toLowerCase();
 
   const seen = new Set();
   const bullets = [];
@@ -44,7 +46,22 @@ export function parsePaymentChargeError(error) {
     typeof data === "string" ? data : "",
   );
 
-  const topMessage = String(error?.message || "").trim();
+  // Friendlier retry guidance for known Worldpay one-time token conflict path.
+  if (
+    status === 409 &&
+    (lowerTopMessage.includes("verified token") ||
+      lowerTopMessage.includes("one-time") ||
+      lowerTopMessage.includes("conflict"))
+  ) {
+    return {
+      headline: "Please re-enter your card details and try again.",
+      bullets: [
+        "Your previous card session has expired or conflicted with an earlier attempt.",
+        "For your security, each checkout attempt needs a fresh secure card session.",
+      ],
+      hint: "No charge was made. You can safely try again.",
+    };
+  }
 
   let headline = "";
   if (bullets.length > 0) {

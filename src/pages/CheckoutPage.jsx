@@ -43,6 +43,22 @@ const ORDER_REVIEW_SUMMARY_LABELS = new Set([
   'Item',
 ]);
 
+function isRecoverableWorldpaySessionConflict(error) {
+  const status = Number(error?.status || error?.data?.status || 0);
+  if (status !== 409) return false;
+  const message = String(error?.message || '').toLowerCase();
+  const hasConflictPayload = Boolean(
+    error?.data?.details?._embedded?.token?.conflicts
+    || error?.data?._embedded?.token?.conflicts
+  );
+  return (
+    hasConflictPayload
+    || message.includes('verified token creation failed')
+    || message.includes('one-time')
+    || message.includes('conflict')
+  );
+}
+
 function pickOrderReviewSummaryRows(summary) {
   if (!Array.isArray(summary)) return [];
   return summary
@@ -82,6 +98,7 @@ const CheckoutPage = () => {
   const [paymentMethod, setPaymentMethod] = useState('worldpay-card');
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
+  const [worldpayReloadSignal, setWorldpayReloadSignal] = useState(0);
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
     email: '',
@@ -286,6 +303,13 @@ const CheckoutPage = () => {
 
       navigate('/');
     } catch (error) {
+      if (paymentMethod === 'worldpay-card' && isRecoverableWorldpaySessionConflict(error)) {
+        setWorldpayReloadSignal((v) => v + 1);
+        toast.error(
+          'We refreshed secure card fields for a safe retry. Please re-enter card details and submit again.'
+        );
+        return;
+      }
       toast.error(formatPaymentErrorForToast(error));
     } finally {
       setIsPaying(false);
@@ -466,6 +490,7 @@ const CheckoutPage = () => {
             || !acceptTerms
           }
           submitLabel={isPaying ? 'Processing Payment...' : 'Pay Securely'}
+          worldpayReloadSignal={worldpayReloadSignal}
         />
       </div>
     </div>

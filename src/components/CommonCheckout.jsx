@@ -137,6 +137,8 @@ const CommonCheckout = ({
   /** When true, do not show pay-button hints (e.g. while charging). */
   isProcessingPayment = false,
   submitLabel = 'Complete Order',
+  /** Increment to force secure-fields reinit (e.g. after safe 409 session conflict). */
+  worldpayReloadSignal = 0,
 }) => {
   const [loadingWorldpay, setLoadingWorldpay] = useState(false);
   const [worldpayReady, setWorldpayReady] = useState(false);
@@ -363,7 +365,7 @@ const CommonCheckout = ({
       checkoutInstanceRef.current = null;
       detachWorldpayFormHooks();
     };
-  }, [paymentMethod, totalAmount]);
+  }, [paymentMethod, totalAmount, worldpayReloadSignal]);
 
   const worldpayBlocksPay =
     paymentMethod === 'worldpay-card' && totalAmount > 0 && (!worldpayReady || loadingWorldpay);
