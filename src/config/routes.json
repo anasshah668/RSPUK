@@ -44,6 +44,9 @@
   "admin": {
     "analytics": "admin/analytics",
     "topAnnouncement": "settings/top-announcement",
+    "galleryProjectsAdmin": "settings/gallery-projects/admin",
+    "galleryProjects": "settings/gallery-projects",
+    "galleryProjectById": "settings/gallery-projects",
     "neonPricing": "admin/neon-pricing",
     "ordersFromCheckout": "admin/orders-from-checkout"
   },
@@ -51,7 +54,8 @@
     "calculate": "neon-pricing/calculate"
   },
   "settings": {
-    "topAnnouncement": "settings/top-announcement"
+    "topAnnouncement": "settings/top-announcement",
+    "galleryProjects": "settings/gallery-projects"
   },
   "thirdParty": {
     "authLogin": "third-party/auth/login",

@@ -87,6 +87,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         images: allImages,
         description: product.description || '',
         features: product.features || [],
+        faqs: Array.isArray(product.faqs) ? product.faqs : [],
         specifications: product.specifications || {},
         uiOptions: product.uiOptions || {},
         sizeOptions: product.sizeOptions || {},
@@ -108,6 +109,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         images: allImages,
         description: productProp.description || '',
         features: productProp.features || [],
+        faqs: Array.isArray(productProp.faqs) ? productProp.faqs : [],
         specifications: productProp.specifications || {},
         uiOptions: productProp.uiOptions || {},
         sizeOptions: productProp.sizeOptions || {},
@@ -1637,6 +1639,159 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
           </div>
         </div>
       </div>
+
+      {/* SEO + UX content sections */}
+      <section className="container mx-auto px-4 lg:px-8 max-w-7xl mt-12 space-y-8">
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 md:p-8 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            Designer Workflow
+          </p>
+          <h2
+            className="text-2xl md:text-3xl font-bold text-gray-900 mt-2"
+            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+          >
+            How Our Designer Tool Works
+          </h2>
+          <p className="text-sm md:text-base text-gray-600 mt-2 max-w-3xl" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            A clear, guided process to help you create accurate print-ready artwork and place your order with confidence.
+          </p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+            {[
+              {
+                id: '01',
+                step: 'Choose Options',
+                text: 'Select size, material, finish and quantity so your pricing and output are aligned.',
+              },
+              {
+                id: '02',
+                step: 'Create or Upload',
+                text: 'Design online using our editor, or upload your own ready-to-print artwork.',
+              },
+              {
+                id: '03',
+                step: 'Preview & Review',
+                text: 'Review alignment, content and quality before finalising your product setup.',
+              },
+              {
+                id: '04',
+                step: 'Secure Checkout',
+                text: 'Complete payment safely and we move your order directly into production.',
+              },
+            ].map((item) => (
+              <article key={item.id} className="rounded-xl border border-gray-200 bg-white p-4">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-md bg-gray-900 text-white text-[11px] font-semibold">
+                    {item.id}
+                  </span>
+                  <h3 className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {item.step}
+                  </h3>
+                </div>
+                <p className="text-xs text-gray-600 mt-2 leading-relaxed" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  {item.text}
+                </p>
+              </article>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 md:p-8 shadow-sm">
+          <h2 className="text-xl md:text-2xl font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            Why Customers Choose RSPUK
+          </h2>
+          <div className="grid md:grid-cols-3 gap-4 mt-5">
+            {[
+              {
+                title: 'Professional Print Quality',
+                text: 'Consistent finishes, accurate color output and premium production standards for every order.',
+              },
+              {
+                title: 'Flexible Delivery Options',
+                text: 'Choose saver, standard or express timelines to match campaign or launch deadlines.',
+              },
+              {
+                title: 'Helpful UK-Based Support',
+                text: 'Get practical help on artwork setup, materials and product selections before you buy.',
+              },
+            ].map((item) => (
+              <article
+                key={item.title}
+                className="rounded-xl border border-gray-200 p-4 bg-white"
+              >
+                <h3 className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  {item.title}
+                </h3>
+                <p className="text-xs text-gray-600 mt-1.5 leading-relaxed" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  {item.text}
+                </p>
+              </article>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 md:p-8 mb-6 shadow-sm">
+          <h2 className="text-xl md:text-2xl font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            Product FAQs
+          </h2>
+          <dl className="mt-5 space-y-3">
+            {Array.isArray(displayProduct?.faqs) && displayProduct.faqs.length > 0 ? (
+              displayProduct.faqs.map((faq, index) => (
+                <div key={`${faq?.question || 'faq'}-${index}`} className="rounded-xl border border-gray-200 px-4 py-3 bg-gray-50/40">
+                  <dt className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {faq.question}
+                  </dt>
+                  <dd className="text-xs text-gray-600 mt-1.5 leading-relaxed" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    {faq.answer}
+                  </dd>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-xl border border-gray-200 px-4 py-3 bg-gray-50/40">
+                <dt className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  FAQs coming soon
+                </dt>
+                <dd className="text-xs text-gray-600 mt-1.5 leading-relaxed" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  Product-specific FAQs can be configured from the Admin Dashboard.
+                </dd>
+              </div>
+            )}
+          </dl>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 md:p-8 mb-6 shadow-sm">
+          <h2 className="text-xl md:text-2xl font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            Secure Payment & Checkout
+          </h2>
+          <p className="text-sm text-gray-600 mt-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            Shop with confidence. Your payment is processed through secure, encrypted checkout infrastructure.
+          </p>
+          <div className="grid md:grid-cols-3 gap-4 mt-5">
+            {[
+              {
+                title: 'Encrypted Card Processing',
+                text: 'Sensitive payment data is captured via secure hosted fields to help protect your information.',
+              },
+              {
+                title: 'Trusted Payment Gateway',
+                text: 'Transactions are handled by established payment partners with industry-standard security controls.',
+              },
+              {
+                title: 'Instant Order Confirmation',
+                text: 'Once payment is successful, you receive confirmation and your order moves into production.',
+              },
+            ].map((item) => (
+              <article key={item.title} className="rounded-xl border border-gray-200 p-4 bg-gray-50/40">
+                <h3 className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  {item.title}
+                </h3>
+                <p className="text-xs text-gray-600 mt-1.5 leading-relaxed" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  {item.text}
+                </p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* End strip (product detail only) */}
       <EndBenefitsStrip />

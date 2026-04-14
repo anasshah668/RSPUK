@@ -86,7 +86,7 @@ const Header = () => {
     'custom-neon-builder': '/custom-neon-builder',
     'neon-builder': '/neon-builder',
     'contact': '/#contact',
-    'gallery': '/#gallery',
+    'gallery': '/gallery',
     'shop-mug': '/#products',
     'shop-pen': '/#products',
     'shop-shirt': '/#products',

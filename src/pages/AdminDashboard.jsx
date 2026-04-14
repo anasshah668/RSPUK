@@ -16,7 +16,7 @@ import { toast } from 'react-toastify';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, authReady, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [analytics, setAnalytics] = useState(null);
   const [products, setProducts] = useState([]);
@@ -27,12 +27,13 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!authReady) return;
     if (user?.role !== 'admin') {
       navigate('/admin/login');
       return;
     }
     fetchData();
-  }, [activeTab, user]);
+  }, [activeTab, user, authReady]);
 
   useEffect(() => {
     if (activeTab !== 'quotes' || user?.role !== 'admin') return undefined;
@@ -427,6 +428,7 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
     category: '',
     basePrice: '',
     featuresText: '',
+    faqsText: '',
     specificationsText: '',
     isActive: true,
     uiOptions: {
@@ -468,6 +470,11 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
         category: product.category || '',
         basePrice: product.basePrice || '',
         featuresText: Array.isArray(product.features) ? product.features.join('\n') : '',
+        faqsText: Array.isArray(product.faqs)
+          ? product.faqs
+              .map((item) => `${item?.question || ''} || ${item?.answer || ''}`)
+              .join('\n')
+          : '',
         specificationsText: product.specifications && typeof product.specifications === 'object'
           ? Object.entries(product.specifications)
               .map(([key, value]) => `${key}: ${value}`)
@@ -521,6 +528,7 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
         category: '',
         basePrice: '',
         featuresText: '',
+        faqsText: '',
         specificationsText: '',
         isActive: true,
         uiOptions: {
@@ -631,12 +639,27 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
           return acc;
         }, {});
 
+      const faqs = String(formData.faqsText || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const parts = line.split('||');
+          if (parts.length < 2) return null;
+          const question = String(parts[0] || '').trim();
+          const answer = String(parts.slice(1).join('||') || '').trim();
+          if (!question || !answer) return null;
+          return { question, answer };
+        })
+        .filter(Boolean);
+
       const payload = {
         name: formData.name,
         description: formData.description,
         category: formData.category,
         ...(String(formData.basePrice || '').trim() !== '' ? { basePrice: String(formData.basePrice) } : {}),
         features,
+        faqs,
         specifications,
         isActive: String(formData.isActive),
         uiOptions: formData.uiOptions,
@@ -800,6 +823,19 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
                 rows={6}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 placeholder={`Premium print quality\nFast turnaround\nEco-friendly stock`}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                FAQs (one per line, format: Question || Answer)
+              </label>
+              <textarea
+                name="faqsText"
+                value={formData.faqsText}
+                onChange={handleChange}
+                rows={6}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                placeholder={`Can I upload my own artwork? || Yes, you can upload your print-ready file.\nHow long does delivery take? || Delivery depends on the selected service level.`}
               />
             </div>
             <div>
@@ -2256,12 +2292,20 @@ const SettingsTab = () => {
   const [error, setError] = useState('');
   const [syncingThirdParty, setSyncingThirdParty] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
+  const [galleryProjects, setGalleryProjects] = useState([]);
+  const [galleryLoading, setGalleryLoading] = useState(true);
+  const [galleryModalOpen, setGalleryModalOpen] = useState(false);
+  const [editingGalleryProject, setEditingGalleryProject] = useState(null);
+  const [gallerySaving, setGallerySaving] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
-        const data = await adminService.getTopAnnouncement();
+        const [data, galleryData] = await Promise.all([
+          adminService.getTopAnnouncement(),
+          adminService.listGalleryProjectsAdmin(),
+        ]);
         if (data) {
           setFormData({
             enabled: data.enabled !== false,
@@ -2269,14 +2313,28 @@ const SettingsTab = () => {
             message: data.message || 'Price Promise | UK wide delivery',
           });
         }
+        setGalleryProjects(Array.isArray(galleryData?.projects) ? galleryData.projects : []);
       } catch (e) {
         setError(e?.message || 'Failed to load settings');
       } finally {
         setLoading(false);
+        setGalleryLoading(false);
       }
     };
     load();
   }, []);
+
+  const loadGalleryProjects = async () => {
+    try {
+      setGalleryLoading(true);
+      const galleryData = await adminService.listGalleryProjectsAdmin();
+      setGalleryProjects(Array.isArray(galleryData?.projects) ? galleryData.projects : []);
+    } catch (e) {
+      setError(e?.message || 'Failed to load gallery projects');
+    } finally {
+      setGalleryLoading(false);
+    }
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -2309,6 +2367,47 @@ const SettingsTab = () => {
       setError(e?.message || 'Failed to sync third-party products');
     } finally {
       setSyncingThirdParty(false);
+    }
+  };
+
+  const handleGalleryCreateClick = () => {
+    setEditingGalleryProject(null);
+    setGalleryModalOpen(true);
+  };
+
+  const handleGalleryEditClick = (project) => {
+    setEditingGalleryProject(project);
+    setGalleryModalOpen(true);
+  };
+
+  const handleGalleryDelete = async (projectId) => {
+    const ok = window.confirm('Delete this gallery project? This cannot be undone.');
+    if (!ok) return;
+    try {
+      await adminService.deleteGalleryProject(projectId);
+      await loadGalleryProjects();
+      setNotice('Gallery project deleted.');
+    } catch (e) {
+      setError(e?.message || 'Failed to delete gallery project');
+    }
+  };
+
+  const handleGallerySave = async ({ payload, files, projectId }) => {
+    try {
+      setGallerySaving(true);
+      if (projectId) {
+        await adminService.updateGalleryProject(projectId, payload, files);
+      } else {
+        await adminService.createGalleryProject(payload, files);
+      }
+      await loadGalleryProjects();
+      setGalleryModalOpen(false);
+      setEditingGalleryProject(null);
+      setNotice(projectId ? 'Gallery project updated.' : 'Gallery project created.');
+    } catch (e) {
+      setError(e?.message || 'Failed to save gallery project');
+    } finally {
+      setGallerySaving(false);
     }
   };
 
@@ -2388,6 +2487,73 @@ const SettingsTab = () => {
         </form>
       </div>
 
+      <div className="bg-white rounded-xl shadow p-6">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Gallery Projects</h3>
+            <p className="text-sm text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              Create and manage project galleries shown on the public Gallery page.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleGalleryCreateClick}
+            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold"
+            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+          >
+            Add Project
+          </button>
+        </div>
+
+        {galleryLoading ? (
+          <div className="text-center py-8">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        ) : null}
+
+        {!galleryLoading && galleryProjects.length === 0 ? (
+          <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-6 text-sm text-gray-600 text-center">
+            No gallery projects added yet.
+          </div>
+        ) : null}
+
+        {!galleryLoading && galleryProjects.length > 0 ? (
+          <div className="mt-5 space-y-3">
+            {galleryProjects.map((project) => (
+              <div key={project._id} className="rounded-xl border border-gray-200 p-4 bg-white">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <h4 className="text-base font-semibold text-gray-900">{project.title}</h4>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {(project.images || []).length} image(s) · Order {project.displayOrder || 0} · {project.isActive ? 'Active' : 'Hidden'}
+                    </p>
+                    {project.description ? (
+                      <p className="text-sm text-gray-600 mt-2 line-clamp-3">{project.description}</p>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleGalleryEditClick(project)}
+                      className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleGalleryDelete(project._id)}
+                      className="px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 text-sm font-medium"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
       <div className="bg-white rounded-xl shadow p-6 max-w-3xl">
         <h3 className="text-lg font-bold text-gray-900 mb-2">Third-Party Product Sync</h3>
         <p className="text-sm text-gray-600 mb-6" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -2409,6 +2575,173 @@ const SettingsTab = () => {
         >
           {syncingThirdParty ? 'Syncing...' : 'Fetch 3rd Party Products'}
         </button>
+      </div>
+
+      {galleryModalOpen ? (
+        <GalleryProjectModal
+          project={editingGalleryProject}
+          isSaving={gallerySaving}
+          onClose={() => {
+            if (gallerySaving) return;
+            setGalleryModalOpen(false);
+            setEditingGalleryProject(null);
+          }}
+          onSave={handleGallerySave}
+        />
+      ) : null}
+    </div>
+  );
+};
+
+const GalleryProjectModal = ({ project, onClose, onSave, isSaving }) => {
+  const [title, setTitle] = useState(project?.title || '');
+  const [description, setDescription] = useState(project?.description || '');
+  const [displayOrder, setDisplayOrder] = useState(project?.displayOrder ?? 0);
+  const [isActive, setIsActive] = useState(project?.isActive !== false);
+  const [existingImages, setExistingImages] = useState(Array.isArray(project?.images) ? project.images : []);
+  const [newFiles, setNewFiles] = useState([]);
+  const [validationError, setValidationError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setValidationError('');
+
+    if (!String(title || '').trim()) {
+      setValidationError('Project title is required.');
+      return;
+    }
+    if ((existingImages?.length || 0) + (newFiles?.length || 0) === 0) {
+      setValidationError('Please keep or upload at least one image.');
+      return;
+    }
+
+    await onSave({
+      projectId: project?._id,
+      files: newFiles,
+      payload: {
+        title: String(title || '').trim(),
+        description: String(description || '').trim(),
+        displayOrder: Number(displayOrder) || 0,
+        isActive: Boolean(isActive),
+        existingImages,
+      },
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            {project ? 'Edit Gallery Project' : 'Add Gallery Project'}
+          </h3>
+          <button type="button" onClick={onClose} className="text-gray-500 hover:text-gray-800 text-xl" aria-label="Close">
+            ×
+          </button>
+        </div>
+
+        {validationError ? (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {validationError}
+          </div>
+        ) : null}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Project Title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Retail storefront branding rollout"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Project Description</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={5}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              placeholder="Share project scope, materials used, and final outcome."
+            />
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Display Order</label>
+              <input
+                type="number"
+                value={displayOrder}
+                onChange={(e) => setDisplayOrder(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm text-gray-700 mt-7">
+              <input
+                type="checkbox"
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
+                className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+              />
+              Show on public gallery page
+            </label>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Upload Images</label>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => setNewFiles(Array.from(e.target.files || []))}
+              className="w-full text-sm text-gray-700"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              You can upload multiple images for each project.
+            </p>
+          </div>
+
+          {existingImages.length > 0 ? (
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">Existing Images</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {existingImages.map((img, idx) => (
+                  <div key={`${img?.url || 'img'}-${idx}`} className="relative border rounded-lg overflow-hidden">
+                    <img src={img?.url} alt={`Existing ${idx + 1}`} className="w-full h-24 object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setExistingImages((prev) => prev.filter((_, i) => i !== idx))}
+                      className="absolute top-1 right-1 bg-white/90 text-red-600 rounded px-1.5 py-0.5 text-xs font-semibold"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium"
+              disabled={isSaving}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold disabled:opacity-60"
+              disabled={isSaving}
+            >
+              {isSaving ? 'Saving...' : project ? 'Update Project' : 'Create Project'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

@@ -19,8 +19,12 @@ const LoadingFallback = () => (
 
 // Protected Route Component
 const ProtectedRoute = ({ component: Component, ...rest }) => {
-  const { user } = useAuth();
+  const { user, authReady } = useAuth();
   const isAdmin = user?.role === 'admin';
+
+  if (!authReady) {
+    return <LoadingFallback />;
+  }
 
   if (!isAdmin) {
     return <Navigate to="/admin/login" replace />;

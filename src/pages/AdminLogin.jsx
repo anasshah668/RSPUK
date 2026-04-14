@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/authService';
 
@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, user, authReady } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -15,6 +15,13 @@ const AdminLogin = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [resetMessage, setResetMessage] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (!authReady) return;
+    if (user?.role === 'admin') {
+      navigate('/admin', { replace: true });
+    }
+  }, [authReady, user, navigate]);
 
   const validateForm = () => {
     const newErrors = {};
