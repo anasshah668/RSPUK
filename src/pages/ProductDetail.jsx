@@ -15,7 +15,6 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const [uploadedImage, setUploadedImage] = useState(null);
   const [selectedSize, setSelectedSize] = useState('');
   const [quantity, setQuantity] = useState(1);
-  const [activeTab, setActiveTab] = useState('design');
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(false);
   
@@ -539,9 +538,31 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     const imageToUse = businessCardMode
       ? null
       : (designOption === 'upload' && uploadedImage ? uploadedImage : (displayProduct?.image || null));
-    
-    // Navigate to product designer - you can pass params via state or query params
-    navigate('/product-designer', { 
+
+    // Send all selected product options via query params for deep-linking/shareability.
+    const queryParams = new URLSearchParams();
+    queryParams.set('productType', type === 'business-card' ? 'business-card' : type);
+    if (category) queryParams.set('productCategory', category);
+    if (selectedSize) queryParams.set('size', selectedSize);
+    queryParams.set('quantity', String(Number(quantity) > 0 ? Number(quantity) : 1));
+    if (designOption) queryParams.set('designOption', designOption);
+
+    if (material) queryParams.set('material', material);
+    if (sidesPrinted) queryParams.set('sidePrinted', sidesPrinted);
+    if (lamination) queryParams.set('lamination', lamination);
+    if (roundCorners) queryParams.set('roundCorners', roundCorners);
+    if (deliveryOptionRef.current || deliveryOption) {
+      queryParams.set('deliveryOption', deliveryOptionRef.current || deliveryOption);
+    }
+
+    Object.entries(selectedAttributeValues || {}).forEach(([key, value]) => {
+      if (!value) return;
+      const safeKey = `option_${String(key).trim().toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
+      queryParams.set(safeKey, String(value));
+    });
+
+    // Navigate to product designer with both URL params and state.
+    navigate(`/product-designer?${queryParams.toString()}`, {
       state: { 
         productType: type === 'business-card' ? 'business-card' : type,
         productCategory: category,
@@ -724,33 +745,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
               />
             </div>
 
-            {/* Tabs for Features/Specs */}
-            <div className="border-b border-gray-200">
-              <div className="flex gap-4">
-                <button
-                  onClick={() => setActiveTab('design')}
-                  className={`pb-2 px-1 text-sm font-semibold transition-colors ${
-                    activeTab === 'design' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'
-                  }`}
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  Design Options
-                </button>
-                <button
-                  onClick={() => setActiveTab('features')}
-                  className={`pb-2 px-1 text-sm font-semibold transition-colors ${
-                    activeTab === 'features' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'
-                  }`}
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  Features & Specs
-                </button>
-              </div>
-            </div>
-
-            {/* Tab Content */}
-            {activeTab === 'design' && (
-              <div className="space-y-4">
+            <div className="space-y-4">
                 {/* Optional Size Selection */}
                 {(displayProduct?.sizeOptions?.enabled ?? false) && (
                   <div className="space-y-2">
@@ -784,93 +779,6 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                     )}
                   </div>
                 )}
-
-                {/* Design Options */}
-                <div className="space-y-3">
-                  {(() => {
-                    const showEditor = displayProduct?.uiOptions?.showEditorButton ?? true;
-                    const showUpload = displayProduct?.uiOptions?.showUploadDesignButton ?? true;
-
-                    if (!showEditor && !showUpload) {
-                      return (
-                        <div className="p-3 rounded-lg border border-gray-200 bg-gray-50">
-                          <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                            No design required
-                          </p>
-                          <p className="text-xs text-gray-600 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                            This product doesn’t require a design upload or editor.
-                          </p>
-                        </div>
-                      );
-                    }
-
-                    // Ensure current selection stays valid when one option is disabled
-                    if (!showEditor && designOption === 'custom') {
-                      setTimeout(() => setDesignOption('upload'), 0);
-                    }
-                    if (!showUpload && designOption === 'upload') {
-                      setTimeout(() => setDesignOption('custom'), 0);
-                    }
-
-                    return null;
-                  })()}
-
-                  {/* Custom Design Option */}
-                  {(displayProduct?.uiOptions?.showEditorButton ?? true) && (
-                    <label className="flex items-start gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all hover:border-blue-500"
-                      style={{ borderColor: designOption === 'custom' ? '#3b82f6' : '#e5e7eb' }}>
-                      <input
-                        type="radio"
-                        name="designOption"
-                        value="custom"
-                        checked={designOption === 'custom'}
-                        onChange={(e) => setDesignOption(e.target.value)}
-                        className="mt-1"
-                      />
-                      <div className="flex-1">
-                        <div className="font-semibold text-gray-900 text-sm mb-0.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                          Custom Design
-                        </div>
-                        <div className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                          Create your design using our design tool
-                        </div>
-                      </div>
-                    </label>
-                  )}
-
-                  {/* Upload Design Option */}
-                  {(displayProduct?.uiOptions?.showUploadDesignButton ?? true) && (
-                    <label className="flex items-start gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all hover:border-blue-500"
-                      style={{ borderColor: designOption === 'upload' ? '#3b82f6' : '#e5e7eb' }}>
-                      <input
-                        type="radio"
-                        name="designOption"
-                        value="upload"
-                        checked={designOption === 'upload'}
-                        onChange={(e) => setDesignOption(e.target.value)}
-                        className="mt-1"
-                      />
-                      <div className="flex-1">
-                        <div className="font-semibold text-gray-900 text-sm mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                          Upload Your Design
-                        </div>
-                        {designOption === 'upload' && (
-                          <div className="space-y-2">
-                            <input
-                              type="file"
-                              accept="image/*,.pdf"
-                              onChange={handleImageUpload}
-                              className="text-xs text-gray-600 w-full"
-                            />
-                            {uploadedImage && (
-                              <img src={uploadedImage} alt="Uploaded design" className="w-24 h-24 object-cover rounded border" />
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </label>
-                  )}
-                </div>
 
                 {/* Dynamic attributes from API/DB */}
                 {hasDynamicAttributes && dynamicAttributeEntries.length > 0 && (
@@ -1569,32 +1477,100 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                     )}
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="space-y-2">
-                    <button
-                      onClick={handleDesignProduct}
-                      className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-sm transition-colors duration-200 flex items-center justify-center gap-2"
-                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                      Design Your Product
-                    </button>
-                    <button
-                      onClick={handleAddToCart}
-                      className="w-full py-3 bg-gray-900 hover:bg-gray-800 text-white rounded-lg font-semibold text-sm transition-colors duration-200 flex items-center justify-center gap-2"
-                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                    >
-                      Add to Basket
-                    </button>
+                  {/* Design Options */}
+                  <div className="space-y-3 border-t border-gray-200 pt-4">
+                    {(() => {
+                      const showEditor = displayProduct?.uiOptions?.showEditorButton ?? true;
+                      const showUpload = displayProduct?.uiOptions?.showUploadDesignButton ?? true;
+
+                      if (!showEditor && !showUpload) {
+                        return (
+                          <div className="p-3 rounded-lg border border-gray-200 bg-gray-50">
+                            <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              No design required
+                            </p>
+                            <p className="text-xs text-gray-600 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              This product doesn’t require a design upload or editor.
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      // Ensure current selection stays valid when one option is disabled
+                      if (!showEditor && designOption === 'custom') {
+                        setTimeout(() => setDesignOption('upload'), 0);
+                      }
+                      if (!showUpload && designOption === 'upload') {
+                        setTimeout(() => setDesignOption('custom'), 0);
+                      }
+
+                      return null;
+                    })()}
+
+                    {/* Online Designer Option */}
+                    {(displayProduct?.uiOptions?.showEditorButton ?? true) && (
+                      <label className="flex items-start gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all hover:border-blue-500"
+                        style={{ borderColor: designOption === 'custom' ? '#3b82f6' : '#e5e7eb' }}>
+                        <input
+                          type="radio"
+                          name="designOption"
+                          value="custom"
+                          checked={designOption === 'custom'}
+                          onChange={(e) => setDesignOption(e.target.value)}
+                          className="mt-1"
+                        />
+                        <div className="flex-1">
+                          <div className="font-semibold text-gray-900 text-sm mb-0.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            Online Designer
+                          </div>
+                          <div className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            I'll design it by myself using the designer tool. It's free.
+                          </div>
+                        </div>
+                      </label>
+                    )}
+
+                    {/* Upload Design Option */}
+                    {(displayProduct?.uiOptions?.showUploadDesignButton ?? true) && (
+                      <label className="flex items-start gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all hover:border-blue-500"
+                        style={{ borderColor: designOption === 'upload' ? '#3b82f6' : '#e5e7eb' }}>
+                        <input
+                          type="radio"
+                          name="designOption"
+                          value="upload"
+                          checked={designOption === 'upload'}
+                          onChange={(e) => setDesignOption(e.target.value)}
+                          className="mt-1"
+                        />
+                        <div className="flex-1">
+                          <div className="font-semibold text-gray-900 text-sm mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            Upload Artwork
+                          </div>
+                        <div className="text-xs text-gray-600 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                          I'll upload my own artwork.
+                        </div>
+                          {designOption === 'upload' && (
+                            <div className="space-y-2">
+                              <input
+                                type="file"
+                                accept="image/*,.pdf"
+                                onChange={handleImageUpload}
+                                className="text-xs text-gray-600 w-full"
+                              />
+                              {uploadedImage && (
+                                <img src={uploadedImage} alt="Uploaded design" className="w-24 h-24 object-cover rounded border" />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </label>
+                    )}
                   </div>
+
                 </div>
               </div>
-            )}
 
-            {activeTab === 'features' && (
-              <div className="space-y-4">
+              <div className="space-y-4 pt-6 border-t border-gray-200">
                 {/* Features */}
                 <div>
                   <h3 className="text-sm font-semibold text-gray-900 mb-2">
@@ -1635,7 +1611,6 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                   </dl>
                 </div>
               </div>
-            )}
           </div>
         </div>
       </div>
@@ -1816,11 +1791,15 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
             </div>
 
             <button
-              onClick={handleAddToCart}
-              className="flex-shrink-0 px-6 md:px-10 py-3 rounded bg-green-500 hover:bg-green-600 text-white font-bold text-sm md:text-base transition-colors w-[55%] md:w-[520px] text-center"
+              onClick={designOption === 'upload' ? handleAddToCart : handleDesignProduct}
+              className={`flex-shrink-0 px-6 md:px-10 py-3 rounded text-white font-bold text-sm md:text-base transition-colors w-[55%] md:w-[520px] text-center ${
+                designOption === 'upload'
+                  ? 'bg-green-500 hover:bg-green-600'
+                  : 'bg-blue-600 hover:bg-blue-700'
+              }`}
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
-              Add To Basket
+              {designOption === 'upload' ? 'Add To Basket' : 'Design Your Product'}
             </button>
           </div>
         </div>

@@ -10,9 +10,10 @@ const ProductDesigner = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Get props from location state or use defaults
-  const productType = location.state?.productType || 'pen';
-  const productCategory = location.state?.productCategory || null;
+  // Get props from query params first, then fallback to location state.
+  const searchParams = new URLSearchParams(location.search);
+  const productType = searchParams.get('productType') || location.state?.productType || 'pen';
+  const productCategory = searchParams.get('productCategory') || location.state?.productCategory || null;
   const uploadedImage = location.state?.uploadedImage || null;
   const canvasRef = useRef(null);
   const uploadInputRef = useRef(null);
