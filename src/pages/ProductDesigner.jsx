@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { fabric } from 'fabric';
 import QRCode from 'qrcode';
 import { productTemplates } from '../utils/productTemplates';
-import { getProductPrintAreas, validatePrintArea, calculateDynamicPrintAreas } from '../config/productPrintAreas';
+import { getProductPrintAreas, validatePrintArea,  } from '../config/productPrintAreas';
 import { useAuth } from '../context/AuthContext';
 import DesignerAuthModal from '../components/DesignerAuthModal';
 import { useSelector } from 'react-redux';
@@ -35,7 +35,7 @@ const ProductDesigner = () => {
   const [activeTool, setActiveTool] = useState('select');
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState(null);
-  const [sidebarTab, setSidebarTab] = useState('text'); // uploads | text | color | qr | elements
+  const [sidebarTab, setSidebarTab] = useState('text'); // uploads | text | background | qr | elements
   const [elementsUpdate, setElementsUpdate] = useState(0); // Force re-render of elements list
   const [iconResultsByCategory, setIconResultsByCategory] = useState({});
   const [iconLoadingByCategory, setIconLoadingByCategory] = useState({});
@@ -46,6 +46,17 @@ const ProductDesigner = () => {
   const [fontSize, setFontSize] = useState(20);
   const [fontFamily, setFontFamily] = useState('Arial');
   const [textColor, setTextColor] = useState('#000000');
+  const [backgroundPanelTab, setBackgroundPanelTab] = useState('colour');
+  const [backgroundColor, setBackgroundColor] = useState('#ffffff');
+  const [backgroundPatternQuery, setBackgroundPatternQuery] = useState('');
+  const [backgroundStyle, setBackgroundStyle] = useState({ kind: 'solid', color: '#ffffff' });
+  const [customPatternOptions, setCustomPatternOptions] = useState({
+    type: 'dots',
+    foreground: '#0f766e',
+    background: '#ffffff',
+    imageDataUrl: '',
+    imageMode: 'single',
+  });
   const [qrText, setQrText] = useState('');
   const [qrSize, setQrSize] = useState(160);
   const [qrColor, setQrColor] = useState('#000000');
@@ -58,6 +69,10 @@ const ProductDesigner = () => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [designerAuthOpen, setDesignerAuthOpen] = useState(false);
   const sideDesignsRef = useRef({ front: [], back: [] });
+  const sideBackgroundsRef = useRef({
+    front: { kind: 'solid', color: '#ffffff' },
+    back: { kind: 'solid', color: '#ffffff' },
+  });
   const [sidePreviewUrls, setSidePreviewUrls] = useState({ front: '', back: '' });
   const activePrintSideRef = useRef('front');
   const isDoubleSidedRef = useRef(false);
@@ -76,6 +91,12 @@ const ProductDesigner = () => {
   }, [isDoubleSided, activePrintSide]);
 
   useEffect(() => {
+    if (!isDoubleSided) {
+      sideBackgroundsRef.current.back = sideBackgroundsRef.current.front;
+    }
+  }, [isDoubleSided]);
+
+  useEffect(() => {
     activePrintSideRef.current = activePrintSide;
   }, [activePrintSide]);
 
@@ -83,10 +104,27 @@ const ProductDesigner = () => {
     isDoubleSidedRef.current = isDoubleSided;
   }, [isDoubleSided]);
 
+  useEffect(() => {
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyOverscroll = document.body.style.overscrollBehavior;
+
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'none';
+
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.overscrollBehavior = previousBodyOverscroll;
+    };
+  }, []);
+
   const isGuideObject = (obj) => {
     const name = obj?.name || '';
     return (
       name === 'product-placeholder' ||
+      name.startsWith('safe-fill-') ||
       name === 'product-base-image' ||
       name.startsWith('print-area-') ||
       name.startsWith('cut-line-') ||
@@ -95,6 +133,8 @@ const ProductDesigner = () => {
       name.startsWith('dimension-guide-')
     );
   };
+
+  const isTextObject = (obj) => ['text', 'i-text', 'textbox'].includes(obj?.type);
 
   const generateSidePreview = async (side, objectJsonList) => {
     const canvasWidth = sizedCanvas?.width || productTemplate?.dimensions?.width || 600;
@@ -147,6 +187,7 @@ const ProductDesigner = () => {
         ])
       );
     sideDesignsRef.current[side] = userObjects;
+    sideBackgroundsRef.current[side] = backgroundStyle;
     if (isDoubleSided) {
       void generateSidePreview(side, userObjects);
     }
@@ -160,6 +201,8 @@ const ProductDesigner = () => {
     canvas.discardActiveObject();
 
     const savedObjects = sideDesignsRef.current[side] || [];
+    const savedBackground = sideBackgroundsRef.current[side] || { kind: 'solid', color: '#ffffff' };
+    setBackgroundStyle(savedBackground);
     if (!savedObjects.length) {
       canvas.renderAll();
       setElementsUpdate((prev) => prev + 1);
@@ -242,12 +285,48 @@ const ProductDesigner = () => {
 
   const parseCanvasDimensionsFromSize = (sizeLabel) => {
     if (!sizeLabel) return null;
-    const normalizedLabel = String(sizeLabel).replace(/\+/g, ' ').replace(/[xX]/g, ' x ');
-    const matches = normalizedLabel.match(/(\d+(?:\.\d+)?)/g);
-    if (!matches || matches.length < 2) return null;
+    const normalizedLabel = String(sizeLabel)
+      .replace(/\+/g, ' ')
+      .replace(/[xX]/g, ' x ')
+      .trim()
+      .toLowerCase();
 
-    const widthMm = Number(matches[0]);
-    const heightMm = Number(matches[1]);
+    const standardPaperSizes = {
+      a0: { widthMm: 841, heightMm: 1189 },
+      a1: { widthMm: 594, heightMm: 841 },
+      a2: { widthMm: 420, heightMm: 594 },
+      a3: { widthMm: 297, heightMm: 420 },
+      a4: { widthMm: 210, heightMm: 297 },
+      a5: { widthMm: 148, heightMm: 210 },
+      a6: { widthMm: 105, heightMm: 148 },
+    };
+
+    let widthMm = null;
+    let heightMm = null;
+
+    const paperMatch = normalizedLabel.match(/\b(a[0-6])\b/);
+    if (paperMatch) {
+      const paperSize = standardPaperSizes[paperMatch[1]];
+      if (paperSize) {
+        widthMm = paperSize.widthMm;
+        heightMm = paperSize.heightMm;
+
+        if (normalizedLabel.includes('landscape')) {
+          [widthMm, heightMm] = [heightMm, widthMm];
+        } else if (normalizedLabel.includes('portrait')) {
+          widthMm = Math.min(paperSize.widthMm, paperSize.heightMm);
+          heightMm = Math.max(paperSize.widthMm, paperSize.heightMm);
+        }
+      }
+    }
+
+    if (!widthMm || !heightMm) {
+      const matches = normalizedLabel.match(/(\d+(?:\.\d+)?)/g);
+      if (!matches || matches.length < 2) return null;
+      widthMm = Number(matches[0]);
+      heightMm = Number(matches[1]);
+    }
+
     if (!Number.isFinite(widthMm) || !Number.isFinite(heightMm) || widthMm <= 0 || heightMm <= 0) {
       return null;
     }
@@ -255,12 +334,213 @@ const ProductDesigner = () => {
     // Keep real proportion while fitting a fixed, practical design viewport.
     // Large products still appear larger than small ones, but never oversized on screen.
     const maxWidth = 940;
-    const maxHeight = 560;
+    const maxHeight = 500;
     const scale = Math.min(maxWidth / widthMm, maxHeight / heightMm);
     const width = Math.max(240, Math.round(widthMm * scale));
     const height = Math.max(180, Math.round(heightMm * scale));
 
     return { width, height, widthMm, heightMm };
+  };
+
+  const backgroundColorSwatches = [
+    'transparent',
+    '#000000',
+    '#5b5b5b',
+    '#7a7a7a',
+    '#a8a8a8',
+    '#d4d4d8',
+    '#ffffff',
+    '#ef4444',
+    '#f2645d',
+    '#d95eb6',
+    '#b06ad5',
+    '#7c4ce3',
+    '#5b21d9',
+    '#58b7d8',
+    '#7cd0da',
+    '#5aa7ea',
+    '#586de8',
+    '#2d52a8',
+    '#58b86a',
+    '#c5f36a',
+    '#f9dc67',
+    '#f7bf60',
+  ];
+
+  const backgroundPatternPresets = [
+    { id: 'dots-teal', name: 'Teal Dots', type: 'dots', foreground: '#0f766e', background: '#ffffff', category: 'Simple' },
+    { id: 'dots-gold', name: 'Gold Dots', type: 'dots', foreground: '#f59e0b', background: '#fffaf0', category: 'Simple' },
+    { id: 'stripes-sand', name: 'Sand Stripes', type: 'stripes', foreground: '#d6b68a', background: '#f7efe3', category: 'Nature' },
+    { id: 'stripes-night', name: 'Night Stripes', type: 'stripes', foreground: '#f59e0b', background: '#3a3d52', category: 'Bold' },
+    { id: 'grid-sage', name: 'Sage Grid', type: 'grid', foreground: '#bfd8bf', background: '#f6faf4', category: 'Nature' },
+    { id: 'grid-blue', name: 'Blue Grid', type: 'grid', foreground: '#bfdbfe', background: '#eff6ff', category: 'Simple' },
+    { id: 'diagonal-berry', name: 'Berry Diagonal', type: 'diagonal', foreground: '#b91c1c', background: '#fff7f7', category: 'Bold' },
+    { id: 'diagonal-lavender', name: 'Lavender Diagonal', type: 'diagonal', foreground: '#8b5cf6', background: '#faf5ff', category: 'Floral' },
+  ];
+
+  const createPatternDataUrl = (type, foreground, background, tileSize = 64) => {
+    const offscreen = document.createElement('canvas');
+    offscreen.width = tileSize;
+    offscreen.height = tileSize;
+    const ctx = offscreen.getContext('2d');
+    if (!ctx) return '';
+
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, tileSize, tileSize);
+
+    ctx.strokeStyle = foreground;
+    ctx.fillStyle = foreground;
+    ctx.lineWidth = Math.max(1, tileSize * 0.06);
+
+    switch (type) {
+      case 'stripes':
+        for (let y = 8; y < tileSize; y += 16) {
+          ctx.fillRect(0, y, tileSize, 6);
+        }
+        break;
+      case 'grid':
+        for (let i = 0; i <= tileSize; i += 16) {
+          ctx.beginPath();
+          ctx.moveTo(i, 0);
+          ctx.lineTo(i, tileSize);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0, i);
+          ctx.lineTo(tileSize, i);
+          ctx.stroke();
+        }
+        break;
+      case 'diagonal':
+        for (let i = -tileSize; i <= tileSize * 2; i += 18) {
+          ctx.beginPath();
+          ctx.moveTo(i, 0);
+          ctx.lineTo(i - tileSize, tileSize);
+          ctx.stroke();
+        }
+        break;
+      case 'dots':
+      default:
+        for (let x = 12; x < tileSize; x += 20) {
+          for (let y = 12; y < tileSize; y += 20) {
+            ctx.beginPath();
+            ctx.arc(x, y, 3, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        break;
+    }
+
+    return offscreen.toDataURL('image/png');
+  };
+
+  const createFabricPattern = (type, foreground, background, tileSize = 64) => {
+    const offscreen = document.createElement('canvas');
+    offscreen.width = tileSize;
+    offscreen.height = tileSize;
+    const ctx = offscreen.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, tileSize, tileSize);
+
+    ctx.strokeStyle = foreground;
+    ctx.fillStyle = foreground;
+    ctx.lineWidth = Math.max(1, tileSize * 0.06);
+
+    switch (type) {
+      case 'stripes':
+        for (let y = 8; y < tileSize; y += 16) {
+          ctx.fillRect(0, y, tileSize, 6);
+        }
+        break;
+      case 'grid':
+        for (let i = 0; i <= tileSize; i += 16) {
+          ctx.beginPath();
+          ctx.moveTo(i, 0);
+          ctx.lineTo(i, tileSize);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0, i);
+          ctx.lineTo(tileSize, i);
+          ctx.stroke();
+        }
+        break;
+      case 'diagonal':
+        for (let i = -tileSize; i <= tileSize * 2; i += 18) {
+          ctx.beginPath();
+          ctx.moveTo(i, 0);
+          ctx.lineTo(i - tileSize, tileSize);
+          ctx.stroke();
+        }
+        break;
+      case 'dots':
+      default:
+        for (let x = 12; x < tileSize; x += 20) {
+          for (let y = 12; y < tileSize; y += 20) {
+            ctx.beginPath();
+            ctx.arc(x, y, 3, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        break;
+    }
+
+    return new fabric.Pattern({
+      source: offscreen,
+      repeat: 'repeat',
+    });
+  };
+
+  const loadImageElement = (src) =>
+    new Promise((resolve, reject) => {
+      if (!src) {
+        reject(new Error('Missing image source'));
+        return;
+      }
+
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error('Failed to load image'));
+      image.src = src;
+    });
+
+  const createImageFillForSafeArea = async (safeFillObject, imageSrc, mode = 'single') => {
+    if (!safeFillObject || !imageSrc) return null;
+
+    const image = await loadImageElement(imageSrc);
+    const targetWidth = Math.max(1, Math.round(safeFillObject.width || 1));
+    const targetHeight = Math.max(1, Math.round(safeFillObject.height || 1));
+    const offscreen = document.createElement('canvas');
+    const ctx = offscreen.getContext('2d');
+    if (!ctx) return null;
+
+    if (mode === 'repeat') {
+      const maxTileEdge = 160;
+      const scale = Math.min(1, maxTileEdge / Math.max(image.width, image.height));
+      offscreen.width = Math.max(24, Math.round(image.width * scale));
+      offscreen.height = Math.max(24, Math.round(image.height * scale));
+      ctx.drawImage(image, 0, 0, offscreen.width, offscreen.height);
+      return new fabric.Pattern({
+        source: offscreen,
+        repeat: 'repeat',
+      });
+    }
+
+    offscreen.width = targetWidth;
+    offscreen.height = targetHeight;
+    ctx.clearRect(0, 0, targetWidth, targetHeight);
+
+    const scale = Math.max(targetWidth / image.width, targetHeight / image.height);
+    const drawWidth = image.width * scale;
+    const drawHeight = image.height * scale;
+    const offsetX = (targetWidth - drawWidth) / 2;
+    const offsetY = (targetHeight - drawHeight) / 2;
+    ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+
+    return new fabric.Pattern({
+      source: offscreen,
+      repeat: 'no-repeat',
+    });
   };
 
   const sizedCanvas = parseCanvasDimensionsFromSize(selectedSizeParam);
@@ -487,15 +767,21 @@ const ProductDesigner = () => {
       const areaHeight = area.bounds.bottom - area.bounds.top;
       const areaCenterX = (area.bounds.left + area.bounds.right) / 2;
       const areaCenterY = (area.bounds.top + area.bounds.bottom) / 2;
+      const cutStroke = 1.5;
+      const cutInset = cutStroke / 2;
+      const cutWidth = Math.max(1, areaWidth - cutStroke);
+      const cutHeight = Math.max(1, areaHeight - cutStroke);
       const cutLineGuide = new fabric.Rect({
-        left: areaCenterX - areaWidth / 2,
-        top: areaCenterY - areaHeight / 2,
-        width: areaWidth,
-        height: areaHeight,
+        // Inset by half stroke so edges don't get clipped.
+        left: areaCenterX - areaWidth / 2 + cutInset,
+        top: areaCenterY - areaHeight / 2 + cutInset,
+        width: cutWidth,
+        height: cutHeight,
         fill: 'transparent',
         stroke: '#facc15',
-        strokeWidth: 2,
-        strokeDashArray: [8, 6],
+        strokeWidth: cutStroke,
+        // Dashed cut line for better visibility
+        strokeDashArray: [8, 4],
         selectable: false,
         evented: false,
         name: `cut-line-${area.id}`,
@@ -508,15 +794,33 @@ const ProductDesigner = () => {
       const safeHeight = safeArea.bounds.bottom - safeArea.bounds.top;
       const safeCenterX = (safeArea.bounds.left + safeArea.bounds.right) / 2;
       const safeCenterY = (safeArea.bounds.top + safeArea.bounds.bottom) / 2;
-      const safeGuide = new fabric.Rect({
+      const safeStroke = 1;
+      const safeInset = safeStroke / 2;
+      const safeGuideWidth = Math.max(1, safeWidth - safeStroke);
+      const safeGuideHeight = Math.max(1, safeHeight - safeStroke);
+      const safeFill = new fabric.Rect({
         left: safeCenterX - safeWidth / 2,
         top: safeCenterY - safeHeight / 2,
         width: safeWidth,
         height: safeHeight,
         fill: '#ffffff',
+        selectable: false,
+        evented: false,
+        name: `safe-fill-${area.id}`,
+      });
+      fabricCanvas.add(safeFill);
+
+      const safeGuide = new fabric.Rect({
+        // Inset by half stroke so edges don't get clipped.
+        left: safeCenterX - safeWidth / 2 + safeInset,
+        top: safeCenterY - safeHeight / 2 + safeInset,
+        width: safeGuideWidth,
+        height: safeGuideHeight,
+        fill: 'transparent',
         stroke: '#84cc16',
-        strokeWidth: 1.5,
-        strokeDashArray: [5, 5],
+        strokeWidth: safeStroke,
+        // Solid line (no dashes)
+        strokeDashArray: null,
         selectable: false,
         evented: false,
         name: `safe-area-${area.id}`,
@@ -524,6 +828,8 @@ const ProductDesigner = () => {
       });
       fabricCanvas.add(safeGuide);
       // Keep guides visible above placeholder/background.
+      fabricCanvas.sendToBack(placeholder);
+      fabricCanvas.moveTo(safeFill, 1);
       fabricCanvas.bringToFront(cutLineGuide);
       fabricCanvas.bringToFront(safeGuide);
     });
@@ -797,7 +1103,7 @@ const ProductDesigner = () => {
     // Enable text editing on double-click
     fabricCanvas.on('mouse:dblclick', (e) => {
       const obj = e.target;
-      if (obj && obj.type === 'text') {
+      if (isTextObject(obj)) {
         obj.enterEditing();
         fabricCanvas.renderAll();
       }
@@ -1034,14 +1340,14 @@ const ProductDesigner = () => {
   };
 
   const addText = () => {
-    if (!canvas || !textInput.trim()) return;
+    if (!canvas) return;
 
     const printAreasToUse = effectivePrintAreas;
     const printArea = printAreasToUse[0];
     
     if (!printArea) return;
     
-    const text = new fabric.Text(textInput, {
+    const text = new fabric.IText(textInput.trim() || 'Double-click to edit', {
       left: printArea.bounds.left + 10,
       top: printArea.bounds.top + 10,
       fontSize: fontSize,
@@ -1083,6 +1389,8 @@ const ProductDesigner = () => {
     canvas.add(text);
     canvas.setActiveObject(text);
     canvas.renderAll();
+    text.enterEditing();
+    text.selectAll();
     setTextInput('');
     setActiveTool('select');
     setIsLeftDrawerOpen(false);
@@ -1091,7 +1399,7 @@ const ProductDesigner = () => {
   // Text toolbar helpers
   const handleFontFamilyChange = (family) => {
     setFontFamily(family);
-    if (selectedObject && selectedObject.type === 'text' && canvas) {
+    if (isTextObject(selectedObject) && canvas) {
       selectedObject.set('fontFamily', family);
       canvas.renderAll();
     }
@@ -1100,7 +1408,7 @@ const ProductDesigner = () => {
   const changeFontSizeStep = (delta) => {
     setFontSize((prev) => {
       const next = Math.min(72, Math.max(8, prev + delta));
-      if (selectedObject && selectedObject.type === 'text' && canvas) {
+      if (isTextObject(selectedObject) && canvas) {
         selectedObject.set('fontSize', next);
         canvas.renderAll();
       }
@@ -1109,7 +1417,7 @@ const ProductDesigner = () => {
   };
 
   const toggleTextStyle = (style) => {
-    if (!selectedObject || selectedObject.type !== 'text' || !canvas) return;
+    if (!isTextObject(selectedObject) || !canvas) return;
     if (style === 'bold') {
       const current = selectedObject.fontWeight === 'bold' ? 'normal' : 'bold';
       selectedObject.set('fontWeight', current);
@@ -1123,7 +1431,7 @@ const ProductDesigner = () => {
   };
 
   const toggleCapitalization = () => {
-    if (!selectedObject || selectedObject.type !== 'text' || !canvas) return;
+    if (!isTextObject(selectedObject) || !canvas) return;
     const currentText = selectedObject.text || '';
     const isUpper = currentText === currentText.toUpperCase();
     selectedObject.set('text', isUpper ? currentText.toLowerCase() : currentText.toUpperCase());
@@ -1131,13 +1439,13 @@ const ProductDesigner = () => {
   };
 
   const setTextAlign = (align) => {
-    if (!selectedObject || selectedObject.type !== 'text' || !canvas) return;
+    if (!isTextObject(selectedObject) || !canvas) return;
     selectedObject.set('textAlign', align);
     canvas.renderAll();
   };
 
   const changeLetterSpacing = (delta) => {
-    if (!selectedObject || selectedObject.type !== 'text' || !canvas) return;
+    if (!isTextObject(selectedObject) || !canvas) return;
     const current = selectedObject.charSpacing || 0;
     const next = Math.max(0, current + delta);
     selectedObject.set('charSpacing', next);
@@ -1181,11 +1489,145 @@ const ProductDesigner = () => {
 
   const setPrintingColor = (color) => {
     setTextColor(color);
-    if (selectedObject && selectedObject.type === 'text' && canvas) {
+    if (isTextObject(selectedObject) && canvas) {
       selectedObject.set('fill', color);
       canvas.renderAll();
     }
   };
+
+  const getSafeFillObjects = (activeCanvas = canvas) =>
+    activeCanvas?.getObjects().filter((obj) => obj?.name?.startsWith('safe-fill-')) || [];
+
+  const ensureSafeFillLayerOrder = (activeCanvas = canvas) => {
+    if (!activeCanvas) return;
+
+    const objects = activeCanvas.getObjects();
+    const placeholderIndex = objects.findIndex((obj) => obj?.name === 'product-placeholder');
+    if (placeholderIndex === -1) return;
+
+    const safeFillObjects = objects.filter((obj) => obj?.name?.startsWith('safe-fill-'));
+    safeFillObjects.forEach((safeFillObject, index) => {
+      activeCanvas.moveTo(safeFillObject, placeholderIndex + 1 + index);
+    });
+  };
+
+  const applyBackgroundFill = (fill, nextColor = backgroundColor) => {
+    if (!canvas) return;
+    const safeFillObjects = getSafeFillObjects(canvas);
+    if (!safeFillObjects.length) return;
+
+    safeFillObjects.forEach((safeFillObject) => {
+      safeFillObject.set('fill', fill);
+    });
+    ensureSafeFillLayerOrder(canvas);
+    canvas.renderAll();
+    setBackgroundColor(nextColor);
+  };
+
+  const applySolidBackground = (color) => {
+    const nextStyle = { kind: 'solid', color };
+    setBackgroundStyle(nextStyle);
+    sideBackgroundsRef.current[activePrintSideRef.current] = nextStyle;
+    applyBackgroundFill(color === 'transparent' ? 'transparent' : color, color);
+  };
+
+  const applyPatternBackground = (patternConfig) => {
+    if (!patternConfig) return;
+    const nextStyle = { kind: 'pattern', patternConfig };
+    setBackgroundStyle(nextStyle);
+    sideBackgroundsRef.current[activePrintSideRef.current] = nextStyle;
+    const fabricPattern = createFabricPattern(
+      patternConfig.type,
+      patternConfig.foreground,
+      patternConfig.background
+    );
+    if (!fabricPattern) return;
+    applyBackgroundFill(fabricPattern, patternConfig.background);
+  };
+
+  const applyImageBackground = async (imageSrc, mode = 'single') => {
+    if (!canvas || !imageSrc) return;
+
+    const safeFillObjects = getSafeFillObjects(canvas);
+    if (!safeFillObjects.length) return;
+
+    const fills = await Promise.all(
+      safeFillObjects.map((safeFillObject) => createImageFillForSafeArea(safeFillObject, imageSrc, mode))
+    );
+
+    safeFillObjects.forEach((safeFillObject, index) => {
+      if (fills[index]) {
+        safeFillObject.set('fill', fills[index]);
+      }
+    });
+
+    const nextStyle = { kind: 'image', imageSrc, mode };
+    setBackgroundStyle(nextStyle);
+    sideBackgroundsRef.current[activePrintSideRef.current] = nextStyle;
+    ensureSafeFillLayerOrder(canvas);
+    canvas.renderAll();
+  };
+
+  const renderBackgroundStyle = async (style) => {
+    if (!canvas || !style) return;
+
+    if (style.kind === 'pattern' && style.patternConfig) {
+      const fabricPattern = createFabricPattern(
+        style.patternConfig.type,
+        style.patternConfig.foreground,
+        style.patternConfig.background
+      );
+      if (fabricPattern) {
+        applyBackgroundFill(fabricPattern, style.patternConfig.background);
+      }
+      return;
+    }
+
+    if (style.kind === 'image' && style.imageSrc) {
+      const safeFillObjects = getSafeFillObjects(canvas);
+      if (!safeFillObjects.length) return;
+
+      const fills = await Promise.all(
+        safeFillObjects.map((safeFillObject) => createImageFillForSafeArea(safeFillObject, style.imageSrc, style.mode || 'single'))
+      );
+
+      safeFillObjects.forEach((safeFillObject, index) => {
+        if (fills[index]) {
+          safeFillObject.set('fill', fills[index]);
+        }
+      });
+
+      ensureSafeFillLayerOrder(canvas);
+      canvas.renderAll();
+      setBackgroundColor('#ffffff');
+      return;
+    }
+
+    applyBackgroundFill(
+      style.color === 'transparent' ? 'transparent' : (style.color || '#ffffff'),
+      style.color || '#ffffff'
+    );
+  };
+
+  const handleCustomPatternImageUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      if (!result) return;
+
+      setCustomPatternOptions((prev) => ({ ...prev, imageDataUrl: result }));
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+  };
+
+  useEffect(() => {
+    if (!canvas) return;
+    void renderBackgroundStyle(backgroundStyle);
+  }, [canvas, backgroundStyle]);
 
   const addQrCode = async () => {
     if (!canvas || !qrText.trim()) return;
@@ -1789,107 +2231,144 @@ const ProductDesigner = () => {
     }
   };
 
-  const exportDesign = () => {
+  const exportDesign = async () => {
     if (!canvas) return;
-    
-    // Save current zoom and viewport transform
-    const currentZoom = canvas.getZoom();
-    const currentVpt = canvas.viewportTransform.slice();
-    
-    // Reset zoom to 1.0 for export to get full image
-    canvas.setZoom(1);
-    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-    
-    // Hide only guide overlays for export (keep design elements visible).
-    const objects = canvas.getObjects();
-    const hiddenObjects = [];
-    
-    objects.forEach(obj => {
-      // Only hide print/safe/cut guides, keep everything else.
-      if (
-        obj.name &&
-        (
-          obj.name.startsWith('print-area-') ||
-          obj.name.startsWith('cut-line-') ||
-          obj.name.startsWith('safe-area-') ||
-          obj.name.startsWith('drag-metric-')
-        )
-      ) {
-        obj.visible = false;
-        hiddenObjects.push(obj);
-      }
-    });
-    
-    // Ensure base image is visible, at the back, and included in export
-    const baseImage = canvas.getObjects().find(obj => obj.name === 'product-base-image');
-    if (baseImage) {
-      baseImage.set({
-        visible: true,
-        excludeFromExport: false
-      });
-      canvas.sendToBack(baseImage);
-    }
-    
-    // Ensure all user design elements are visible
-    objects.forEach(obj => {
-      if (
-        obj.name &&
-        !obj.name.startsWith('print-area-') &&
-        !obj.name.startsWith('cut-line-') &&
-        !obj.name.startsWith('safe-area-') &&
-        !obj.name.startsWith('drag-metric-') &&
-        obj.name !== 'product-placeholder'
-      ) {
-        obj.set({
-          visible: true,
-          excludeFromExport: false
-        });
-      }
-    });
-    
-    canvas.renderAll();
-    
-    // Wait a moment for canvas to fully render before exporting
-    setTimeout(async () => {
-      try {
-        // Export with transparency preserved
-        // Use toDataURL with format 'png' to preserve transparency
-        // Export the full canvas at original size (zoom is reset to 1.0)
-        const dataURL = canvas.toDataURL({
-          format: 'png',
-          quality: 1,
-          multiplier: 2,
-          enableRetinaScaling: true
-        });
-        
-        // Restore zoom and viewport transform BEFORE restoring hidden objects
-        canvas.setZoom(currentZoom);
-        canvas.setViewportTransform(currentVpt);
-        
-        // Restore hidden objects
-        hiddenObjects.forEach(obj => {
-          obj.visible = true;
-        });
-        
-        canvas.renderAll();
-        
-        if (onSave) {
-          onSave(dataURL);
-        } else {
-          const link = document.createElement('a');
-          link.download = `${currentProductType}-design.png`;
-          link.href = dataURL;
-          link.click();
+
+    const waitForRender = () => new Promise((resolve) => setTimeout(resolve, 80));
+
+    const captureCurrentCanvasPage = async () => {
+      const currentZoom = canvas.getZoom();
+      const currentVpt = canvas.viewportTransform.slice();
+      const objects = canvas.getObjects();
+      const hiddenObjects = [];
+
+      canvas.setZoom(1);
+      canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+
+      objects.forEach((obj) => {
+        if (
+          obj.name &&
+          (
+            obj.name.startsWith('print-area-') ||
+            obj.name.startsWith('cut-line-') ||
+            obj.name.startsWith('safe-area-') ||
+            obj.name.startsWith('drag-metric-')
+          )
+        ) {
+          obj.visible = false;
+          hiddenObjects.push(obj);
         }
-      } catch (error) {
-        console.error('Error exporting design:', error);
-        // Restore zoom and viewport on error
-        canvas.setZoom(currentZoom);
-        canvas.setViewportTransform(currentVpt);
-        canvas.renderAll();
-        try { const { toast } = await import('react-toastify'); toast.error('Error exporting design. Please try again.'); } catch(_) {}
+      });
+
+      const baseImage = canvas.getObjects().find((obj) => obj.name === 'product-base-image');
+      if (baseImage) {
+        baseImage.set({
+          visible: true,
+          excludeFromExport: false,
+        });
+        canvas.sendToBack(baseImage);
       }
-    }, 100);
+
+      objects.forEach((obj) => {
+        if (
+          obj.name &&
+          !obj.name.startsWith('print-area-') &&
+          !obj.name.startsWith('cut-line-') &&
+          !obj.name.startsWith('safe-area-') &&
+          !obj.name.startsWith('drag-metric-') &&
+          obj.name !== 'product-placeholder'
+        ) {
+          obj.set({
+            visible: true,
+            excludeFromExport: false,
+          });
+        }
+      });
+
+      canvas.renderAll();
+      await waitForRender();
+
+      const dataURL = canvas.toDataURL({
+        format: 'png',
+        quality: 1,
+        multiplier: 2,
+        enableRetinaScaling: true,
+      });
+
+      canvas.setZoom(currentZoom);
+      canvas.setViewportTransform(currentVpt);
+      hiddenObjects.forEach((obj) => {
+        obj.visible = true;
+      });
+      canvas.renderAll();
+
+      return {
+        dataURL,
+        width: canvas.getWidth(),
+        height: canvas.getHeight(),
+      };
+    };
+
+    const currentSide = activePrintSideRef.current;
+
+    try {
+      const { jsPDF } = await import('jspdf');
+
+      if (isDoubleSided) {
+        saveCurrentSideDesign(currentSide);
+      }
+
+      const sidesToExport = isDoubleSided ? ['front', 'back'] : [currentSide];
+      const pages = [];
+
+      for (const side of sidesToExport) {
+        if (isDoubleSided && side !== activePrintSideRef.current) {
+          await loadSideDesign(side);
+          activePrintSideRef.current = side;
+          setActivePrintSide(side);
+          await waitForRender();
+          await renderBackgroundStyle(sideBackgroundsRef.current[side] || { kind: 'solid', color: '#ffffff' });
+          await waitForRender();
+        } else if (isDoubleSided) {
+          await renderBackgroundStyle(sideBackgroundsRef.current[side] || { kind: 'solid', color: '#ffffff' });
+          await waitForRender();
+        }
+
+        pages.push(await captureCurrentCanvasPage());
+      }
+
+      const firstPage = pages[0];
+      const pdf = new jsPDF({
+        orientation: firstPage.width >= firstPage.height ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [firstPage.width, firstPage.height],
+        compress: true,
+      });
+
+      pages.forEach((page, index) => {
+        if (index > 0) {
+          pdf.addPage(
+            [page.width, page.height],
+            page.width >= page.height ? 'landscape' : 'portrait'
+          );
+        }
+        pdf.addImage(page.dataURL, 'PNG', 0, 0, page.width, page.height, undefined, 'FAST');
+      });
+
+      const formattedDate = new Date().toISOString().slice(0, 10);
+      pdf.save(`Artwork_${formattedDate}.pdf`);
+
+      if (isDoubleSided && currentSide !== activePrintSideRef.current) {
+        await loadSideDesign(currentSide);
+        activePrintSideRef.current = currentSide;
+        setActivePrintSide(currentSide);
+        await waitForRender();
+        await renderBackgroundStyle(sideBackgroundsRef.current[currentSide] || { kind: 'solid', color: '#ffffff' });
+      }
+    } catch (error) {
+      console.error('Error exporting design:', error);
+      try { const { toast } = await import('react-toastify'); toast.error('Error exporting design. Please try again.'); } catch(_) {}
+    }
   };
 
   const handleSaveAndDownload = () => {
@@ -1919,17 +2398,24 @@ const ProductDesigner = () => {
   };
 
   const handleSidebarTabClick = (tab, tool = 'select') => {
+    if (tab === 'text') {
+      setActiveTool('text');
+      setSidebarTab('text');
+      addText();
+      return;
+    }
+
     setActiveTool(tool);
     setSidebarTab(tab);
     setIsLeftDrawerOpen(true);
   };
 
   return (
-    <div className="flex h-screen bg-gray-100 overflow-hidden">
+    <div className="fixed inset-0 z-0 flex min-h-0 bg-gray-100 overflow-hidden">
       {/* Left Sidebar (Icon Rail + Panel) */}
-      <div className={`flex h-full flex-shrink-0 transition-all duration-300 ${isLeftDrawerOpen ? 'w-[368px]' : 'w-20'}`}>
+      <div className={`flex h-full min-h-0 flex-shrink-0 overflow-hidden transition-all duration-300 ${isLeftDrawerOpen ? 'w-[368px]' : 'w-20'}`}>
         {/* Icon Rail */}
-        <div className="w-20 bg-white border-r border-gray-200 py-4 flex flex-col items-center gap-4 overflow-y-auto">
+        <div className="w-20 h-full min-h-0 bg-white border-r border-gray-200 py-4 flex flex-col items-center gap-4 overflow-y-auto">
           <button
             onClick={() => handleSidebarTabClick('uploads', 'select')}
             className="w-full flex flex-col items-center gap-2 px-2"
@@ -1957,17 +2443,17 @@ const ProductDesigner = () => {
           </button>
 
           <button
-            onClick={() => handleSidebarTabClick('color', 'select')}
+            onClick={() => handleSidebarTabClick('background', 'select')}
             className="w-full flex flex-col items-center gap-2 px-2"
-            title="Printing color"
+            title="Backgrounds"
           >
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${sidebarTab === 'color' ? 'bg-emerald-50' : 'bg-gray-50'} border border-gray-200`}>
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${sidebarTab === 'background' ? 'bg-emerald-50' : 'bg-gray-50'} border border-gray-200`}>
               <svg className="w-5 h-5 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3c4.97 0 9 3.582 9 8s-4.03 8-9 8-9-3.582-9-8 4.03-8 9-8z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11.5a1 1 0 11-2 0 1 1 0 012 0zM12.5 8.5a1 1 0 11-2 0 1 1 0 012 0zM10 12.5a1 1 0 11-2 0 1 1 0 012 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7a3 3 0 013-3h10a3 3 0 013 3v10a3 3 0 01-3 3H7a3 3 0 01-3-3V7z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9h8M8 13h4M14 13h2M8 17h8" />
               </svg>
             </div>
-            <span className="text-[10px] text-gray-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Color</span>
+            <span className="text-[10px] text-gray-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Bg</span>
           </button>
 
           <button
@@ -1999,10 +2485,10 @@ const ProductDesigner = () => {
 
         {/* Panel */}
         {isLeftDrawerOpen && (
-        <div className="w-72 bg-white shadow-lg p-4 overflow-y-auto flex-shrink-0">
-          <div className="flex items-center justify-between mb-5">
+        <div className="w-72 h-full min-h-0 bg-white shadow-lg p-4 flex flex-col overflow-hidden flex-shrink-0">
+          <div className="flex items-center justify-between mb-5 flex-shrink-0">
             <h3 className="font-bold text-gray-900">
-              {sidebarTab === 'uploads' ? 'Uploads' : sidebarTab === 'text' ? 'Text' : sidebarTab === 'elements' ? 'Elements' : 'Printing color'}
+              {sidebarTab === 'uploads' ? 'Uploads' : sidebarTab === 'text' ? 'Text' : sidebarTab === 'elements' ? 'Elements' : sidebarTab === 'background' ? 'Backgrounds' : 'QR Code'}
             </h3>
             <div className="flex items-center gap-1">
               <button
@@ -2023,7 +2509,7 @@ const ProductDesigner = () => {
               </button>
             </div>
           </div>
-
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pr-1">
           {/* Elements Library */}
           {sidebarTab === 'elements' && (
             <div className="space-y-6">
@@ -2623,49 +3109,307 @@ const ProductDesigner = () => {
           {/* Text */}
           {sidebarTab === 'text' && (
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  Add text
-                </label>
-                <input
-                  type="text"
-                  value={textInput}
-                  onChange={(e) => setTextInput(e.target.value)}
-                  placeholder="Type here..."
-                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                />
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  Text Added
+                </p>
+                <p className="mt-2 text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  Click the Text tool to place a new text box on the canvas. Double-click any text on the canvas to type and edit it.
+                </p>
               </div>
-              <button 
-                onClick={addText}
-                className="w-full p-3 bg-gray-900 text-white rounded-xl hover:bg-black transition-colors font-semibold"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-              >
-                Add Text
-              </button>
-              <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                Use the top toolbar to change font, size, alignment, spacing, bold/italic/underline.
-              </p>
             </div>
           )}
 
-          {/* Printing color */}
-          {sidebarTab === 'color' && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  Color
-                </label>
-                <input
-                  type="color"
-                  value={textColor}
-                  onChange={(e) => setPrintingColor(e.target.value)}
-                  className="w-full h-12 border border-gray-300 rounded-xl cursor-pointer"
-                />
+          {/* Backgrounds */}
+          {sidebarTab === 'background' && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-6 border-b border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setBackgroundPanelTab('colour')}
+                  className={`pb-3 text-sm font-semibold transition-colors ${
+                    backgroundPanelTab === 'colour'
+                      ? 'text-emerald-700 border-b-2 border-emerald-600'
+                      : 'text-gray-700 hover:text-gray-900'
+                  }`}
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  Colour
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBackgroundPanelTab('patterns')}
+                  className={`pb-3 text-sm font-semibold transition-colors ${
+                    backgroundPanelTab === 'patterns'
+                      ? 'text-emerald-700 border-b-2 border-emerald-600'
+                      : 'text-gray-700 hover:text-gray-900'
+                  }`}
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  Patterns
+                </button>
               </div>
-              <p className="text-sm text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                This sets the default printing color. If a text object is selected, it updates that text color too.
-              </p>
+
+              {backgroundPanelTab === 'colour' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-4 gap-3">
+                    {backgroundColorSwatches.map((color) => {
+                      const isTransparent = color === 'transparent';
+                      return (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => applySolidBackground(color)}
+                          className="relative h-11 rounded-lg border border-gray-200 overflow-hidden hover:scale-[1.02] transition-transform"
+                          title={isTransparent ? 'Transparent' : color}
+                        >
+                          {isTransparent ? (
+                            <div className="w-full h-full bg-[linear-gradient(45deg,#f8fafc_25%,#e5e7eb_25%,#e5e7eb_50%,#f8fafc_50%,#f8fafc_75%,#e5e7eb_75%,#e5e7eb_100%)] bg-[length:16px_16px]">
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-8 h-0.5 bg-red-500 rotate-[-45deg]" />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="w-full h-full" style={{ backgroundColor: color }} />
+                          )}
+                        </button>
+                      );
+                    })}
+
+                    <label className="h-11 rounded-lg border border-gray-200 flex items-center justify-center cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="color"
+                        value={backgroundColor === 'transparent' ? '#ffffff' : backgroundColor}
+                        onChange={(e) => applySolidBackground(e.target.value)}
+                        className="sr-only"
+                      />
+                      <span className="text-xl text-emerald-700">+</span>
+                    </label>
+                  </div>
+
+                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    Apply a solid colour or transparent background to the full design area.
+                  </p>
+                </div>
+              )}
+
+              {backgroundPanelTab === 'patterns' && (
+                <div className="space-y-5">
+                  <button
+                    type="button"
+                    onClick={() => applyPatternBackground(customPatternOptions)}
+                    className="w-full p-3 bg-emerald-700 text-white rounded-xl hover:bg-emerald-800 transition-colors font-semibold"
+                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  >
+                    Create Your Pattern
+                  </button>
+
+                  <input
+                    type="text"
+                    value={backgroundPatternQuery}
+                    onChange={(e) => setBackgroundPatternQuery(e.target.value)}
+                    placeholder="Browse our free resources"
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
+                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  />
+
+                  <div className="space-y-4">
+                    {['Simple', 'Nature', 'Bold', 'Floral'].map((category) => {
+                      const visiblePatterns = backgroundPatternPresets.filter((pattern) => {
+                        const matchesCategory = pattern.category === category;
+                        const query = backgroundPatternQuery.trim().toLowerCase();
+                        const matchesQuery =
+                          !query ||
+                          pattern.name.toLowerCase().includes(query) ||
+                          pattern.type.toLowerCase().includes(query) ||
+                          pattern.category.toLowerCase().includes(query);
+                        return matchesCategory && matchesQuery;
+                      });
+
+                      if (!visiblePatterns.length) return null;
+
+                      return (
+                        <div key={category}>
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              {category}
+                            </h4>
+                            <span className="text-xs font-semibold text-emerald-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              View All
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            {visiblePatterns.map((pattern) => (
+                              <button
+                                key={pattern.id}
+                                type="button"
+                                onClick={() => applyPatternBackground(pattern)}
+                                className="text-left"
+                                title={pattern.name}
+                              >
+                                <div
+                                  className="h-24 rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                                  style={{
+                                    backgroundImage: `url(${createPatternDataUrl(pattern.type, pattern.foreground, pattern.background)})`,
+                                    backgroundRepeat: 'repeat',
+                                    backgroundSize: '56px 56px',
+                                    backgroundColor: pattern.background,
+                                  }}
+                                />
+                                <p className="mt-1 text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                                  {pattern.name}
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="rounded-xl border border-gray-200 p-4 space-y-3 bg-gray-50">
+                    <h4 className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      Custom Pattern
+                    </h4>
+                    <div className="rounded-xl border border-dashed border-gray-300 bg-white p-3 space-y-3">
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            Upload image
+                          </p>
+                          <p className="text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            Use one image as a safe-area background or repeat it as a pattern.
+                          </p>
+                        </div>
+                        <label
+                          className="px-3 h-11 rounded-xl bg-emerald-700 text-white cursor-pointer hover:bg-emerald-800 transition-colors inline-flex items-center justify-center gap-2 shadow-sm text-sm font-semibold self-start"
+                          title="Upload background image"
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 0115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                          </svg>
+                          <span>Upload</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleCustomPatternImageUpload}
+                            className="sr-only"
+                          />
+                        </label>
+                      </div>
+
+                      {customPatternOptions.imageDataUrl && (
+                        <>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setCustomPatternOptions((prev) => ({ ...prev, imageMode: 'single' }))}
+                              className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                                customPatternOptions.imageMode === 'single'
+                                  ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                                  : 'border-gray-300 bg-white text-gray-700'
+                              }`}
+                              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                            >
+                              Single Image
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setCustomPatternOptions((prev) => ({ ...prev, imageMode: 'repeat' }))}
+                              className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                                customPatternOptions.imageMode === 'repeat'
+                                  ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                                  : 'border-gray-300 bg-white text-gray-700'
+                              }`}
+                              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                            >
+                              Repeat as Pattern
+                            </button>
+                          </div>
+
+                          <div
+                            className="h-24 rounded-xl border border-gray-200 overflow-hidden"
+                            style={{
+                              backgroundImage: `url(${customPatternOptions.imageDataUrl})`,
+                              backgroundRepeat: customPatternOptions.imageMode === 'repeat' ? 'repeat' : 'no-repeat',
+                              backgroundPosition: 'center',
+                              backgroundSize: customPatternOptions.imageMode === 'repeat' ? '96px auto' : 'cover',
+                              backgroundColor: '#ffffff',
+                            }}
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() => applyImageBackground(customPatternOptions.imageDataUrl, customPatternOptions.imageMode)}
+                            className="w-full p-2.5 bg-emerald-700 text-white rounded-xl hover:bg-emerald-800 transition-colors font-semibold"
+                            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                          >
+                            Apply Uploaded Image
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Pattern type
+                      </label>
+                      <select
+                        value={customPatternOptions.type}
+                        onChange={(e) => setCustomPatternOptions((prev) => ({ ...prev, type: e.target.value }))}
+                        className="w-full p-2.5 border border-gray-300 rounded-lg bg-white text-sm"
+                        style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                      >
+                        <option value="dots">Dots</option>
+                        <option value="stripes">Stripes</option>
+                        <option value="grid">Grid</option>
+                        <option value="diagonal">Diagonal</option>
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="text-xs text-gray-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Pattern colour
+                        <input
+                          type="color"
+                          value={customPatternOptions.foreground}
+                          onChange={(e) => setCustomPatternOptions((prev) => ({ ...prev, foreground: e.target.value }))}
+                          className="mt-1 w-full h-10 border border-gray-300 rounded-lg cursor-pointer"
+                        />
+                      </label>
+                      <label className="text-xs text-gray-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Base colour
+                        <input
+                          type="color"
+                          value={customPatternOptions.background}
+                          onChange={(e) => setCustomPatternOptions((prev) => ({ ...prev, background: e.target.value }))}
+                          className="mt-1 w-full h-10 border border-gray-300 rounded-lg cursor-pointer"
+                        />
+                      </label>
+                    </div>
+                    <div
+                      className="h-20 rounded-xl border border-gray-200"
+                      style={{
+                        backgroundImage: `url(${createPatternDataUrl(
+                          customPatternOptions.type,
+                          customPatternOptions.foreground,
+                          customPatternOptions.background
+                        )})`,
+                        backgroundRepeat: 'repeat',
+                        backgroundSize: '56px 56px',
+                        backgroundColor: customPatternOptions.background,
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => applyPatternBackground(customPatternOptions)}
+                      className="w-full p-2.5 bg-gray-900 text-white rounded-xl hover:bg-black transition-colors font-semibold"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    >
+                      Apply Pattern
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -2730,7 +3474,7 @@ const ProductDesigner = () => {
                 <span className="text-xs text-gray-500">{selectedObject.type}</span>
               </div>
 
-              {selectedObject.type === 'text' && (
+              {isTextObject(selectedObject) && (
                 <>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -2959,12 +3703,13 @@ const ProductDesigner = () => {
               <strong>Print Area:</strong> Green dashed boxes indicate where printing will occur. Keep your design inside them.
             </p>
           </div>
+          </div>
         </div>
         )}
       </div>
 
       {/* Main Canvas Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex min-h-0 flex-col overflow-hidden">
         {/* Top Toolbar */}
         <div className="bg-white shadow-md p-3 flex items-center justify-between gap-2 flex-shrink-0 overflow-hidden">
           {/* Hand tool + Zoom controls + product selector */}
@@ -3012,7 +3757,7 @@ const ProductDesigner = () => {
             <div className="flex items-center justify-center gap-2 whitespace-nowrap">
             {/* Font family */}
             <select
-              value={selectedObject?.type === 'text' ? selectedObject.fontFamily || fontFamily : fontFamily}
+              value={isTextObject(selectedObject) ? selectedObject.fontFamily || fontFamily : fontFamily}
               onChange={(e) => handleFontFamilyChange(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm min-w-[150px] focus:outline-none focus:ring-2 focus:ring-blue-500"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
@@ -3033,7 +3778,7 @@ const ProductDesigner = () => {
                 −
               </button>
               <div className="px-3 text-sm border-l border-r border-gray-300 min-w-[60px] text-center">
-                {selectedObject?.type === 'text' ? Math.round(selectedObject.fontSize) : fontSize}px
+                {isTextObject(selectedObject) ? Math.round(selectedObject.fontSize) : fontSize}px
               </div>
               <button
                 onClick={() => changeFontSizeStep(1)}
@@ -3137,6 +3882,13 @@ const ProductDesigner = () => {
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Cancel
+            </button>
+            <button
+              type="button"
+              className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-semibold text-sm whitespace-nowrap"
+              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+            >
+              Review & Confirm
             </button>
           </div>
         </div>
