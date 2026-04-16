@@ -1,33 +1,47 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { fabric } from 'fabric';
 import QRCode from 'qrcode';
-import { productTemplates, findPrintArea, constrainToPrintArea } from '../utils/productTemplates';
+import { productTemplates } from '../utils/productTemplates';
 import { getProductPrintAreas, validatePrintArea, calculateDynamicPrintAreas } from '../config/productPrintAreas';
+import { useAuth } from '../context/AuthContext';
+import DesignerAuthModal from '../components/DesignerAuthModal';
+import { useSelector } from 'react-redux';
 
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const ProductDesigner = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAuthenticated } = useAuth();
+  const savedDraft = useSelector((state) => state.designerSession?.productDetailDraft);
   
   // Get props from query params first, then fallback to location state.
   const searchParams = new URLSearchParams(location.search);
   const productType = searchParams.get('productType') || location.state?.productType || 'pen';
   const productCategory = searchParams.get('productCategory') || location.state?.productCategory || null;
-  const uploadedImage = location.state?.uploadedImage || null;
+  const selectedSizeParam =
+    searchParams.get('size') ||
+    searchParams.get('option_size') ||
+    '';
+  const sidePrintedParam =
+    searchParams.get('sidePrinted') ||
+    searchParams.get('option_sideprinted') ||
+    location.state?.sidesPrinted ||
+    '';
   const canvasRef = useRef(null);
   const uploadInputRef = useRef(null);
   const [canvas, setCanvas] = useState(null);
-  const [zoom, setZoom] = useState(100);
+  const [zoom, setZoom] = useState(90);
   const [activeTool, setActiveTool] = useState('select');
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState(null);
   const [sidebarTab, setSidebarTab] = useState('text'); // uploads | text | color | qr | elements
   const [elementsUpdate, setElementsUpdate] = useState(0); // Force re-render of elements list
-  const [showAllSocials, setShowAllSocials] = useState(false);
-  const [showAllEmojis, setShowAllEmojis] = useState(false);
-  const [showAllContacts, setShowAllContacts] = useState(false);
-  const [showAllShapes, setShowAllShapes] = useState(false);
+  const [iconResultsByCategory, setIconResultsByCategory] = useState({});
+  const [iconLoadingByCategory, setIconLoadingByCategory] = useState({});
+  const [iconErrorByCategory, setIconErrorByCategory] = useState({});
+  const [categoryQueries, setCategoryQueries] = useState({});
+  const [showAllByCategory, setShowAllByCategory] = useState({});
   const [textInput, setTextInput] = useState('');
   const [fontSize, setFontSize] = useState(20);
   const [fontFamily, setFontFamily] = useState('Arial');
@@ -38,10 +52,219 @@ const ProductDesigner = () => {
   const [selectedObject, setSelectedObject] = useState(null);
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [activePrintSide, setActivePrintSide] = useState('front');
+  const [isLeftDrawerOpen, setIsLeftDrawerOpen] = useState(false);
+  const [isSwitchingSide, setIsSwitchingSide] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [designerAuthOpen, setDesignerAuthOpen] = useState(false);
+  const sideDesignsRef = useRef({ front: [], back: [] });
+  const [sidePreviewUrls, setSidePreviewUrls] = useState({ front: '', back: '' });
+  const activePrintSideRef = useRef('front');
+  const isDoubleSidedRef = useRef(false);
+  const pendingExportRef = useRef(false);
 
   const [currentProductType, setCurrentProductType] = useState(productType);
-  const [imageDimensions, setImageDimensions] = useState(null);
   const [dynamicPrintAreas, setDynamicPrintAreas] = useState([]);
+
+  const isDoubleSided = ['double-sided', 'double sided', 'double', 'both', 'both-sides']
+    .includes(String(sidePrintedParam || '').trim().toLowerCase());
+
+  useEffect(() => {
+    if (!isDoubleSided && activePrintSide !== 'front') {
+      setActivePrintSide('front');
+    }
+  }, [isDoubleSided, activePrintSide]);
+
+  useEffect(() => {
+    activePrintSideRef.current = activePrintSide;
+  }, [activePrintSide]);
+
+  useEffect(() => {
+    isDoubleSidedRef.current = isDoubleSided;
+  }, [isDoubleSided]);
+
+  const isGuideObject = (obj) => {
+    const name = obj?.name || '';
+    return (
+      name === 'product-placeholder' ||
+      name === 'product-base-image' ||
+      name.startsWith('print-area-') ||
+      name.startsWith('cut-line-') ||
+      name.startsWith('safe-area-') ||
+      name.startsWith('drag-metric-') ||
+      name.startsWith('dimension-guide-')
+    );
+  };
+
+  const generateSidePreview = async (side, objectJsonList) => {
+    const canvasWidth = sizedCanvas?.width || productTemplate?.dimensions?.width || 600;
+    const canvasHeight = sizedCanvas?.height || productTemplate?.dimensions?.height || 400;
+    const tempCanvasEl = document.createElement('canvas');
+    const previewCanvas = new fabric.StaticCanvas(tempCanvasEl, {
+      width: canvasWidth,
+      height: canvasHeight,
+      backgroundColor: '#ffffff',
+    });
+
+    try {
+      if (objectJsonList?.length) {
+        await new Promise((resolve) => {
+          fabric.util.enlivenObjects(objectJsonList, (objs) => {
+            objs.forEach((o) => previewCanvas.add(o));
+            resolve();
+          });
+        });
+      }
+      previewCanvas.renderAll();
+      const previewUrl = previewCanvas.toDataURL({
+        format: 'png',
+        multiplier: 0.35,
+      });
+      setSidePreviewUrls((prev) => ({ ...prev, [side]: previewUrl }));
+    } catch (error) {
+      console.warn('Side preview generation failed:', error);
+    } finally {
+      previewCanvas.dispose();
+    }
+  };
+
+  const saveCurrentSideDesign = (side) => {
+    if (!canvas || !side) return;
+    const userObjects = canvas
+      .getObjects()
+      .filter((obj) => !isGuideObject(obj))
+      .map((obj) =>
+        obj.toObject([
+          'name',
+          'originX',
+          'originY',
+          'selectable',
+          'evented',
+          'hasControls',
+          'hasBorders',
+          'lockMovementX',
+          'lockMovementY',
+        ])
+      );
+    sideDesignsRef.current[side] = userObjects;
+    if (isDoubleSided) {
+      void generateSidePreview(side, userObjects);
+    }
+  };
+
+  const loadSideDesign = async (side) => {
+    if (!canvas || !side) return;
+
+    const existingUserObjects = canvas.getObjects().filter((obj) => !isGuideObject(obj));
+    existingUserObjects.forEach((obj) => canvas.remove(obj));
+    canvas.discardActiveObject();
+
+    const savedObjects = sideDesignsRef.current[side] || [];
+    if (!savedObjects.length) {
+      canvas.renderAll();
+      setElementsUpdate((prev) => prev + 1);
+      return;
+    }
+
+    await new Promise((resolve) => {
+      fabric.util.enlivenObjects(savedObjects, (enlivenedObjects) => {
+        enlivenedObjects.forEach((obj) => canvas.add(obj));
+        canvas.renderAll();
+        setElementsUpdate((prev) => prev + 1);
+        resolve();
+      });
+    });
+  };
+
+  const handleSideSwitch = async (nextSide) => {
+    if (!isDoubleSided || !canvas || !nextSide || nextSide === activePrintSide || isSwitchingSide) return;
+    setIsSwitchingSide(true);
+    try {
+      saveCurrentSideDesign(activePrintSide);
+      await loadSideDesign(nextSide);
+      setActivePrintSide(nextSide);
+      const existingObjects = sideDesignsRef.current[nextSide] || [];
+      if (existingObjects.length && !sidePreviewUrls[nextSide]) {
+        void generateSidePreview(nextSide, existingObjects);
+      }
+    } finally {
+      setIsSwitchingSide(false);
+    }
+  };
+
+  const iconifyCategories = [
+    { id: 'socials', label: 'Socials', defaultQuery: 'social logo' },
+    { id: 'contacts', label: 'Contacts', defaultQuery: 'contact phone email' },
+    { id: 'shapes', label: 'Shapes', defaultQuery: 'shape geometric' },
+    { id: 'arrows', label: 'Arrows', defaultQuery: 'arrow line' },
+    { id: 'safety', label: 'Safety', defaultQuery: 'warning prohibition safety sign' },
+    { id: 'packaging', label: 'Packaging', defaultQuery: 'recycle package symbol' },
+    { id: 'wedding', label: 'Wedding', defaultQuery: 'wedding decoration icon' },
+    { id: 'kids', label: 'Kids', defaultQuery: 'kids school toy icon' },
+  ];
+
+  async function searchIcons(query) {
+    const res = await fetch(`https://api.iconify.design/search?query=${encodeURIComponent(query)}`);
+    const data = await res.json();
+    return data.icons || [];
+  }
+
+  const handleCategoryQueryChange = (categoryId, value) => {
+    setCategoryQueries((prev) => ({ ...prev, [categoryId]: value }));
+  };
+
+  const toggleShowAllForCategory = (categoryId) => {
+    setShowAllByCategory((prev) => ({ ...prev, [categoryId]: !prev[categoryId] }));
+  };
+
+  useEffect(() => {
+    if (sidebarTab !== 'elements') return;
+
+    iconifyCategories.forEach(async (category) => {
+      const query = (categoryQueries[category.id] || category.defaultQuery || '').trim();
+      if (!query) {
+        setIconResultsByCategory((prev) => ({ ...prev, [category.id]: [] }));
+        return;
+      }
+
+      setIconLoadingByCategory((prev) => ({ ...prev, [category.id]: true }));
+      setIconErrorByCategory((prev) => ({ ...prev, [category.id]: '' }));
+      try {
+        const icons = await searchIcons(query);
+        setIconResultsByCategory((prev) => ({ ...prev, [category.id]: icons }));
+      } catch (error) {
+        setIconErrorByCategory((prev) => ({ ...prev, [category.id]: 'Failed to load icons' }));
+      } finally {
+        setIconLoadingByCategory((prev) => ({ ...prev, [category.id]: false }));
+      }
+    });
+  }, [sidebarTab, categoryQueries]);
+
+  const parseCanvasDimensionsFromSize = (sizeLabel) => {
+    if (!sizeLabel) return null;
+    const normalizedLabel = String(sizeLabel).replace(/\+/g, ' ').replace(/[xX]/g, ' x ');
+    const matches = normalizedLabel.match(/(\d+(?:\.\d+)?)/g);
+    if (!matches || matches.length < 2) return null;
+
+    const widthMm = Number(matches[0]);
+    const heightMm = Number(matches[1]);
+    if (!Number.isFinite(widthMm) || !Number.isFinite(heightMm) || widthMm <= 0 || heightMm <= 0) {
+      return null;
+    }
+
+    // Keep real proportion while fitting a fixed, practical design viewport.
+    // Large products still appear larger than small ones, but never oversized on screen.
+    const maxWidth = 940;
+    const maxHeight = 560;
+    const scale = Math.min(maxWidth / widthMm, maxHeight / heightMm);
+    const width = Math.max(240, Math.round(widthMm * scale));
+    const height = Math.max(180, Math.round(heightMm * scale));
+
+    return { width, height, widthMm, heightMm };
+  };
+
+  const sizedCanvas = parseCanvasDimensionsFromSize(selectedSizeParam);
+
   
   // Get print areas from new config based on category, fallback to old templates
   // Normalize category - handle t-shirt variations
@@ -62,12 +285,126 @@ const ProductDesigner = () => {
       }
     : (productTemplates[currentProductType] || productTemplates.pen);
 
+  const getScaledTemplatePrintAreas = () => {
+    const sourceAreas = Array.isArray(productTemplate?.printAreas) ? productTemplate.printAreas : [];
+    if (!sourceAreas.length) return [];
+
+    if (!sizedCanvas?.width || !sizedCanvas?.height) return sourceAreas;
+
+    const baseWidth = productTemplate?.dimensions?.width || sizedCanvas.width;
+    const baseHeight = productTemplate?.dimensions?.height || sizedCanvas.height;
+    const scaleX = sizedCanvas.width / baseWidth;
+    const scaleY = sizedCanvas.height / baseHeight;
+
+    return sourceAreas.map((area) => {
+      const baseBounds = area?.bounds || {
+        left: area.x || 0,
+        top: area.y || 0,
+        right: (area.x || 0) + (area.width || 0),
+        bottom: (area.y || 0) + (area.height || 0),
+      };
+
+      const scaledArea = {
+        ...area,
+        x: (area.x || 0) * scaleX,
+        y: (area.y || 0) * scaleY,
+        width: (area.width || 0) * scaleX,
+        height: (area.height || 0) * scaleY,
+        bounds: {
+          left: baseBounds.left * scaleX,
+          top: baseBounds.top * scaleY,
+          right: baseBounds.right * scaleX,
+          bottom: baseBounds.bottom * scaleY,
+        },
+      };
+
+      return validatePrintArea(scaledArea, { width: sizedCanvas.width, height: sizedCanvas.height });
+    });
+  };
+
+  const createFullCanvasArea = () => {
+    const canvasWidth = sizedCanvas?.width || productTemplate?.dimensions?.width || 600;
+    const canvasHeight = sizedCanvas?.height || productTemplate?.dimensions?.height || 400;
+    return [{
+      id: 'full-canvas',
+      x: 0,
+      y: 0,
+      width: canvasWidth,
+      height: canvasHeight,
+      bounds: {
+        left: 0,
+        top: 0,
+        right: canvasWidth,
+        bottom: canvasHeight,
+      },
+    }];
+  };
+
+  const templateScaledAreas = getScaledTemplatePrintAreas();
+  const effectivePrintAreas = dynamicPrintAreas.length > 0
+    ? dynamicPrintAreas
+    : (templateScaledAreas.length > 0 ? templateScaledAreas : createFullCanvasArea());
+  const canvasWidthForGuides = sizedCanvas?.width || productTemplate?.dimensions?.width || 600;
+  const canvasHeightForGuides = sizedCanvas?.height || productTemplate?.dimensions?.height || 400;
+  const fullCanvasArea = {
+    id: 'whole-canvas',
+    x: 0,
+    y: 0,
+    width: canvasWidthForGuides,
+    height: canvasHeightForGuides,
+    bounds: {
+      left: 0,
+      top: 0,
+      right: canvasWidthForGuides,
+      bottom: canvasHeightForGuides,
+    },
+  };
+  // Safe-area inset scales with canvas size so guides work consistently for every size.
+  const SAFE_AREA_INSET_RATIO = 0.04; // 4% of shorter edge
+  const SAFE_AREA_INSET_MIN_PX = 8;
+  const SAFE_AREA_INSET_MAX_PX = 28;
+  const safeConstraintAreas = [fullCanvasArea].map((area) => {
+    const bounds = area?.bounds || {
+      left: area.x || 0,
+      top: area.y || 0,
+      right: (area.x || 0) + (area.width || 0),
+      bottom: (area.y || 0) + (area.height || 0),
+    };
+
+    const areaWidth = Math.max(1, bounds.right - bounds.left);
+    const areaHeight = Math.max(1, bounds.bottom - bounds.top);
+    const shorterEdge = Math.min(areaWidth, areaHeight);
+    const ratioInset = shorterEdge * SAFE_AREA_INSET_RATIO;
+    const rawInset = Math.max(SAFE_AREA_INSET_MIN_PX, Math.min(SAFE_AREA_INSET_MAX_PX, ratioInset));
+
+    const inset = Number.isFinite(rawInset) ? rawInset : SAFE_AREA_INSET_MIN_PX;
+    const safeLeft = bounds.left + inset;
+    const safeTop = bounds.top + inset;
+    const safeRight = bounds.right - inset;
+    const safeBottom = bounds.bottom - inset;
+
+    return {
+      ...area,
+      bounds: {
+        left: safeLeft,
+        top: safeTop,
+        right: safeRight,
+        bottom: safeBottom,
+      },
+      x: safeLeft,
+      y: safeTop,
+      width: Math.max(1, safeRight - safeLeft),
+      height: Math.max(1, safeBottom - safeTop),
+    };
+  });
+  const displayWidthMm = Math.round(sizedCanvas?.widthMm || productTemplate?.dimensions?.width || 0);
+  const displayHeightMm = Math.round(sizedCanvas?.heightMm || productTemplate?.dimensions?.height || 0);
+
   useEffect(() => {
     if (!canvasRef.current) return;
 
-    // Use image dimensions if available, otherwise use template dimensions
-    const canvasWidth = imageDimensions?.width || productTemplate.dimensions.width;
-    const canvasHeight = imageDimensions?.height || productTemplate.dimensions.height;
+    const canvasWidth = sizedCanvas?.width || productTemplate.dimensions.width;
+    const canvasHeight = sizedCanvas?.height || productTemplate.dimensions.height;
 
     // If canvas already exists, check if we need to resize or recreate
     if (canvas) {
@@ -116,58 +453,162 @@ const ProductDesigner = () => {
       stateful: false
     });
 
-    // Only load product base image if no uploaded image is provided
-    // The uploaded image (product image) will be loaded separately
-    if (!uploadedImage) {
-      // Create a simple background placeholder if no image is provided
-      const placeholder = new fabric.Rect({
-        width: productTemplate.dimensions.width,
-        height: productTemplate.dimensions.height,
-        fill: '#f5f5f5',
+    // Guard against race conditions where callbacks call renderAll() after unmount/dispose.
+    const originalRenderAll = fabricCanvas.renderAll.bind(fabricCanvas);
+    fabricCanvas.renderAll = (...args) => {
+      if (!fabricCanvas.contextContainer || !fabricCanvas.lowerCanvasEl) {
+        return fabricCanvas;
+      }
+      try {
+        return originalRenderAll(...args);
+      } catch (error) {
+        console.warn('Skipped unsafe canvas render:', error?.message || error);
+        return fabricCanvas;
+      }
+    };
+
+    // Clean blank canvas background for fresh designing experience.
+    const placeholder = new fabric.Rect({
+      width: canvasWidth,
+      height: canvasHeight,
+      fill: '#f5f5f5',
+      selectable: false,
+      evented: false,
+      name: 'product-placeholder'
+    });
+    fabricCanvas.add(placeholder);
+    fabricCanvas.sendToBack(placeholder);
+
+    // Draw cut line and safe area guides.
+    const printAreasToUse = [fullCanvasArea];
+    
+    printAreasToUse.forEach((area) => {
+      const areaWidth = area.bounds.right - area.bounds.left;
+      const areaHeight = area.bounds.bottom - area.bounds.top;
+      const areaCenterX = (area.bounds.left + area.bounds.right) / 2;
+      const areaCenterY = (area.bounds.top + area.bounds.bottom) / 2;
+      const cutLineGuide = new fabric.Rect({
+        left: areaCenterX - areaWidth / 2,
+        top: areaCenterY - areaHeight / 2,
+        width: areaWidth,
+        height: areaHeight,
+        fill: 'transparent',
+        stroke: '#facc15',
+        strokeWidth: 2,
+        strokeDashArray: [8, 6],
         selectable: false,
         evented: false,
-        name: 'product-placeholder'
+        name: `cut-line-${area.id}`,
+        excludeFromExport: true
       });
-      fabricCanvas.add(placeholder);
-      fabricCanvas.sendToBack(placeholder);
-    }
+      fabricCanvas.add(cutLineGuide);
 
-    // Don't draw print area guides here if we have an uploaded image
-    // They will be drawn in the image loading useEffect
-    if (!uploadedImage) {
-      // Draw print area guides - use dynamic print areas if available, otherwise use template
-      const printAreasToUse = dynamicPrintAreas.length > 0 ? dynamicPrintAreas : productTemplate.printAreas;
-      
-      printAreasToUse.forEach((area) => {
-      const guide = new fabric.Rect({
-        left: area.bounds.left,
-        top: area.bounds.top,
-        width: area.bounds.right - area.bounds.left,
-        height: area.bounds.bottom - area.bounds.top,
-        fill: 'rgba(0, 255, 0, 0.1)',
-        stroke: '#00ff00',
-        strokeWidth: 2,
+      const safeArea = safeConstraintAreas.find((a) => a.id === area.id) || area;
+      const safeWidth = safeArea.bounds.right - safeArea.bounds.left;
+      const safeHeight = safeArea.bounds.bottom - safeArea.bounds.top;
+      const safeCenterX = (safeArea.bounds.left + safeArea.bounds.right) / 2;
+      const safeCenterY = (safeArea.bounds.top + safeArea.bounds.bottom) / 2;
+      const safeGuide = new fabric.Rect({
+        left: safeCenterX - safeWidth / 2,
+        top: safeCenterY - safeHeight / 2,
+        width: safeWidth,
+        height: safeHeight,
+        fill: '#ffffff',
+        stroke: '#84cc16',
+        strokeWidth: 1.5,
         strokeDashArray: [5, 5],
         selectable: false,
         evented: false,
-        name: `print-area-${area.id}`,
+        name: `safe-area-${area.id}`,
         excludeFromExport: true
       });
-      fabricCanvas.add(guide);
-      fabricCanvas.sendToBack(guide);
+      fabricCanvas.add(safeGuide);
+      // Keep guides visible above placeholder/background.
+      fabricCanvas.bringToFront(cutLineGuide);
+      fabricCanvas.bringToFront(safeGuide);
     });
-    }
 
-    // Handle object movement - make dragging smooth and optionally constrain to print area
-    const printAreasForConstraints = dynamicPrintAreas.length > 0 ? dynamicPrintAreas : productTemplate.printAreas;
+    // Hard boundary: users cannot place objects outside the cut line (whole canvas).
+    const cutConstraintAreas = [fullCanvasArea];
+    const printAreasForConstraints = cutConstraintAreas;
     let renderRequestId = null;
+
+    const clearDragMetrics = () => {
+      const metricObjects = fabricCanvas.getObjects().filter((obj) => obj.name?.startsWith('drag-metric-'));
+      metricObjects.forEach((obj) => fabricCanvas.remove(obj));
+    };
+
+    const addMetricLabel = (text, left, top) =>
+      new fabric.Text(String(text), {
+        left,
+        top,
+        originX: 'center',
+        originY: 'center',
+        fontSize: 12,
+        fontWeight: 600,
+        fill: '#ffffff',
+        backgroundColor: '#0f766e',
+        selectable: false,
+        evented: false,
+        excludeFromExport: true,
+        name: 'drag-metric-label',
+      });
+
+    const renderDragMetrics = (obj, areaBounds) => {
+      if (!obj || !areaBounds) return;
+      clearDragMetrics();
+
+      const bounds = obj.getBoundingRect();
+      const objLeft = bounds.left;
+      const objTop = bounds.top;
+      const objRight = bounds.left + bounds.width;
+      const objBottom = bounds.top + bounds.height;
+      const objCenterX = objLeft + bounds.width / 2;
+      const objCenterY = objTop + bounds.height / 2;
+
+      const topDistance = Math.max(0, objTop - areaBounds.top);
+      const bottomDistance = Math.max(0, areaBounds.bottom - objBottom);
+      const leftDistance = Math.max(0, objLeft - areaBounds.left);
+      const rightDistance = Math.max(0, areaBounds.right - objRight);
+
+      const lineProps = {
+        stroke: '#0f766e',
+        strokeWidth: 1.5,
+        strokeDashArray: [6, 4],
+        selectable: false,
+        evented: false,
+        excludeFromExport: true,
+      };
+
+      const metricObjects = [
+        new fabric.Line([objCenterX, areaBounds.top, objCenterX, objTop], { ...lineProps, name: 'drag-metric-line-top' }),
+        new fabric.Line([objCenterX, objBottom, objCenterX, areaBounds.bottom], { ...lineProps, name: 'drag-metric-line-bottom' }),
+        new fabric.Line([areaBounds.left, objCenterY, objLeft, objCenterY], { ...lineProps, name: 'drag-metric-line-left' }),
+        new fabric.Line([objRight, objCenterY, areaBounds.right, objCenterY], { ...lineProps, name: 'drag-metric-line-right' }),
+        addMetricLabel(topDistance.toFixed(2), objCenterX, areaBounds.top + topDistance / 2),
+        addMetricLabel(bottomDistance.toFixed(2), objCenterX, objBottom + bottomDistance / 2),
+        addMetricLabel(leftDistance.toFixed(2), areaBounds.left + leftDistance / 2, objCenterY),
+        addMetricLabel(rightDistance.toFixed(2), objRight + rightDistance / 2, objCenterY),
+      ];
+
+      metricObjects.forEach((item) => {
+        item.set({ name: `drag-metric-${item.name || 'item'}` });
+        fabricCanvas.add(item);
+        fabricCanvas.bringToFront(item);
+      });
+    };
     
-    // Helper function to check if object is within print area bounds
+    // Helper function: object must be fully inside at least one allowed area.
     const isObjectWithinPrintArea = (obj, printAreas) => {
       if (!printAreas || printAreas.length === 0) return true;
       
-      // Skip base image and print area guides
-      if (obj.name === 'product-base-image' || (obj.name && obj.name.startsWith('print-area-'))) {
+      // Skip base image and guide overlays
+      if (
+        obj.name === 'product-base-image' ||
+        (obj.name && (obj.name.startsWith('print-area-') || obj.name.startsWith('cut-line-') || obj.name.startsWith('safe-area-'))) ||
+        (obj.name && obj.name.startsWith('dimension-guide-')) ||
+        (obj.name && obj.name.startsWith('drag-metric-'))
+      ) {
         return true;
       }
       
@@ -177,7 +618,7 @@ const ProductDesigner = () => {
       const objRight = objBounds.left + objBounds.width;
       const objBottom = objBounds.top + objBounds.height;
       
-      // Check if object overlaps with any print area
+      // Check if object is fully contained by any allowed area
       for (const area of printAreas) {
         const areaBounds = area.bounds || {
           left: area.x,
@@ -185,34 +626,57 @@ const ProductDesigner = () => {
           right: area.x + area.width,
           bottom: area.y + area.height
         };
-        
-        // Check if object center is within print area bounds
-        const centerX = (objLeft + objRight) / 2;
-        const centerY = (objTop + objBottom) / 2;
-        
-        if (centerX >= areaBounds.left && centerX <= areaBounds.right &&
-            centerY >= areaBounds.top && centerY <= areaBounds.bottom) {
-          // Also check if most of the object is within bounds (at least 50% of width/height)
-          const objWidth = objRight - objLeft;
-          const objHeight = objBottom - objTop;
-          const widthInBounds = Math.min(objRight, areaBounds.right) - Math.max(objLeft, areaBounds.left);
-          const heightInBounds = Math.min(objBottom, areaBounds.bottom) - Math.max(objTop, areaBounds.top);
-          
-          if (widthInBounds >= objWidth * 0.5 && heightInBounds >= objHeight * 0.5) {
-            return true;
-          }
-        }
+
+        const fullyWithin =
+          objLeft >= areaBounds.left &&
+          objTop >= areaBounds.top &&
+          objRight <= areaBounds.right &&
+          objBottom <= areaBounds.bottom;
+
+        if (fullyWithin) return true;
       }
       
       return false;
+    };
+
+    // Clamp object position inside area bounds.
+    const constrainObjectToBounds = (obj, areaBounds) => {
+      const bounds = obj.getBoundingRect();
+      let deltaX = 0;
+      let deltaY = 0;
+
+      if (bounds.left < areaBounds.left) {
+        deltaX = areaBounds.left - bounds.left;
+      } else if (bounds.left + bounds.width > areaBounds.right) {
+        deltaX = areaBounds.right - (bounds.left + bounds.width);
+      }
+
+      if (bounds.top < areaBounds.top) {
+        deltaY = areaBounds.top - bounds.top;
+      } else if (bounds.top + bounds.height > areaBounds.bottom) {
+        deltaY = areaBounds.bottom - (bounds.top + bounds.height);
+      }
+
+      if (deltaX !== 0 || deltaY !== 0) {
+        obj.set({
+          left: (obj.left || 0) + deltaX,
+          top: (obj.top || 0) + deltaY,
+        });
+        obj.setCoords();
+      }
     };
     
     // Enable smooth rendering during movement with optimized rendering
     fabricCanvas.on('object:moving', (e) => {
       const obj = e.target;
       
-      // Skip base image and print area guides
-      if (obj.name === 'product-base-image' || (obj.name && obj.name.startsWith('print-area-'))) {
+      // Skip base image and guide overlays
+      if (
+        obj.name === 'product-base-image' ||
+        (obj.name && (obj.name.startsWith('print-area-') || obj.name.startsWith('cut-line-') || obj.name.startsWith('safe-area-'))) ||
+        (obj.name && obj.name.startsWith('dimension-guide-')) ||
+        (obj.name && obj.name.startsWith('drag-metric-'))
+      ) {
         return;
       }
       
@@ -237,6 +701,17 @@ const ProductDesigner = () => {
         if (fabricCanvas.lowerCanvasEl) {
           fabricCanvas.lowerCanvasEl.style.cursor = 'not-allowed';
         }
+
+        // Prevent object from going outside cut line by clamping to bounds immediately.
+        const areaBounds = printAreasForConstraints[0]?.bounds;
+        if (areaBounds) {
+          constrainObjectToBounds(obj, areaBounds);
+        }
+      }
+
+      const areaBounds = printAreasForConstraints[0]?.bounds;
+      if (areaBounds) {
+        renderDragMetrics(obj, areaBounds);
       }
       
       // Use requestAnimationFrame for smooth rendering
@@ -265,13 +740,14 @@ const ProductDesigner = () => {
         fabricCanvas.lowerCanvasEl.style.cursor = 'default';
       }
       
-      // Only constrain if print areas exist
+      // Final hard constraint at drag end.
       if (printAreasForConstraints.length > 0) {
-        const printArea = findPrintArea(obj, printAreasForConstraints);
-      if (printArea) {
-        constrainToPrintArea(obj, printArea);
+        const areaBounds = printAreasForConstraints[0]?.bounds;
+        if (areaBounds) {
+          constrainObjectToBounds(obj, areaBounds);
         }
       }
+      clearDragMetrics();
     });
     
     // Handle mouse move to show error cursor when hovering outside print area
@@ -311,6 +787,11 @@ const ProductDesigner = () => {
 
     fabricCanvas.on('selection:cleared', () => {
       setSelectedObject(null);
+      clearDragMetrics();
+    });
+
+    fabricCanvas.on('mouse:up', () => {
+      clearDragMetrics();
     });
 
     // Enable text editing on double-click
@@ -341,14 +822,23 @@ const ProductDesigner = () => {
     fabricCanvas.on('object:added', () => {
       saveState();
       setElementsUpdate(prev => prev + 1); // Update elements list
+      if (isDoubleSidedRef.current) {
+        saveCurrentSideDesign(activePrintSideRef.current);
+      }
     });
     fabricCanvas.on('object:removed', () => {
       saveState();
       setElementsUpdate(prev => prev + 1); // Update elements list
+      if (isDoubleSidedRef.current) {
+        saveCurrentSideDesign(activePrintSideRef.current);
+      }
     });
     fabricCanvas.on('object:modified', () => {
       saveState();
       setElementsUpdate(prev => prev + 1); // Update elements list
+      if (isDoubleSidedRef.current) {
+        saveCurrentSideDesign(activePrintSideRef.current);
+      }
     });
 
     setCanvas(fabricCanvas);
@@ -374,215 +864,7 @@ const ProductDesigner = () => {
         }
       }
     };
-  }, [currentProductType, imageDimensions, dynamicPrintAreas]);
-
-  // Load uploaded image (product image) as the base image if provided
-  useEffect(() => {
-    if (!uploadedImage) return;
-    
-    // Create a temporary image to get dimensions first
-    const tempImg = new Image();
-    tempImg.crossOrigin = 'anonymous';
-    
-    tempImg.onload = () => {
-      const imgWidth = tempImg.width;
-      const imgHeight = tempImg.height;
-      
-      // Set canvas to a smaller size to fit better on screen (max 500px width, maintain aspect ratio)
-      const maxCanvasWidth = 500;
-      const maxCanvasHeight = 600;
-      let canvasWidth = imgWidth;
-      let canvasHeight = imgHeight;
-      
-      // Scale down if image is too large
-      if (imgWidth > maxCanvasWidth || imgHeight > maxCanvasHeight) {
-        const scale = Math.min(maxCanvasWidth / imgWidth, maxCanvasHeight / imgHeight);
-        canvasWidth = imgWidth * scale;
-        canvasHeight = imgHeight * scale;
-      }
-      
-      // Store canvas dimensions (not original image dimensions)
-      setImageDimensions({ width: canvasWidth, height: canvasHeight });
-      
-      // Normalize category for print area lookup
-      let normalizedCategory = category || currentProductType;
-      if (normalizedCategory) {
-        normalizedCategory = normalizedCategory.toLowerCase().trim();
-        // Handle t-shirt category variations
-        if (normalizedCategory === 'tshirt' || normalizedCategory === 't-shirt' || normalizedCategory === 't shirt') {
-          normalizedCategory = 'tshirts'; // Use plural form to match config
-        }
-      }
-      
-      // Check if we have configured print areas for this product type
-      const configAreas = getProductPrintAreas(normalizedCategory, currentProductType);
-      
-      // Debug logging
-      console.log('Print Area Debug:', {
-        originalCategory: category,
-        normalizedCategory,
-        currentProductType,
-        configAreas: configAreas ? 'Found' : 'Not Found',
-        imageDimensions: { width: canvasWidth, height: canvasHeight }
-      });
-      
-      let calculatedPrintAreas;
-      if (configAreas && configAreas.printAreas && configAreas.printAreas.length > 0) {
-        // Use configured print areas, but scale them to match canvas dimensions
-        const scaleX = canvasWidth / configAreas.dimensions.width;
-        const scaleY = canvasHeight / configAreas.dimensions.height;
-        
-        calculatedPrintAreas = configAreas.printAreas.map(area => {
-          const scaledArea = {
-            ...area,
-            x: area.x * scaleX,
-            y: area.y * scaleY,
-            width: area.width * scaleX,
-            height: area.height * scaleY,
-            bounds: {
-              left: area.bounds.left * scaleX,
-              top: area.bounds.top * scaleY,
-              right: area.bounds.right * scaleX,
-              bottom: area.bounds.bottom * scaleY
-            }
-          };
-          return validatePrintArea(scaledArea, { width: canvasWidth, height: canvasHeight });
-        });
-      } else {
-        // Fallback: Use dynamic calculation for products without configured print areas
-        calculatedPrintAreas = calculateDynamicPrintAreas(canvasWidth, canvasHeight, 2);
-      }
-      
-      setDynamicPrintAreas(calculatedPrintAreas);
-    };
-    
-    tempImg.onerror = () => {
-      console.error('Failed to load image for dimension calculation');
-    };
-    
-    tempImg.src = uploadedImage;
-  }, [uploadedImage]);
-
-  // Load the image into canvas once canvas and dimensions are ready
-  useEffect(() => {
-    if (!uploadedImage || !canvas || !imageDimensions) return;
-    
-    // Check if canvas is still valid and element exists
-    if (!canvasRef.current || !canvasRef.current.parentNode) {
-      return;
-    }
-
-    // Ensure canvas dimensions match image dimensions
-    try {
-      const currentWidth = canvas.getWidth();
-      const currentHeight = canvas.getHeight();
-      if (currentWidth !== imageDimensions.width || currentHeight !== imageDimensions.height) {
-        if (canvasRef.current && canvasRef.current.parentNode) {
-          canvas.setDimensions({
-            width: imageDimensions.width,
-            height: imageDimensions.height
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error setting canvas dimensions:', error);
-      return;
-    }
-
-    // Check if canvas is still valid before proceeding
-    if (!canvas || !canvasRef.current || !canvasRef.current.parentNode) {
-      return;
-    }
-
-    try {
-      // Remove any existing placeholder or base image
-      const objects = canvas.getObjects();
-      objects.forEach(obj => {
-        if (obj.name === 'product-placeholder' || obj.name === 'product-base' || obj.name === 'product-base-image') {
-          canvas.remove(obj);
-        }
-      });
-
-      // Remove old print area guides
-      const oldGuides = canvas.getObjects().filter(obj => obj.name?.startsWith('print-area-'));
-      oldGuides.forEach(guide => canvas.remove(guide));
-
-      // Load the image into fabric
-      fabric.Image.fromURL(
-        uploadedImage,
-        (fabricImg) => {
-          // Check if canvas is still valid
-          if (!canvas || !canvasRef.current || !canvasRef.current.parentNode) {
-            return;
-          }
-
-          if (!fabricImg) {
-            console.error('Failed to load fabric image');
-            return;
-          }
-
-          // Check if image already exists to avoid duplicates
-          const existingBase = canvas.getObjects().find(obj => obj.name === 'product-base-image');
-          if (existingBase) {
-            canvas.remove(existingBase);
-          }
-
-          // Scale image to fit canvas dimensions
-          const scaleX = imageDimensions.width / fabricImg.width;
-          const scaleY = imageDimensions.height / fabricImg.height;
-          const scale = Math.min(scaleX, scaleY);
-          
-          fabricImg.set({
-            left: 0,
-            top: 0,
-            scaleX: scale,
-            scaleY: scale,
-            selectable: false,
-            evented: false,
-            name: 'product-base-image',
-            excludeFromExport: false, // Ensure base image is included in export
-            visible: true // Ensure it's visible
-          });
-          
-          canvas.add(fabricImg);
-          canvas.sendToBack(fabricImg);
-          
-          // Add print area guides after image is loaded (make them visible on top of image)
-          if (dynamicPrintAreas.length > 0) {
-            // Remove existing print area guides first
-            const existingGuides = canvas.getObjects().filter(obj => obj.name && obj.name.startsWith('print-area-'));
-            existingGuides.forEach(guide => canvas.remove(guide));
-            
-            dynamicPrintAreas.forEach((area) => {
-              const guide = new fabric.Rect({
-                left: area.bounds.left,
-                top: area.bounds.top,
-                width: area.bounds.right - area.bounds.left,
-                height: area.bounds.bottom - area.bounds.top,
-                fill: 'rgba(0, 255, 0, 0.15)',
-                stroke: '#00ff00',
-                strokeWidth: 3,
-                strokeDashArray: [8, 4],
-                selectable: false,
-                evented: false,
-                name: `print-area-${area.id}`,
-                excludeFromExport: true,
-                opacity: 0.8
-              });
-              canvas.add(guide);
-              // Keep guides above the base image but below user elements
-              canvas.bringToFront(guide);
-            });
-          }
-          
-          canvas.renderAll();
-        },
-        { crossOrigin: 'anonymous' }
-      );
-    } catch (error) {
-      console.error('Error loading image into canvas:', error);
-    }
-  }, [uploadedImage, canvas, imageDimensions, dynamicPrintAreas]);
+  }, [currentProductType, dynamicPrintAreas, sizedCanvas?.width, sizedCanvas?.height, sizedCanvas?.widthMm, sizedCanvas?.heightMm]);
 
   // Handle panning when hand tool is active
   useEffect(() => {
@@ -754,7 +1036,7 @@ const ProductDesigner = () => {
   const addText = () => {
     if (!canvas || !textInput.trim()) return;
 
-    const printAreasToUse = dynamicPrintAreas.length > 0 ? dynamicPrintAreas : productTemplate.printAreas;
+    const printAreasToUse = effectivePrintAreas;
     const printArea = printAreasToUse[0];
     
     if (!printArea) return;
@@ -803,6 +1085,7 @@ const ProductDesigner = () => {
     canvas.renderAll();
     setTextInput('');
     setActiveTool('select');
+    setIsLeftDrawerOpen(false);
   };
 
   // Text toolbar helpers
@@ -868,7 +1151,7 @@ const ProductDesigner = () => {
     const reader = new FileReader();
     reader.onload = (event) => {
       fabric.Image.fromURL(event.target.result, (img) => {
-        const printAreasToUse = dynamicPrintAreas.length > 0 ? dynamicPrintAreas : productTemplate.printAreas;
+        const printAreasToUse = effectivePrintAreas;
         const printArea = printAreasToUse[0];
         
         if (!printArea) return;
@@ -890,6 +1173,7 @@ const ProductDesigner = () => {
         canvas.add(img);
         canvas.setActiveObject(img);
         canvas.renderAll();
+        setIsLeftDrawerOpen(false);
       });
     };
     reader.readAsDataURL(file);
@@ -906,7 +1190,7 @@ const ProductDesigner = () => {
   const addQrCode = async () => {
     if (!canvas || !qrText.trim()) return;
     
-    const printAreasToUse = dynamicPrintAreas.length > 0 ? dynamicPrintAreas : productTemplate.printAreas;
+    const printAreasToUse = effectivePrintAreas;
     const printArea = printAreasToUse[0];
     
     if (!printArea) return;
@@ -939,6 +1223,7 @@ const ProductDesigner = () => {
         canvas.add(img);
         canvas.setActiveObject(img);
         canvas.renderAll();
+        setIsLeftDrawerOpen(false);
       });
     } catch (err) {
       console.error('Error generating QR code:', err);
@@ -1003,8 +1288,17 @@ const ProductDesigner = () => {
         if (objs && objs.length > 0) {
           // Handle multiple selected objects
           objs.forEach(object => {
-            // Don't delete print area guides or base image
-            if (object.name && (object.name.startsWith('print-area-') || object.name === 'product-base-image')) {
+            // Don't delete guide overlays or base image
+            if (
+              object.name &&
+              (
+                object.name.startsWith('print-area-') ||
+                object.name.startsWith('cut-line-') ||
+                object.name.startsWith('safe-area-') ||
+                object.name.startsWith('drag-metric-') ||
+                object.name === 'product-base-image'
+              )
+            ) {
               return;
             }
             canvas.remove(object);
@@ -1014,8 +1308,17 @@ const ProductDesigner = () => {
           setSelectedObject(null);
           setElementsUpdate(prev => prev + 1);
         } else if (obj) {
-          // Don't delete print area guides or base image
-          if (obj.name && (obj.name.startsWith('print-area-') || obj.name === 'product-base-image')) {
+          // Don't delete guide overlays or base image
+          if (
+            obj.name &&
+            (
+              obj.name.startsWith('print-area-') ||
+              obj.name.startsWith('cut-line-') ||
+              obj.name.startsWith('safe-area-') ||
+              obj.name.startsWith('drag-metric-') ||
+              obj.name === 'product-base-image'
+            )
+          ) {
             return;
           }
           // Handle single selected object
@@ -1043,7 +1346,7 @@ const ProductDesigner = () => {
       return;
     }
     
-    const printAreasToUse = dynamicPrintAreas.length > 0 ? dynamicPrintAreas : productTemplate.printAreas;
+    const printAreasToUse = effectivePrintAreas;
     const printArea = printAreasToUse[0];
     
     if (!printArea) {
@@ -1147,6 +1450,19 @@ const ProductDesigner = () => {
     }
   };
 
+  const addIconifyIconToCanvas = async (iconName) => {
+    if (!iconName) return;
+    try {
+      const res = await fetch(`https://api.iconify.design/${encodeURIComponent(iconName)}.svg`);
+      if (!res.ok) throw new Error(`Icon fetch failed: ${res.status}`);
+      const svgText = await res.text();
+      addIconToCanvas(svgText, iconName);
+      setIsLeftDrawerOpen(false);
+    } catch (error) {
+      console.error('Error adding Iconify icon:', error);
+    }
+  };
+
   // Add emoji to canvas
   const addEmojiToCanvas = (emoji) => {
     if (!canvas) {
@@ -1154,7 +1470,7 @@ const ProductDesigner = () => {
       return;
     }
     
-    const printAreasToUse = dynamicPrintAreas.length > 0 ? dynamicPrintAreas : productTemplate.printAreas;
+    const printAreasToUse = effectivePrintAreas;
     const printArea = printAreasToUse[0];
     
     if (!printArea) {
@@ -1186,6 +1502,7 @@ const ProductDesigner = () => {
       
       // Update elements list
       setElementsUpdate(prev => prev + 1);
+      setIsLeftDrawerOpen(false);
     } catch (error) {
       console.error('Error adding emoji to canvas:', error);
     }
@@ -1198,7 +1515,7 @@ const ProductDesigner = () => {
       return;
     }
     
-    const printAreasToUse = dynamicPrintAreas.length > 0 ? dynamicPrintAreas : productTemplate.printAreas;
+    const printAreasToUse = effectivePrintAreas;
     const printArea = printAreasToUse[0];
     
     if (!printArea) {
@@ -1340,10 +1657,116 @@ const ProductDesigner = () => {
         
         // Update elements list
         setElementsUpdate(prev => prev + 1);
+        setIsLeftDrawerOpen(false);
       }
     } catch (error) {
       console.error('Error adding shape to canvas:', error);
     }
+  };
+
+  const christmasElements = [
+    { name: 'Wreath 1', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><circle cx="60" cy="60" r="46" fill="none" stroke="#1f6f3a" stroke-width="8" stroke-dasharray="6 8"/><circle cx="60" cy="60" r="30" fill="none" stroke="#2f855a" stroke-width="4"/></svg>' },
+    { name: 'Wreath 2', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><circle cx="60" cy="60" r="44" fill="none" stroke="#166534" stroke-width="7"/><circle cx="60" cy="60" r="32" fill="none" stroke="#dc2626" stroke-width="3" stroke-dasharray="4 6"/></svg>' },
+    { name: 'Snowflake', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><g stroke="#0ea5e9" stroke-width="6" stroke-linecap="round"><line x1="60" y1="10" x2="60" y2="110"/><line x1="10" y1="60" x2="110" y2="60"/><line x1="25" y1="25" x2="95" y2="95"/><line x1="95" y1="25" x2="25" y2="95"/></g></svg>' },
+    { name: 'Gift', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect x="18" y="42" width="84" height="62" rx="6" fill="#ef4444"/><rect x="18" y="42" width="84" height="16" fill="#f59e0b"/><rect x="54" y="42" width="12" height="62" fill="#fde68a"/><path d="M60 42c-7-10-22-8-22 1 0 7 10 10 22 8m0-9c7-10 22-8 22 1 0 7-10 10-22 8" fill="none" stroke="#facc15" stroke-width="5"/></svg>' },
+    { name: 'Bell', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M26 78h68l-8-12V49c0-14-11-26-26-26s-26 12-26 26v17z" fill="#facc15"/><circle cx="60" cy="88" r="8" fill="#d97706"/></svg>' },
+    { name: 'Candy Cane', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M72 20c14 0 24 10 24 24 0 10-7 18-16 20v32c0 8-6 14-14 14s-14-6-14-14V54" fill="none" stroke="#ef4444" stroke-width="14" stroke-linecap="round"/><path d="M72 20c14 0 24 10 24 24" fill="none" stroke="#fff" stroke-width="6" stroke-dasharray="6 8"/></svg>' },
+    { name: 'Tree', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><polygon points="60,12 18,84 102,84" fill="#16a34a"/><rect x="52" y="84" width="16" height="24" fill="#92400e"/><circle cx="60" cy="12" r="5" fill="#facc15"/></svg>' },
+    { name: 'Bauble', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect x="52" y="18" width="16" height="10" rx="2" fill="#6b7280"/><circle cx="60" cy="68" r="34" fill="#dc2626"/><path d="M38 62c12-8 32-8 44 0" stroke="#fecaca" stroke-width="6" fill="none"/></svg>' },
+  ];
+
+  const brushStrokeElements = [
+    { name: 'Brush 1', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M16 90c14-26 27-45 44-64 10 3 20 9 30 19-16 21-36 38-62 45z" fill="#1f2937"/></svg>' },
+    { name: 'Brush 2', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M20 24c16 9 33 34 35 64-13 6-27 8-39 7 4-20 5-43 4-71z" fill="#111827"/></svg>' },
+    { name: 'Brush 3', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M14 68c20-20 44-31 86-35-9 15-22 40-49 60-18-4-29-11-37-25z" fill="#374151"/></svg>' },
+    { name: 'Brush 4', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M10 35c25 2 53 16 86 44-16 9-39 18-71 18-13-16-16-37-15-62z" fill="#111827"/></svg>' },
+    { name: 'Brush 5', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M25 18c22 20 37 43 45 80-17 2-34 0-52-7 0-23 2-46 7-73z" fill="#1f2937"/></svg>' },
+    { name: 'Brush 6', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M12 84c24-6 54-6 96 2-18 12-44 21-80 20-10-7-14-14-16-22z" fill="#4b5563"/></svg>' },
+    { name: 'Brush 7', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M19 16c31 14 56 37 79 74-19 4-39 7-64 4-14-22-19-46-15-78z" fill="#111827"/></svg>' },
+    { name: 'Brush 8', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M8 54c34-18 68-23 103-14-18 25-48 49-89 63-11-12-15-28-14-49z" fill="#374151"/></svg>' },
+  ];
+
+  const animalEmojis = ['🦜', '🦩', '🐦', '🐘', '🦁', '🐯', '🦊', '🐼', '🐬', '🦋', '🦄', '🐢'];
+  const floralElements = [
+    { name: 'Rose Flower', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><circle cx="58" cy="45" r="20" fill="#f472b6"/><circle cx="48" cy="44" r="10" fill="#f9a8d4"/><circle cx="66" cy="42" r="9" fill="#ec4899"/><path d="M58 64v38" stroke="#166534" stroke-width="5"/><ellipse cx="47" cy="78" rx="10" ry="6" fill="#65a30d"/></svg>' },
+    { name: 'Yellow Flower', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><g fill="#facc15"><ellipse cx="60" cy="32" rx="9" ry="16"/><ellipse cx="60" cy="32" rx="9" ry="16" transform="rotate(60 60 32)"/><ellipse cx="60" cy="32" rx="9" ry="16" transform="rotate(120 60 32)"/></g><circle cx="60" cy="32" r="7" fill="#ca8a04"/><path d="M60 40v62" stroke="#166534" stroke-width="5"/></svg>' },
+    { name: 'Floral Branch', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M20 95c30-10 48-29 70-72" stroke="#374151" stroke-width="4" fill="none"/><circle cx="53" cy="54" r="8" fill="#fda4af"/><circle cx="74" cy="35" r="7" fill="#f9a8d4"/><circle cx="38" cy="69" r="7" fill="#fbcfe8"/></svg>' },
+    { name: 'Leaf Flower', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M60 96V34" stroke="#166534" stroke-width="5"/><ellipse cx="60" cy="28" rx="12" ry="8" fill="#22c55e"/><ellipse cx="44" cy="44" rx="12" ry="7" fill="#16a34a" transform="rotate(-25 44 44)"/><ellipse cx="76" cy="50" rx="12" ry="7" fill="#16a34a" transform="rotate(25 76 50)"/></svg>' },
+    { name: 'Daisy', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><g fill="#f8fafc"><ellipse cx="60" cy="36" rx="6" ry="15"/><ellipse cx="60" cy="36" rx="6" ry="15" transform="rotate(45 60 36)"/><ellipse cx="60" cy="36" rx="6" ry="15" transform="rotate(90 60 36)"/><ellipse cx="60" cy="36" rx="6" ry="15" transform="rotate(135 60 36)"/></g><circle cx="60" cy="36" r="7" fill="#eab308"/><path d="M60 43v58" stroke="#15803d" stroke-width="5"/></svg>' },
+    { name: 'Bloom', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><g fill="#fb7185"><circle cx="60" cy="30" r="10"/><circle cx="44" cy="40" r="10"/><circle cx="76" cy="40" r="10"/><circle cx="50" cy="24" r="8"/><circle cx="70" cy="24" r="8"/></g><circle cx="60" cy="34" r="6" fill="#fde68a"/><path d="M60 44v56" stroke="#166534" stroke-width="5"/></svg>' },
+  ];
+  const foodEmojis = ['🌮', '🍟', '🌯', '🍔', '🍕', '🍩', '🥤', '🍜', '🍣', '🍪', '🧁', '🥗'];
+  const babyEmojis = ['🌙', '☁️', '🚀', '⭐', '🍼', '🧸', '🐣', '🪁', '🎠', '🧩', '🫧', '🛏️'];
+  const kidsEmojis = ['✏️', '🖍️', '📘', '🧒', '🎒', '🎨', '🧩', '⚽', '🎲', '🧠', '🪀', '🎈'];
+  const safetyElements = [
+    { name: 'No Fire', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="#fff" stroke="#dc2626" stroke-width="12"/><path d="M60 28c12 14 8 23 0 32-8-9-12-18 0-32z" fill="#111827"/><line x1="24" y1="96" x2="96" y2="24" stroke="#dc2626" stroke-width="12"/></svg>' },
+    { name: 'Warning', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><polygon points="60,10 112,104 8,104" fill="#fde047" stroke="#111827" stroke-width="6"/><rect x="55" y="42" width="10" height="30" fill="#111827"/><circle cx="60" cy="84" r="5" fill="#111827"/></svg>' },
+    { name: 'Exit Sign', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect x="8" y="24" width="104" height="72" rx="6" fill="#15803d"/><text x="18" y="78" font-size="26" fill="#fff" font-family="Arial" font-weight="700">EXIT</text><path d="M72 42h28v36H72z" fill="#f8fafc"/><path d="M22 42h34l-10-9m10 9-10 9" stroke="#f8fafc" stroke-width="6" fill="none" stroke-linecap="round"/></svg>' },
+    { name: 'First Aid', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><circle cx="60" cy="60" r="48" fill="#0ea5e9"/><rect x="52" y="30" width="16" height="60" fill="#fff"/><rect x="30" y="52" width="60" height="16" fill="#fff"/></svg>' },
+    { name: 'No Entry', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="#dc2626"/><rect x="24" y="52" width="72" height="16" fill="#fff"/></svg>' },
+    { name: 'Alert Circle', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="#fef3c7" stroke="#f59e0b" stroke-width="8"/><rect x="55" y="30" width="10" height="40" fill="#b45309"/><circle cx="60" cy="84" r="6" fill="#b45309"/></svg>' },
+  ];
+  const packagingElements = [
+    { name: 'Open Jar 6M', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><ellipse cx="60" cy="34" rx="38" ry="12" fill="none" stroke="#111827" stroke-width="4"/><rect x="22" y="36" width="76" height="54" rx="8" fill="none" stroke="#111827" stroke-width="4"/><text x="43" y="76" font-size="20" fill="#111827" font-family="Arial">6M</text></svg>' },
+    { name: 'Do Not Tumble Dry', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect x="18" y="18" width="84" height="84" fill="none" stroke="#111827" stroke-width="5"/><circle cx="60" cy="60" r="20" fill="none" stroke="#111827" stroke-width="5"/><line x1="26" y1="94" x2="94" y2="26" stroke="#111827" stroke-width="6"/></svg>' },
+    { name: 'Recycle Leaf', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M60 22c16 0 30 14 30 30 0 17-13 35-30 46-17-11-30-29-30-46 0-16 14-30 30-30z" fill="none" stroke="#166534" stroke-width="5"/><path d="M60 34v42M46 58h28" stroke="#166534" stroke-width="4"/><path d="M20 72l14-10v20zM100 48l-14 10V38z" fill="#166534"/></svg>' },
+    { name: 'Recycling', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M48 22l12 20H36zM92 54l-24 2 12-20zM24 82l12-20 12 20z" fill="#6b7280"/><path d="M60 42l14 24H46zM56 70h28M20 82h28" stroke="#6b7280" stroke-width="5" fill="none"/></svg>' },
+    { name: 'Fragile', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect x="18" y="18" width="84" height="84" fill="none" stroke="#111827" stroke-width="4"/><path d="M60 28v64M44 44l16-16 16 16M44 76l16 16 16-16" stroke="#111827" stroke-width="6" fill="none" stroke-linecap="round"/></svg>' },
+    { name: 'Keep Dry', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M24 84h72" stroke="#111827" stroke-width="4"/><path d="M34 84c0-16 11-29 26-29s26 13 26 29" fill="none" stroke="#111827" stroke-width="4"/><path d="M60 24l-8 14h16z" fill="#0ea5e9"/></svg>' },
+  ];
+  const arrowElements = [
+    { name: 'Arrow Right', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M14 60h68l-18-20h22l20 20-20 20H64l18-20H14z" fill="#0f766e"/></svg>' },
+    { name: 'Arrow Left', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M106 60H38l18-20H34L14 60l20 20h22L38 60h68z" fill="#0f766e"/></svg>' },
+    { name: 'Arrow Up', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M60 14l20 20H64v72H56V34H40z" fill="#f97316"/></svg>' },
+    { name: 'Arrow Down', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M60 106l-20-20h16V14h8v72h16z" fill="#f97316"/></svg>' },
+    { name: 'Chevron Right', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M34 24l36 36-36 36" fill="none" stroke="#14b8a6" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>' },
+    { name: 'Double Arrow', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M16 60h88M76 40l20 20-20 20M44 40l20 20-20 20" fill="none" stroke="#0ea5e9" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>' },
+  ];
+  const frameElements = [
+    { name: 'Frame Floral', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect x="14" y="14" width="92" height="92" fill="none" stroke="#16a34a" stroke-width="3"/><path d="M18 38c10-4 18-12 22-20M102 82c-10 4-18 12-22 20" stroke="#15803d" stroke-width="3" fill="none"/></svg>' },
+    { name: 'Frame Thin', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect x="18" y="18" width="84" height="84" fill="none" stroke="#9ca3af" stroke-width="4"/><rect x="28" y="28" width="64" height="64" fill="none" stroke="#d1d5db" stroke-width="2"/></svg>' },
+    { name: 'Frame Stack', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect x="18" y="24" width="70" height="70" fill="none" stroke="#d1d5db" stroke-width="4"/><rect x="30" y="14" width="70" height="70" fill="none" stroke="#9ca3af" stroke-width="4"/></svg>' },
+    { name: 'Frame Rounded', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect x="16" y="16" width="88" height="88" rx="12" fill="none" stroke="#94a3b8" stroke-width="5"/><rect x="26" y="26" width="68" height="68" rx="8" fill="none" stroke="#cbd5e1" stroke-width="3"/></svg>' },
+    { name: 'Frame Badge', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><polygon points="60,10 74,22 92,22 98,40 110,54 102,70 106,88 88,94 74,108 56,100 38,104 28,88 12,78 18,60 10,42 28,32 38,16 56,20" fill="none" stroke="#a855f7" stroke-width="4"/></svg>' },
+    { name: 'Frame Circle', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><circle cx="60" cy="60" r="44" fill="none" stroke="#10b981" stroke-width="5"/><circle cx="60" cy="60" r="34" fill="none" stroke="#6ee7b7" stroke-width="3"/></svg>' },
+  ];
+  const toolsElements = [
+    { name: 'Paint Roller', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect x="16" y="24" width="64" height="20" rx="6" fill="#cbd5e1"/><path d="M80 34h12l12 12" stroke="#111827" stroke-width="5" fill="none"/><rect x="90" y="46" width="12" height="44" rx="4" fill="#2563eb"/><rect x="94" y="86" width="18" height="10" rx="3" transform="rotate(35 94 86)" fill="#f97316"/></svg>' },
+    { name: 'Tool Set', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect x="14" y="18" width="92" height="84" rx="8" fill="#fde68a"/><path d="M28 34l10 10M38 34l-10 10" stroke="#6b7280" stroke-width="5"/><circle cx="60" cy="60" r="14" fill="#ef4444"/><circle cx="60" cy="60" r="7" fill="#1d4ed8"/><rect x="76" y="34" width="22" height="10" rx="3" fill="#16a34a"/></svg>' },
+    { name: 'Cutter', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M24 84l48-60 24 24-48 60z" fill="#f59e0b"/><rect x="58" y="44" width="20" height="8" fill="#111827"/><circle cx="74" cy="78" r="13" fill="#2563eb"/><circle cx="74" cy="78" r="6" fill="#f8fafc"/></svg>' },
+    { name: 'Hammer Wrench', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M20 88l38-38 12 12-38 38z" fill="#f97316"/><path d="M74 20c8 0 14 6 14 14 0 3-1 6-3 8l-8-8-8 8-8-8c2-8 8-14 13-14z" fill="#9ca3af"/><path d="M56 66l20-20 26 26-20 20z" fill="#94a3b8"/></svg>' },
+    { name: 'Screwdriver', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect x="18" y="62" width="56" height="14" rx="7" fill="#2563eb"/><rect x="70" y="64" width="28" height="10" rx="4" fill="#6b7280"/><rect x="96" y="62" width="12" height="14" rx="3" fill="#111827"/></svg>' },
+    { name: 'Spanner', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M84 20a18 18 0 0 0-18 18l8 8-24 24-8-8a18 18 0 1 0 6 20l26-26 8 8a18 18 0 1 0 2-44z" fill="#9ca3af"/></svg>' },
+  ];
+  const signageElements = [
+    { name: 'No Entry Hand', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="#fff" stroke="#ef4444" stroke-width="9"/><path d="M38 72V54c0-5 8-5 8 0v10h4V50c0-6 8-6 8 0v14h4V52c0-6 8-6 8 0v20z" fill="#111827"/><line x1="25" y1="95" x2="95" y2="25" stroke="#ef4444" stroke-width="10"/></svg>' },
+    { name: 'No Person', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="#fff" stroke="#ef4444" stroke-width="9"/><circle cx="60" cy="38" r="8" fill="#111827"/><rect x="54" y="48" width="12" height="28" fill="#111827"/><line x1="25" y1="95" x2="95" y2="25" stroke="#ef4444" stroke-width="10"/></svg>' },
+    { name: 'No Walking', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="#fff" stroke="#ef4444" stroke-width="9"/><circle cx="62" cy="36" r="7" fill="#111827"/><path d="M58 46l10 10-6 10m-4-8-10 10m18 0 10 10" stroke="#111827" stroke-width="6" fill="none" stroke-linecap="round"/><line x1="25" y1="95" x2="95" y2="25" stroke="#ef4444" stroke-width="10"/></svg>' },
+    { name: 'No Running', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="#fff" stroke="#ef4444" stroke-width="9"/><circle cx="65" cy="34" r="7" fill="#111827"/><path d="M58 46l12 8-6 10m-6-2-10 10m16 0 12 8" stroke="#111827" stroke-width="6" fill="none" stroke-linecap="round"/><line x1="25" y1="95" x2="95" y2="25" stroke="#ef4444" stroke-width="10"/></svg>' },
+    { name: 'No Smoking', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="#fff" stroke="#ef4444" stroke-width="9"/><rect x="30" y="58" width="48" height="8" fill="#111827"/><rect x="78" y="58" width="10" height="8" fill="#ef4444"/><line x1="25" y1="95" x2="95" y2="25" stroke="#ef4444" stroke-width="10"/></svg>' },
+    { name: 'No Phone', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="#fff" stroke="#ef4444" stroke-width="9"/><rect x="44" y="32" width="32" height="54" rx="6" fill="none" stroke="#111827" stroke-width="6"/><circle cx="60" cy="78" r="3" fill="#111827"/><line x1="25" y1="95" x2="95" y2="25" stroke="#ef4444" stroke-width="10"/></svg>' },
+  ];
+  const weddingElements = [
+    { name: 'Wedding Cake', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect x="30" y="72" width="60" height="22" rx="5" fill="#f8fafc" stroke="#111827" stroke-width="3"/><rect x="38" y="50" width="44" height="20" rx="5" fill="#f8fafc" stroke="#111827" stroke-width="3"/><rect x="46" y="32" width="28" height="16" rx="5" fill="#f8fafc" stroke="#111827" stroke-width="3"/><circle cx="60" cy="28" r="4" fill="#f472b6"/></svg>' },
+    { name: 'Gift Box', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect x="24" y="42" width="72" height="54" rx="6" fill="#f8fafc" stroke="#111827" stroke-width="4"/><rect x="56" y="42" width="8" height="54" fill="#111827"/><rect x="24" y="56" width="72" height="8" fill="#111827"/><path d="M60 42c-7-8-16-6-16 0m16 0c7-8 16-6 16 0" stroke="#111827" stroke-width="3" fill="none"/></svg>' },
+    { name: 'Microphone', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect x="46" y="22" width="28" height="42" rx="14" fill="none" stroke="#111827" stroke-width="5"/><path d="M38 58a22 22 0 0 0 44 0M60 80v18M44 98h32" stroke="#111827" stroke-width="5" fill="none" stroke-linecap="round"/></svg>' },
+    { name: 'Floral Circle', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><circle cx="60" cy="60" r="38" fill="none" stroke="#d1d5db" stroke-width="3"/><path d="M22 66c8-16 22-28 38-32M98 66c-8-16-22-28-38-32" stroke="#86efac" stroke-width="3" fill="none"/></svg>' },
+    { name: 'Rings', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><circle cx="50" cy="64" r="20" fill="none" stroke="#111827" stroke-width="5"/><circle cx="72" cy="56" r="20" fill="none" stroke="#9ca3af" stroke-width="5"/></svg>' },
+    { name: 'Heart Frame', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M60 98S18 72 18 45c0-13 10-23 23-23 8 0 15 4 19 10 4-6 11-10 19-10 13 0 23 10 23 23 0 27-42 53-42 53z" fill="none" stroke="#ec4899" stroke-width="5"/></svg>' },
+  ];
+  const lineElements = [
+    { name: 'Solid Line', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><line x1="14" y1="60" x2="106" y2="60" stroke="#111827" stroke-width="5"/></svg>' },
+    { name: 'Dashed Line', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><line x1="14" y1="60" x2="106" y2="60" stroke="#6b7280" stroke-width="4" stroke-dasharray="6 6"/></svg>' },
+    { name: 'Curly Line', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M14 64c12-16 24-16 36 0s24 16 36 0 24-16 36 0" fill="none" stroke="#6b7280" stroke-width="4"/></svg>' },
+    { name: 'Double Line', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><line x1="14" y1="54" x2="106" y2="54" stroke="#111827" stroke-width="3"/><line x1="14" y1="66" x2="106" y2="66" stroke="#111827" stroke-width="3"/></svg>' },
+    { name: 'Wave Line', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M14 60c8 0 8-10 16-10s8 10 16 10 8-10 16-10 8 10 16 10 8-10 16-10 8 10 16 10" fill="none" stroke="#475569" stroke-width="4"/></svg>' },
+    { name: 'Dotted Line', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><line x1="14" y1="60" x2="106" y2="60" stroke="#6b7280" stroke-width="4" stroke-linecap="round" stroke-dasharray="1 9"/></svg>' },
+  ];
+
+  const matchesElementSearch = (label) => {
+    const q = elementSearch.trim().toLowerCase();
+    if (!q) return true;
+    return String(label || '').toLowerCase().includes(q);
   };
 
   const undo = () => {
@@ -1377,13 +1800,21 @@ const ProductDesigner = () => {
     canvas.setZoom(1);
     canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
     
-    // Hide only print area guides for export (keep t-shirt image and all design elements visible)
+    // Hide only guide overlays for export (keep design elements visible).
     const objects = canvas.getObjects();
     const hiddenObjects = [];
     
     objects.forEach(obj => {
-      // Only hide print area guides, keep everything else (base image, text, icons, etc.)
-      if (obj.name && obj.name.startsWith('print-area-')) {
+      // Only hide print/safe/cut guides, keep everything else.
+      if (
+        obj.name &&
+        (
+          obj.name.startsWith('print-area-') ||
+          obj.name.startsWith('cut-line-') ||
+          obj.name.startsWith('safe-area-') ||
+          obj.name.startsWith('drag-metric-')
+        )
+      ) {
         obj.visible = false;
         hiddenObjects.push(obj);
       }
@@ -1401,7 +1832,14 @@ const ProductDesigner = () => {
     
     // Ensure all user design elements are visible
     objects.forEach(obj => {
-      if (obj.name && !obj.name.startsWith('print-area-') && obj.name !== 'product-placeholder') {
+      if (
+        obj.name &&
+        !obj.name.startsWith('print-area-') &&
+        !obj.name.startsWith('cut-line-') &&
+        !obj.name.startsWith('safe-area-') &&
+        !obj.name.startsWith('drag-metric-') &&
+        obj.name !== 'product-placeholder'
+      ) {
         obj.set({
           visible: true,
           excludeFromExport: false
@@ -1454,6 +1892,25 @@ const ProductDesigner = () => {
     }, 100);
   };
 
+  const handleSaveAndDownload = () => {
+    if (isAuthenticated() && localStorage.getItem('token')) {
+      exportDesign();
+      return;
+    }
+    pendingExportRef.current = true;
+    setDesignerAuthOpen(true);
+  };
+
+  const handleCancelClick = () => {
+    setShowCancelModal(true);
+  };
+
+  const confirmCancel = () => {
+    setShowCancelModal(false);
+    const fallbackPath = location.state?.fromPath || '/';
+    navigate(savedDraft?.returnPath || fallbackPath);
+  };
+
   const updateSelectedObject = (property, value) => {
     if (!selectedObject || !canvas) return;
     
@@ -1461,17 +1918,20 @@ const ProductDesigner = () => {
     canvas.renderAll();
   };
 
+  const handleSidebarTabClick = (tab, tool = 'select') => {
+    setActiveTool(tool);
+    setSidebarTab(tab);
+    setIsLeftDrawerOpen(true);
+  };
+
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden">
       {/* Left Sidebar (Icon Rail + Panel) */}
-      <div className="flex h-full flex-shrink-0">
+      <div className={`flex h-full flex-shrink-0 transition-all duration-300 ${isLeftDrawerOpen ? 'w-[368px]' : 'w-20'}`}>
         {/* Icon Rail */}
         <div className="w-20 bg-white border-r border-gray-200 py-4 flex flex-col items-center gap-4 overflow-y-auto">
           <button
-            onClick={() => {
-              setSidebarTab('uploads');
-              setActiveTool('select');
-            }}
+            onClick={() => handleSidebarTabClick('uploads', 'select')}
             className="w-full flex flex-col items-center gap-2 px-2"
             title="Uploads"
           >
@@ -1484,10 +1944,7 @@ const ProductDesigner = () => {
           </button>
 
           <button
-            onClick={() => {
-              setSidebarTab('text');
-              setActiveTool('text');
-            }}
+            onClick={() => handleSidebarTabClick('text', 'text')}
             className="w-full flex flex-col items-center gap-2 px-2"
             title="Text"
           >
@@ -1500,10 +1957,7 @@ const ProductDesigner = () => {
           </button>
 
           <button
-            onClick={() => {
-              setSidebarTab('color');
-              setActiveTool('select');
-            }}
+            onClick={() => handleSidebarTabClick('color', 'select')}
             className="w-full flex flex-col items-center gap-2 px-2"
             title="Printing color"
           >
@@ -1517,10 +1971,7 @@ const ProductDesigner = () => {
           </button>
 
           <button
-            onClick={() => {
-              setSidebarTab('qr');
-              setActiveTool('select');
-            }}
+            onClick={() => handleSidebarTabClick('qr', 'select')}
             className="w-full flex flex-col items-center gap-2 px-2"
             title="QR code"
           >
@@ -1533,10 +1984,7 @@ const ProductDesigner = () => {
           </button>
 
           <button
-            onClick={() => {
-              setSidebarTab('elements');
-              setActiveTool('select');
-            }}
+            onClick={() => handleSidebarTabClick('elements', 'select')}
             className="w-full flex flex-col items-center gap-2 px-2"
             title="Elements"
           >
@@ -1550,27 +1998,93 @@ const ProductDesigner = () => {
         </div>
 
         {/* Panel */}
+        {isLeftDrawerOpen && (
         <div className="w-72 bg-white shadow-lg p-4 overflow-y-auto flex-shrink-0">
           <div className="flex items-center justify-between mb-5">
             <h3 className="font-bold text-gray-900">
               {sidebarTab === 'uploads' ? 'Uploads' : sidebarTab === 'text' ? 'Text' : sidebarTab === 'elements' ? 'Elements' : 'Printing color'}
             </h3>
-            <button
-              onClick={() => setSidebarTab('text')}
-              className="text-xs px-2 py-1 rounded hover:bg-gray-100 text-gray-600"
-              title="Reset panel"
-            >
-              Reset
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setSidebarTab('text')}
+                className="text-xs px-2 py-1 rounded hover:bg-gray-100 text-gray-600"
+                title="Reset panel"
+              >
+                Reset
+              </button>
+              <button
+                onClick={() => setIsLeftDrawerOpen(false)}
+                className="w-7 h-7 rounded-md hover:bg-gray-100 text-gray-600 flex items-center justify-center"
+                title="Close panel"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           {/* Elements Library */}
           {sidebarTab === 'elements' && (
             <div className="space-y-6">
+              {iconifyCategories.map((category) => {
+                const query = categoryQueries[category.id] ?? category.defaultQuery;
+                const icons = iconResultsByCategory[category.id] || [];
+                const isLoading = iconLoadingByCategory[category.id];
+                const error = iconErrorByCategory[category.id];
+                const visibleIcons = (showAllByCategory[category.id] ? icons : icons.slice(0, 8));
+
+                return (
+                  <div key={category.id}>
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-sm font-semibold text-gray-900">{category.label}</h4>
+                      <button
+                        onClick={() => toggleShowAllForCategory(category.id)}
+                        className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                      >
+                        {showAllByCategory[category.id] ? 'Show less' : 'View all'}
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={query}
+                      onChange={(e) => handleCategoryQueryChange(category.id, e.target.value)}
+                      placeholder={`Search ${category.label.toLowerCase()} icons`}
+                      className="w-full p-2 mb-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs"
+                    />
+                    {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
+                    {isLoading ? (
+                      <p className="text-xs text-gray-500 mb-2">Loading icons...</p>
+                    ) : (
+                      <div className="grid grid-cols-4 gap-3">
+                        {visibleIcons.map((iconName) => (
+                          <button
+                            key={iconName}
+                            onClick={() => addIconifyIconToCanvas(iconName)}
+                            className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors flex items-center justify-center"
+                            title={iconName}
+                          >
+                            <img
+                              src={`https://api.iconify.design/${encodeURIComponent(iconName)}.svg?width=28&height=28`}
+                              alt={iconName}
+                              className="w-7 h-7"
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {false && (
+                <>
               {/* Search Bar */}
               <div className="relative">
                 <input
                   type="text"
+                  value={elementSearch}
+                  onChange={(e) => setElementSearch(e.target.value)}
                   placeholder="Browse our free resources"
                   className="w-full p-2 pl-10 pr-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 />
@@ -1600,7 +2114,7 @@ const ProductDesigner = () => {
                     { name: 'LinkedIn', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#0077B5"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>' },
                     { name: 'YouTube', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#FF0000"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>' },
                     { name: 'TikTok', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#000000"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>' }
-                  ].slice(0, showAllSocials ? undefined : 4).map((icon, idx) => (
+                  ].filter((icon) => matchesElementSearch(icon.name)).slice(0, showAllSocials ? undefined : 4).map((icon, idx) => (
                     <button
                       key={idx}
                       onClick={() => addIconToCanvas(icon.svg, icon.name)}
@@ -1625,7 +2139,10 @@ const ProductDesigner = () => {
                   </button>
                 </div>
                 <div className="grid grid-cols-4 gap-3">
-                  {['😇', '😢', '😊', '😮', '❤️', '👍', '🎉', '⭐', '🔥', '💯', '🎊', '✨', '🌟', '💫', '🎈', '🎁'].slice(0, showAllEmojis ? undefined : 4).map((emoji, idx) => (
+                  {['😇', '😢', '😊', '😮', '❤️', '👍', '🎉', '⭐', '🔥', '💯', '🎊', '✨', '🌟', '💫', '🎈', '🎁']
+                    .filter((emoji) => matchesElementSearch(emoji))
+                    .slice(0, showAllEmojis ? undefined : 4)
+                    .map((emoji, idx) => (
                     <button
                       key={idx}
                       onClick={() => addEmojiToCanvas(emoji)}
@@ -1658,7 +2175,7 @@ const ProductDesigner = () => {
                     { name: 'At Symbol', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000000" strokeWidth="2"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg>' },
                     { name: 'Calendar', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000000" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' },
                     { name: 'Clock', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000000" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>' }
-                  ].slice(0, showAllContacts ? undefined : 4).map((icon, idx) => (
+                  ].filter((icon) => matchesElementSearch(icon.name)).slice(0, showAllContacts ? undefined : 4).map((icon, idx) => (
                     <button
                       key={idx}
                       onClick={() => addIconToCanvas(icon.svg, icon.name)}
@@ -1692,7 +2209,7 @@ const ProductDesigner = () => {
                     { name: 'Polygon', type: 'polygon' },
                     { name: 'Star', type: 'star' },
                     { name: 'Arrow', type: 'arrow' }
-                  ].slice(0, showAllShapes ? undefined : 4).map((shape, idx) => (
+                  ].filter((shape) => matchesElementSearch(shape.name)).slice(0, showAllShapes ? undefined : 4).map((shape, idx) => (
                     <button
                       key={idx}
                       onClick={() => addShapeToCanvas(shape.type)}
@@ -1711,6 +2228,372 @@ const ProductDesigner = () => {
                   ))}
                 </div>
               </div>
+
+              {/* Christmas */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-900">Christmas</h4>
+                  <button
+                    onClick={() => setShowAllChristmas(!showAllChristmas)}
+                    className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                  >
+                    {showAllChristmas ? 'Show less' : 'View all'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {christmasElements
+                    .filter((icon) => matchesElementSearch(icon.name))
+                    .slice(0, showAllChristmas ? undefined : 4)
+                    .map((icon, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => addIconToCanvas(icon.svg, icon.name)}
+                        className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors flex items-center justify-center"
+                        title={icon.name}
+                      >
+                        <div className="w-8 h-8" dangerouslySetInnerHTML={{ __html: icon.svg }} />
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {/* Brush Strokes */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-900">Brush Strokes</h4>
+                  <button
+                    onClick={() => setShowAllBrushStrokes(!showAllBrushStrokes)}
+                    className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                  >
+                    {showAllBrushStrokes ? 'Show less' : 'View all'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {brushStrokeElements
+                    .filter((icon) => matchesElementSearch(icon.name))
+                    .slice(0, showAllBrushStrokes ? undefined : 4)
+                    .map((icon, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => addIconToCanvas(icon.svg, icon.name)}
+                        className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors flex items-center justify-center"
+                        title={icon.name}
+                      >
+                        <div className="w-8 h-8" dangerouslySetInnerHTML={{ __html: icon.svg }} />
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {/* Animals */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-900">Animals</h4>
+                  <button
+                    onClick={() => setShowAllAnimals(!showAllAnimals)}
+                    className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                  >
+                    {showAllAnimals ? 'Show less' : 'View all'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {animalEmojis
+                    .filter((emoji) => matchesElementSearch(emoji))
+                    .slice(0, showAllAnimals ? undefined : 4)
+                    .map((emoji, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => addEmojiToCanvas(emoji)}
+                        className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors text-2xl"
+                        title={emoji}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {/* Floral */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-900">Floral</h4>
+                  <button onClick={() => setShowAllFloral(!showAllFloral)} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                    {showAllFloral ? 'Show less' : 'View all'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {floralElements
+                    .filter((icon) => matchesElementSearch(icon.name))
+                    .slice(0, showAllFloral ? undefined : 4)
+                    .map((icon, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => addIconToCanvas(icon.svg, icon.name)}
+                        className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors flex items-center justify-center"
+                        title={icon.name}
+                      >
+                        <div className="w-10 h-10" dangerouslySetInnerHTML={{ __html: icon.svg }} />
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {/* Food & Beverage */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-900">Food & Beverage</h4>
+                  <button onClick={() => setShowAllFood(!showAllFood)} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                    {showAllFood ? 'Show less' : 'View all'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {foodEmojis
+                    .filter((emoji) => matchesElementSearch(emoji))
+                    .slice(0, showAllFood ? undefined : 4)
+                    .map((emoji, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => addEmojiToCanvas(emoji)}
+                        className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors text-2xl"
+                        title={emoji}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {/* Baby */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-900">Baby</h4>
+                  <button onClick={() => setShowAllBaby(!showAllBaby)} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                    {showAllBaby ? 'Show less' : 'View all'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {babyEmojis
+                    .filter((emoji) => matchesElementSearch(emoji))
+                    .slice(0, showAllBaby ? undefined : 4)
+                    .map((emoji, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => addEmojiToCanvas(emoji)}
+                        className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors text-2xl"
+                        title={emoji}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {/* Kids */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-900">Kids</h4>
+                  <button onClick={() => setShowAllKids(!showAllKids)} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                    {showAllKids ? 'Show less' : 'View all'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {kidsEmojis
+                    .filter((emoji) => matchesElementSearch(emoji))
+                    .slice(0, showAllKids ? undefined : 4)
+                    .map((emoji, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => addEmojiToCanvas(emoji)}
+                        className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors text-2xl"
+                        title={emoji}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {/* Safety */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-900">Safety</h4>
+                  <button onClick={() => setShowAllSafety(!showAllSafety)} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                    {showAllSafety ? 'Show less' : 'View all'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {safetyElements
+                    .filter((icon) => matchesElementSearch(icon.name))
+                    .slice(0, showAllSafety ? undefined : 4)
+                    .map((icon, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => addIconToCanvas(icon.svg, icon.name)}
+                        className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors flex items-center justify-center"
+                        title={icon.name}
+                      >
+                        <div className="w-10 h-10" dangerouslySetInnerHTML={{ __html: icon.svg }} />
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {/* Packaging */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-900">Packaging</h4>
+                  <button onClick={() => setShowAllPackaging(!showAllPackaging)} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                    {showAllPackaging ? 'Show less' : 'View all'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {packagingElements
+                    .filter((icon) => matchesElementSearch(icon.name))
+                    .slice(0, showAllPackaging ? undefined : 4)
+                    .map((icon, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => addIconToCanvas(icon.svg, icon.name)}
+                        className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors flex items-center justify-center"
+                        title={icon.name}
+                      >
+                        <div className="w-10 h-10" dangerouslySetInnerHTML={{ __html: icon.svg }} />
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {/* Arrows */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-900">Arrows</h4>
+                  <button onClick={() => setShowAllArrows(!showAllArrows)} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                    {showAllArrows ? 'Show less' : 'View all'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {arrowElements
+                    .filter((icon) => matchesElementSearch(icon.name))
+                    .slice(0, showAllArrows ? undefined : 4)
+                    .map((icon, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => addIconToCanvas(icon.svg, icon.name)}
+                        className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors flex items-center justify-center"
+                        title={icon.name}
+                      >
+                        <div className="w-10 h-10" dangerouslySetInnerHTML={{ __html: icon.svg }} />
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {/* Frames */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-900">Frames</h4>
+                  <button onClick={() => setShowAllFrames(!showAllFrames)} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                    {showAllFrames ? 'Show less' : 'View all'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {frameElements
+                    .filter((icon) => matchesElementSearch(icon.name))
+                    .slice(0, showAllFrames ? undefined : 4)
+                    .map((icon, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => addIconToCanvas(icon.svg, icon.name)}
+                        className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors flex items-center justify-center"
+                        title={icon.name}
+                      >
+                        <div className="w-10 h-10" dangerouslySetInnerHTML={{ __html: icon.svg }} />
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {/* Tools */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-900">Tools</h4>
+                  <button onClick={() => setShowAllTools(!showAllTools)} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                    {showAllTools ? 'Show less' : 'View all'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {toolsElements
+                    .filter((icon) => matchesElementSearch(icon.name))
+                    .slice(0, showAllTools ? undefined : 4)
+                    .map((icon, idx) => (
+                      <button key={idx} onClick={() => addIconToCanvas(icon.svg, icon.name)} className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors flex items-center justify-center" title={icon.name}>
+                        <div className="w-10 h-10" dangerouslySetInnerHTML={{ __html: icon.svg }} />
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {/* Signage */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-900">Signage</h4>
+                  <button onClick={() => setShowAllSignage(!showAllSignage)} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                    {showAllSignage ? 'Show less' : 'View all'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {signageElements
+                    .filter((icon) => matchesElementSearch(icon.name))
+                    .slice(0, showAllSignage ? undefined : 4)
+                    .map((icon, idx) => (
+                      <button key={idx} onClick={() => addIconToCanvas(icon.svg, icon.name)} className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors flex items-center justify-center" title={icon.name}>
+                        <div className="w-10 h-10" dangerouslySetInnerHTML={{ __html: icon.svg }} />
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {/* Wedding */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-900">Wedding</h4>
+                  <button onClick={() => setShowAllWedding(!showAllWedding)} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                    {showAllWedding ? 'Show less' : 'View all'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {weddingElements
+                    .filter((icon) => matchesElementSearch(icon.name))
+                    .slice(0, showAllWedding ? undefined : 4)
+                    .map((icon, idx) => (
+                      <button key={idx} onClick={() => addIconToCanvas(icon.svg, icon.name)} className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors flex items-center justify-center" title={icon.name}>
+                        <div className="w-10 h-10" dangerouslySetInnerHTML={{ __html: icon.svg }} />
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {/* Lines */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-900">Lines</h4>
+                  <button onClick={() => setShowAllLines(!showAllLines)} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                    {showAllLines ? 'Show less' : 'View all'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {lineElements
+                    .filter((icon) => matchesElementSearch(icon.name))
+                    .slice(0, showAllLines ? undefined : 4)
+                    .map((icon, idx) => (
+                      <button key={idx} onClick={() => addIconToCanvas(icon.svg, icon.name)} className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors flex items-center justify-center" title={icon.name}>
+                        <div className="w-10 h-10" dangerouslySetInnerHTML={{ __html: icon.svg }} />
+                      </button>
+                    ))}
+                </div>
+              </div>
+                </>
+              )}
             </div>
           )}
 
@@ -2077,6 +2960,7 @@ const ProductDesigner = () => {
             </p>
           </div>
         </div>
+        )}
       </div>
 
       {/* Main Canvas Area */}
@@ -2121,17 +3005,6 @@ const ProductDesigner = () => {
               </svg>
             </button>
 
-            {/* Product selector */}
-            <select
-              value={currentProductType}
-              onChange={(e) => setCurrentProductType(e.target.value)}
-              className="ml-4 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              <option value="pen">Pen</option>
-              <option value="tshirt">T-Shirt</option>
-              <option value="mug">Mug</option>
-            </select>
           </div>
 
           {/* Text formatting toolbar */}
@@ -2259,7 +3132,7 @@ const ProductDesigner = () => {
           {/* Actions */}
           <div className="flex gap-2 flex-shrink-0 ml-2">
             <button 
-              onClick={() => navigate(-1)}
+              onClick={handleCancelClick}
               className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm whitespace-nowrap"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
@@ -2268,19 +3141,117 @@ const ProductDesigner = () => {
           </div>
         </div>
 
-        {/* Canvas */}
-        <div className="flex-1 overflow-auto bg-gray-200 p-3" id="canvas-container">
-          <div className="flex items-center justify-center h-full">
-            <div className="bg-white shadow-2xl rounded-lg p-2 inline-block" style={{ maxWidth: 'calc(100% - 2rem)', maxHeight: 'calc(100% - 2rem)' }}>
-              <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }} />
+        {/* Canvas + Side selector */}
+        <div className="flex-1 flex min-h-0 bg-gray-200">
+          <div className="flex-1 overflow-auto p-2 md:p-3" id="canvas-container">
+            <div className="flex items-center justify-center h-full">
+              <div className="relative inline-block pt-10 px-4 pb-14" style={{ maxWidth: 'calc(100% - 1rem)', maxHeight: 'calc(100% - 1rem)' }}>
+                {/* Reference labels */}
+                <div className="absolute -top-1 right-4 flex items-center gap-2">
+                  <span className="px-3 py-1 rounded-full text-xs font-semibold text-gray-700 bg-yellow-300">
+                    Cut line
+                  </span>
+                  <span className="px-3 py-1 rounded-full text-xs font-semibold text-gray-700 bg-lime-300">
+                    Safe area
+                  </span>
+                </div>
+
+                {/* Canvas card */}
+                <div className="relative bg-white shadow-2xl rounded-lg p-2 inline-block">
+                  {/* Left dimension line - fully outside canvas/card */}
+                  <div className="absolute right-full top-1/2 -translate-y-1/2 mr-6 h-[calc(100%+8px)] flex flex-col items-center justify-center">
+                    <div className="w-px flex-1 bg-gray-300" />
+                    <div
+                      className="py-1 text-gray-400 text-[11px] font-medium whitespace-nowrap leading-none bg-gray-200"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    >
+                      {displayHeightMm}mm
+                    </div>
+                    <div className="w-px flex-1 bg-gray-300" />
+                  </div>
+
+                  <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }} />
+
+                  {/* Bottom dimension line - fully outside canvas/card */}
+                  <div className="absolute left-0 right-0 top-full mt-4 flex items-center">
+                    <div className="h-px flex-1 bg-gray-300" />
+                  <div className="px-3 text-gray-400 text-[11px] font-medium whitespace-nowrap" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      {displayWidthMm}mm
+                    </div>
+                    <div className="h-px flex-1 bg-gray-300" />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
+
+          {isDoubleSided && (
+            <div className="w-64 bg-white border-l border-gray-200 p-3 overflow-y-auto">
+              <h4 className="text-sm font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                Print Sides
+              </h4>
+              <div className="space-y-3">
+                <button
+                  onClick={() => handleSideSwitch('front')}
+                  disabled={isSwitchingSide}
+                  className={`w-full text-left rounded-lg border p-3 transition-colors ${
+                    activePrintSide === 'front'
+                      ? 'border-emerald-500 bg-emerald-50'
+                      : 'border-gray-200 hover:bg-gray-50'
+                  } ${isSwitchingSide ? 'opacity-60 cursor-not-allowed' : ''}`}
+                >
+                  <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Front Print</p>
+                  <div className="mt-2 h-20 rounded-md border border-gray-200 bg-white overflow-hidden flex items-center justify-center">
+                    {sidePreviewUrls.front ? (
+                      <img src={sidePreviewUrls.front} alt="Front preview" className="w-full h-full object-contain" />
+                    ) : (
+                      <span className="text-[11px] text-gray-400" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>No preview yet</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Design front side artwork</p>
+                </button>
+
+                <button
+                  onClick={() => handleSideSwitch('back')}
+                  disabled={isSwitchingSide}
+                  className={`w-full text-left rounded-lg border p-3 transition-colors ${
+                    activePrintSide === 'back'
+                      ? 'border-emerald-500 bg-emerald-50'
+                      : 'border-gray-200 hover:bg-gray-50'
+                  } ${isSwitchingSide ? 'opacity-60 cursor-not-allowed' : ''}`}
+                >
+                  <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Back Print</p>
+                  <div className="mt-2 h-20 rounded-md border border-gray-200 bg-white overflow-hidden flex items-center justify-center">
+                    {sidePreviewUrls.back ? (
+                      <img src={sidePreviewUrls.back} alt="Back preview" className="w-full h-full object-contain" />
+                    ) : (
+                      <span className="text-[11px] text-gray-400" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>No preview yet</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Design back side artwork</p>
+                </button>
+              </div>
+
+              <div className="mt-4 p-2 rounded-md bg-gray-50 border border-gray-200">
+                <p className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  Currently editing: <span className="font-semibold text-gray-800">{activePrintSide === 'front' ? 'Front Print' : 'Back Print'}</span>
+                </p>
+                {isSwitchingSide && (
+                  <p className="text-[11px] text-emerald-700 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    Switching side...
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Bottom Controls */}
         <div className="bg-white shadow-md p-3 flex items-center justify-between flex-shrink-0">
           <div className="text-gray-600 font-medium" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-            Page 1/1
+            {isDoubleSided
+              ? `Page ${activePrintSide === 'front' ? '1/2' : '2/2'}`
+              : 'Page 1/1'}
           </div>
           <div className="flex gap-4 items-center">
             <button 
@@ -2323,7 +3294,7 @@ const ProductDesigner = () => {
               Preview
             </button>
             <button 
-              onClick={exportDesign}
+              onClick={handleSaveAndDownload}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center gap-2"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
@@ -2335,6 +3306,61 @@ const ProductDesigner = () => {
           </div>
         </div>
       </div>
+
+      <DesignerAuthModal
+        open={designerAuthOpen}
+        onClose={() => {
+          setDesignerAuthOpen(false);
+          pendingExportRef.current = false;
+        }}
+        onAuthenticated={async () => {
+          if (pendingExportRef.current) {
+            pendingExportRef.current = false;
+            exportDesign();
+          }
+        }}
+        title="Continue to Download"
+        subtitle="Please sign in to save and download your design."
+        verifyOtpButtonLabel="Verify & Download"
+        signInButtonLabel="Sign In & Download"
+      />
+
+      {showCancelModal && (
+        <div className="fixed inset-0 z-[70] bg-slate-900/45 backdrop-blur-sm flex items-center justify-center p-4">
+          <div
+            className="w-full max-w-md rounded-xl bg-white shadow-[0_25px_50px_-12px_rgba(15,23,42,0.35)] border border-slate-200 overflow-hidden"
+            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cancel-design-title"
+          >
+            <div className="px-5 py-4 border-b border-slate-200 bg-slate-50">
+              <h3 id="cancel-design-title" className="text-base font-semibold text-slate-900">
+                Leave Designer?
+              </h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Your unsaved changes may be lost. Are you sure you want to cancel?
+              </p>
+            </div>
+            <div className="px-5 py-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCancelModal(false)}
+                className="px-4 py-2 rounded-md border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-colors text-sm font-medium"
+              >
+                Stay
+              </button>
+              <button
+                type="button"
+                onClick={confirmCancel}
+                className="px-4 py-2 rounded-md bg-rose-600 text-white hover:bg-rose-700 transition-colors text-sm font-semibold"
+              >
+                Yes, Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

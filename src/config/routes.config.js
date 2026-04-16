@@ -130,12 +130,12 @@ export const routes = [
   {
     path: "/product-designer",
     component: ProductDesigner,
-    layout: "default",
+    layout: "minimal",
   },
   {
     path: "/generic-product-designer",
     component: GenericProductDesigner,
-    layout: "default",
+    layout: "minimal",
   },
   // Featured signage dedicated pages
   {

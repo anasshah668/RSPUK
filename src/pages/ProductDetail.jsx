@@ -1,15 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import { useCart } from '../context/CartContext';
 import { productService } from '../services/productService';
 import { thirdPartyService } from '../services/thirdPartyService';
 import { decryptId } from '../utils/encryption';
 import EndBenefitsStrip from '../components/EndBenefitsStrip';
+import { saveProductDetailDraft } from '../store/designerSessionSlice';
 
 const ProductDetail = ({ productType, productId, product: productProp }) => {
   const { category, productName, encryptedId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const dispatch = useDispatch();
+  const savedDraft = useSelector((state) => state.designerSession?.productDetailDraft);
   const { addToCart } = useCart();
   const [designOption, setDesignOption] = useState('custom'); // 'custom' or 'upload'
   const [uploadedImage, setUploadedImage] = useState(null);
@@ -35,6 +40,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const [expectedDeliveryByOption, setExpectedDeliveryByOption] = useState({});
   const [deliveryPostcode, setDeliveryPostcode] = useState('');
   const [quantitiesOptions, setQuantitiesOptions] = useState([]);
+  const hasHydratedDraftRef = useRef(false);
 
   // Initialize with productProp if available, then fetch from URL params or productId
   useEffect(() => {
@@ -171,6 +177,24 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     setSelectedAttributeValues(initialValues);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?._id, productProp?._id, hasDynamicAttributes]);
+
+  useEffect(() => {
+    if (hasHydratedDraftRef.current) return;
+    if (!savedDraft) return;
+    if (savedDraft.productRouteKey !== location.pathname) return;
+
+    setDesignOption(savedDraft.designOption || 'custom');
+    setSelectedSize(savedDraft.selectedSize || '');
+    setQuantity(Number(savedDraft.quantity) > 0 ? Number(savedDraft.quantity) : 1);
+    setMaterial(savedDraft.material || '450gsm-silk-finish');
+    setSidesPrinted(savedDraft.sidesPrinted || 'double-sided');
+    setLamination(savedDraft.lamination || 'both-sides-matt');
+    setRoundCorners(savedDraft.roundCorners || 'no');
+    setDeliveryOption(savedDraft.deliveryOption || 'saver');
+    deliveryOptionRef.current = savedDraft.deliveryOption || 'saver';
+    setSelectedAttributeValues(savedDraft.selectedAttributeValues || {});
+    hasHydratedDraftRef.current = true;
+  }, [savedDraft, location.pathname]);
 
   useEffect(() => {
     setSelectedImageIndex(0);
@@ -396,6 +420,18 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const pricingTable = getEffectivePricingTable();
   const hasDeliveryPricing = !!pricingTable?.enabled;
   const deliveryOptions = Array.isArray(pricingTable?.deliveryOptions) ? pricingTable.deliveryOptions : [];
+  const fallbackQuantityOptions = [1, 10, 25, 50, 100, 250, 500, 1000];
+  const availableQuantityOptions = Array.from(
+    new Set(
+      (quantitiesOptions.length > 0
+        ? quantitiesOptions
+        : [...fallbackQuantityOptions, Number(quantity) > 0 ? Number(quantity) : 1]
+      )
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value) && value > 0)
+        .sort((a, b) => a - b)
+    )
+  );
   const saverOpt = deliveryOptions.find(o => o.key === 'saver');
   const standardOpt = deliveryOptions.find(o => o.key === 'standard');
   const expressOpt = deliveryOptions.find(o => o.key === 'express');
@@ -561,9 +597,26 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       queryParams.set(safeKey, String(value));
     });
 
+    dispatch(
+      saveProductDetailDraft({
+        productRouteKey: location.pathname,
+        returnPath: location.pathname,
+        designOption,
+        selectedSize,
+        quantity,
+        material,
+        sidesPrinted,
+        lamination,
+        roundCorners,
+        deliveryOption: deliveryOptionRef.current || deliveryOption,
+        selectedAttributeValues,
+      })
+    );
+
     // Navigate to product designer with both URL params and state.
     navigate(`/product-designer?${queryParams.toString()}`, {
       state: { 
+        fromPath: location.pathname,
         productType: type === 'business-card' ? 'business-card' : type,
         productCategory: category,
         uploadedImage: imageToUse,
@@ -1436,45 +1489,16 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                     <label className="block text-xs font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                       Quantity
                     </label>
-                    {quantitiesOptions.length > 0 ? (
-                      <select
-                        value={quantity}
-                        onChange={(e) => setQuantity(Number(e.target.value))}
-                        className="w-full max-w-xs px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                        style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                      >
-                        {quantitiesOptions.map((q) => (
-                          <option key={q} value={q}>{q}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                          className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-100 transition-colors"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                          </svg>
-                        </button>
-                        <input
-                          type="number"
-                          min="1"
-                          value={quantity}
-                          onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                          className="w-16 px-2 py-1.5 border border-gray-300 rounded text-center font-semibold text-sm"
-                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                        />
-                        <button
-                          onClick={() => setQuantity(quantity + 1)}
-                          className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-100 transition-colors"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                          </svg>
-                        </button>
-                      </div>
-                    )}
+                    <select
+                      value={quantity}
+                      onChange={(e) => setQuantity(Number(e.target.value))}
+                      className="w-full max-w-xs px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    >
+                      {availableQuantityOptions.map((q) => (
+                        <option key={q} value={q}>{q}</option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Design Options */}
