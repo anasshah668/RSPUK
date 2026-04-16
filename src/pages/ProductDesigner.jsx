@@ -67,6 +67,12 @@ const ProductDesigner = () => {
   const [isLeftDrawerOpen, setIsLeftDrawerOpen] = useState(false);
   const [isSwitchingSide, setIsSwitchingSide] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [show3DPreviewModal, setShow3DPreviewModal] = useState(false);
+  const [previewRotationY, setPreviewRotationY] = useState(-24);
+  const previewRotationTargetRef = useRef(-24);
+  const fontPickerRef = useRef(null);
+  const [fontSearch, setFontSearch] = useState('');
+  const [showFontPicker, setShowFontPicker] = useState(false);
   const [designerAuthOpen, setDesignerAuthOpen] = useState(false);
   const sideDesignsRef = useRef({ front: [], back: [] });
   const sideBackgroundsRef = useRef({
@@ -80,6 +86,60 @@ const ProductDesigner = () => {
 
   const [currentProductType, setCurrentProductType] = useState(productType);
   const [dynamicPrintAreas, setDynamicPrintAreas] = useState([]);
+
+  const fonts = [
+    { name: 'Allura', label: 'Allura' },
+    { name: 'Great Vibes', label: 'Great Vibes' },
+    { name: 'Alex Brush', label: 'Alex Brush' },
+    { name: 'Caveat', label: 'Caveat' },
+    { name: 'Dancing Script', label: 'Dancing Script' },
+    { name: 'Italianno', label: 'Italianno' },
+    { name: 'Kalam', label: 'Kalam' },
+    { name: 'Lobster', label: 'Lobster' },
+    { name: 'Pacifico', label: 'Pacifico' },
+    { name: 'Parisienne', label: 'Parisienne' },
+    { name: 'Sacramento', label: 'Sacramento' },
+    { name: 'Satisfy', label: 'Satisfy' },
+    { name: 'Tangerine', label: 'Tangerine' },
+    { name: 'Yellowtail', label: 'Yellowtail' },
+    { name: 'Anton', label: 'Anton' },
+    { name: 'Archivo Black', label: 'Archivo Black' },
+    { name: 'Barlow Condensed', label: 'Barlow Condensed' },
+    { name: 'Bebas Neue', label: 'Bebas Neue' },
+    { name: 'Permanent Marker', label: 'Permanent Marker' },
+    { name: 'Inter', label: 'Inter' },
+    { name: 'Lexend Deca', label: 'Lexend Deca' },
+    { name: 'Lato', label: 'Lato' },
+    { name: 'Merriweather', label: 'Merriweather' },
+    { name: 'Montserrat', label: 'Montserrat' },
+    { name: 'Nunito', label: 'Nunito' },
+    { name: 'Open Sans', label: 'Open Sans' },
+    { name: 'Oswald', label: 'Oswald' },
+    { name: 'Playfair Display', label: 'Playfair Display' },
+    { name: 'Poppins', label: 'Poppins' },
+    { name: 'Quicksand', label: 'Quicksand' },
+    { name: 'Raleway', label: 'Raleway' },
+    { name: 'Roboto', label: 'Roboto' },
+    { name: 'Roboto Serif', label: 'Roboto Serif' },
+    { name: 'Rubik', label: 'Rubik' },
+    { name: 'Arial', label: 'Arial' },
+    { name: 'Comic Sans MS', label: 'Comic Sans MS' },
+    { name: 'Courier New', label: 'Courier New' },
+    { name: 'Garamond', label: 'Garamond' },
+    { name: 'Georgia', label: 'Georgia' },
+    { name: 'Helvetica', label: 'Helvetica' },
+    { name: 'Impact', label: 'Impact' },
+    { name: 'Lucida Console', label: 'Lucida Console' },
+    { name: 'Monaco', label: 'Monaco' },
+    { name: 'Palatino', label: 'Palatino' },
+    { name: 'Tahoma', label: 'Tahoma' },
+    { name: 'Times New Roman', label: 'Times New Roman' },
+    { name: 'Trebuchet MS', label: 'Trebuchet MS' },
+    { name: 'Verdana', label: 'Verdana' },
+  ];
+  const filteredFonts = fonts.filter((font) =>
+    font.label.toLowerCase().includes((fontSearch || '').toLowerCase())
+  );
 
   const isDoubleSided = ['double-sided', 'double sided', 'double', 'both', 'both-sides']
     .includes(String(sidePrintedParam || '').trim().toLowerCase());
@@ -103,6 +163,23 @@ const ProductDesigner = () => {
   useEffect(() => {
     isDoubleSidedRef.current = isDoubleSided;
   }, [isDoubleSided]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (fontPickerRef.current && !fontPickerRef.current.contains(event.target)) {
+        setShowFontPicker(false);
+      }
+    };
+
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (designerAuthOpen || showCancelModal || show3DPreviewModal) {
+      setShowFontPicker(false);
+    }
+  }, [designerAuthOpen, showCancelModal, show3DPreviewModal]);
 
   useEffect(() => {
     const previousHtmlOverflow = document.documentElement.style.overflow;
@@ -147,6 +224,53 @@ const ProductDesigner = () => {
     });
 
     try {
+      const previewBackgroundStyle = sideBackgroundsRef.current[side] || { kind: 'solid', color: '#ffffff' };
+      const previewSafeArea = safeConstraintAreas[0] || fullCanvasArea;
+      const previewSafeBounds = previewSafeArea?.bounds || {
+        left: 0,
+        top: 0,
+        right: canvasWidth,
+        bottom: canvasHeight,
+      };
+      const previewSafeFill = new fabric.Rect({
+        left: previewSafeBounds.left,
+        top: previewSafeBounds.top,
+        width: Math.max(1, previewSafeBounds.right - previewSafeBounds.left),
+        height: Math.max(1, previewSafeBounds.bottom - previewSafeBounds.top),
+        fill: '#ffffff',
+        selectable: false,
+        evented: false,
+      });
+
+      if (previewBackgroundStyle?.kind === 'pattern' && previewBackgroundStyle.patternConfig) {
+        const previewPattern = createFabricPattern(
+          previewBackgroundStyle.patternConfig.type,
+          previewBackgroundStyle.patternConfig.foreground,
+          previewBackgroundStyle.patternConfig.background
+        );
+        if (previewPattern) {
+          previewSafeFill.set('fill', previewPattern);
+        }
+      } else if (previewBackgroundStyle?.kind === 'image' && previewBackgroundStyle.imageSrc) {
+        const previewImageFill = await createImageFillForSafeArea(
+          previewSafeFill,
+          previewBackgroundStyle.imageSrc,
+          previewBackgroundStyle.mode || 'single'
+        );
+        if (previewImageFill) {
+          previewSafeFill.set('fill', previewImageFill);
+        }
+      } else {
+        previewSafeFill.set(
+          'fill',
+          previewBackgroundStyle?.color === 'transparent'
+            ? 'transparent'
+            : (previewBackgroundStyle?.color || '#ffffff')
+        );
+      }
+
+      previewCanvas.add(previewSafeFill);
+
       if (objectJsonList?.length) {
         await new Promise((resolve) => {
           fabric.util.enlivenObjects(objectJsonList, (objs) => {
@@ -158,7 +282,8 @@ const ProductDesigner = () => {
       previewCanvas.renderAll();
       const previewUrl = previewCanvas.toDataURL({
         format: 'png',
-        multiplier: 0.35,
+        multiplier: 2,
+        enableRetinaScaling: true,
       });
       setSidePreviewUrls((prev) => ({ ...prev, [side]: previewUrl }));
     } catch (error) {
@@ -377,6 +502,81 @@ const ProductDesigner = () => {
     { id: 'diagonal-berry', name: 'Berry Diagonal', type: 'diagonal', foreground: '#b91c1c', background: '#fff7f7', category: 'Bold' },
     { id: 'diagonal-lavender', name: 'Lavender Diagonal', type: 'diagonal', foreground: '#8b5cf6', background: '#faf5ff', category: 'Floral' },
   ];
+
+  const freeBackgroundLibrary = (() => {
+    const buildCategory = (category, type, palettePairs) =>
+      palettePairs.map(([foreground, background], index) => ({
+        id: `free-${category.toLowerCase()}-${type}-${index + 1}`,
+        name: `${category} ${index + 1}`,
+        type,
+        foreground,
+        background,
+        category,
+      }));
+
+    return [
+      ...buildCategory('Floral', 'dots', [
+        ['#c084fc', '#faf5ff'],
+        ['#ec4899', '#fff1f7'],
+        ['#8b5cf6', '#f5f3ff'],
+        ['#fb7185', '#fff1f2'],
+        ['#e879f9', '#fdf4ff'],
+        ['#a855f7', '#faf5ff'],
+        ['#f43f5e', '#fff1f2'],
+        ['#d946ef', '#fdf4ff'],
+        ['#f472b6', '#fff1f7'],
+        ['#c026d3', '#faf5ff'],
+      ]),
+      ...buildCategory('Nature', 'grid', [
+        ['#86efac', '#f0fdf4'],
+        ['#65a30d', '#f7fee7'],
+        ['#16a34a', '#f0fdf4'],
+        ['#10b981', '#ecfdf5'],
+        ['#84cc16', '#f7fee7'],
+        ['#22c55e', '#f0fdf4'],
+        ['#15803d', '#ecfdf5'],
+        ['#4d7c0f', '#f7fee7'],
+        ['#14b8a6', '#f0fdfa'],
+        ['#0f766e', '#f0fdfa'],
+      ]),
+      ...buildCategory('Geometric', 'diagonal', [
+        ['#334155', '#f8fafc'],
+        ['#1e40af', '#eff6ff'],
+        ['#1d4ed8', '#dbeafe'],
+        ['#0f172a', '#f1f5f9'],
+        ['#3730a3', '#eef2ff'],
+        ['#4338ca', '#e0e7ff'],
+        ['#2563eb', '#eff6ff'],
+        ['#475569', '#f8fafc'],
+        ['#6366f1', '#eef2ff'],
+        ['#0ea5e9', '#f0f9ff'],
+      ]),
+      ...buildCategory('Luxury', 'stripes', [
+        ['#d97706', '#fffbeb'],
+        ['#ca8a04', '#fefce8'],
+        ['#b45309', '#fffbeb'],
+        ['#92400e', '#fff7ed'],
+        ['#7c2d12', '#fff7ed'],
+        ['#a16207', '#fefce8'],
+        ['#c2410c', '#fff7ed'],
+        ['#78350f', '#fef3c7'],
+        ['#eab308', '#fefce8'],
+        ['#f59e0b', '#fffbeb'],
+      ]),
+      ...buildCategory('Festive', 'dots', [
+        ['#dc2626', '#fef2f2'],
+        ['#ea580c', '#fff7ed'],
+        ['#b91c1c', '#fef2f2'],
+        ['#c2410c', '#fff7ed'],
+        ['#059669', '#ecfdf5'],
+        ['#0f766e', '#f0fdfa'],
+        ['#7c3aed', '#f5f3ff'],
+        ['#db2777', '#fdf2f8'],
+        ['#2563eb', '#eff6ff'],
+        ['#7c2d12', '#fff7ed'],
+      ]),
+    ];
+  })();
 
   const createPatternDataUrl = (type, foreground, background, tileSize = 64) => {
     const offscreen = document.createElement('canvas');
@@ -2384,6 +2584,43 @@ const ProductDesigner = () => {
     setShowCancelModal(true);
   };
 
+  const handleOpen3DPreview = async () => {
+    if (isDoubleSided) {
+      saveCurrentSideDesign(activePrintSideRef.current);
+      await Promise.all([
+        generateSidePreview('front', sideDesignsRef.current.front || []),
+        generateSidePreview('back', sideDesignsRef.current.back || []),
+      ]);
+    } else {
+      saveCurrentSideDesign('front');
+      await generateSidePreview('front', sideDesignsRef.current.front || []);
+    }
+
+    const initialRotation = isDoubleSided ? -22 : -10;
+    previewRotationTargetRef.current = initialRotation;
+    setPreviewRotationY(initialRotation);
+    setShow3DPreviewModal(true);
+  };
+
+  useEffect(() => {
+    if (!show3DPreviewModal) return;
+
+    let rafId = null;
+    const tick = () => {
+      setPreviewRotationY((prev) => {
+        const target = previewRotationTargetRef.current;
+        const next = prev + (target - prev) * 0.12;
+        return Math.abs(target - next) < 0.08 ? target : next;
+      });
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [show3DPreviewModal]);
+
   const confirmCancel = () => {
     setShowCancelModal(false);
     const fallbackPath = location.state?.fromPath || '/';
@@ -3267,6 +3504,67 @@ const ProductDesigner = () => {
                     })}
                   </div>
 
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Free Background Library
+                      </h4>
+                      <span className="text-xs font-semibold text-emerald-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        50 Included
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      All presets are built-in and free to use with no API cost.
+                    </p>
+
+                    {['Floral', 'Nature', 'Geometric', 'Luxury', 'Festive'].map((category) => {
+                      const query = backgroundPatternQuery.trim().toLowerCase();
+                      const visiblePatterns = freeBackgroundLibrary.filter((pattern) => {
+                        const matchesCategory = pattern.category === category;
+                        const matchesQuery =
+                          !query ||
+                          pattern.name.toLowerCase().includes(query) ||
+                          pattern.type.toLowerCase().includes(query) ||
+                          pattern.category.toLowerCase().includes(query);
+                        return matchesCategory && matchesQuery;
+                      });
+
+                      if (!visiblePatterns.length) return null;
+
+                      return (
+                        <div key={`free-${category}`} className="space-y-2">
+                          <h5 className="text-xs font-semibold uppercase tracking-wide text-emerald-800" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                            {category}
+                          </h5>
+                          <div className="grid grid-cols-2 gap-3">
+                            {visiblePatterns.map((pattern) => (
+                              <button
+                                key={pattern.id}
+                                type="button"
+                                onClick={() => applyPatternBackground(pattern)}
+                                className="text-left"
+                                title={`${pattern.name} (Free)`}
+                              >
+                                <div
+                                  className="h-20 rounded-xl border border-emerald-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                                  style={{
+                                    backgroundImage: `url(${createPatternDataUrl(pattern.type, pattern.foreground, pattern.background)})`,
+                                    backgroundRepeat: 'repeat',
+                                    backgroundSize: '56px 56px',
+                                    backgroundColor: pattern.background,
+                                  }}
+                                />
+                                <p className="mt-1 text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                                  {pattern.name}
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
                   <div className="rounded-xl border border-gray-200 p-4 space-y-3 bg-gray-50">
                     <h4 className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                       Custom Pattern
@@ -3711,7 +4009,7 @@ const ProductDesigner = () => {
       {/* Main Canvas Area */}
       <div className="flex-1 flex min-h-0 flex-col overflow-hidden">
         {/* Top Toolbar */}
-        <div className="bg-white shadow-md p-3 flex items-center justify-between gap-2 flex-shrink-0 overflow-hidden">
+        <div className="bg-white shadow-md p-3 flex items-center justify-between gap-2 flex-shrink-0 overflow-visible">
           {/* Hand tool + Zoom controls + product selector */}
           <div className="flex items-center gap-2 flex-shrink-0">
             {/* Hand/Pan Tool */}
@@ -3753,21 +4051,65 @@ const ProductDesigner = () => {
           </div>
 
           {/* Text formatting toolbar */}
-          <div className="flex-1 min-w-0 overflow-x-auto px-2">
+          <div className="flex-1 min-w-0 overflow-visible px-2">
             <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-            {/* Font family */}
-            <select
-              value={isTextObject(selectedObject) ? selectedObject.fontFamily || fontFamily : fontFamily}
-              onChange={(e) => handleFontFamilyChange(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm min-w-[150px] focus:outline-none focus:ring-2 focus:ring-blue-500"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              <option value="Lexend Deca">Lexend Deca</option>
-              <option value="Arial">Arial</option>
-              <option value="Roboto Serif">Roboto Serif</option>
-              <option value="Montserrat">Montserrat</option>
-              <option value="Georgia">Georgia</option>
-            </select>
+            {/* Font family (searchable, previewed) */}
+            <div className="relative min-w-[190px] z-[20]" ref={fontPickerRef}>
+              <button
+                type="button"
+                onClick={() => setShowFontPicker((prev) => !prev)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-blue-500"
+                style={{ fontFamily: isTextObject(selectedObject) ? selectedObject.fontFamily || fontFamily : fontFamily }}
+              >
+                <span className="truncate">{isTextObject(selectedObject) ? selectedObject.fontFamily || fontFamily : fontFamily}</span>
+                <svg className="w-4 h-4 text-gray-500 ml-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {showFontPicker && (
+                <div className="absolute z-[25] mt-2 w-[320px] bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden whitespace-normal">
+                  <div className="p-2 border-b border-gray-100">
+                    <input
+                      type="text"
+                      value={fontSearch}
+                      onChange={(e) => setFontSearch(e.target.value)}
+                      placeholder="Search fonts..."
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    />
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    {filteredFonts.length > 0 ? (
+                      filteredFonts.map((font) => (
+                        <button
+                          key={font.name}
+                          type="button"
+                          onClick={() => {
+                            handleFontFamilyChange(font.name);
+                            setShowFontPicker(false);
+                          }}
+                          className="w-full text-left px-3 py-2.5 hover:bg-emerald-50 transition-colors border-b border-gray-50 last:border-b-0"
+                        >
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                              {font.label}
+                            </span>
+                            <span className="text-xs text-gray-500 leading-tight" style={{ fontFamily: font.name }}>
+                              The quick brown fox
+                            </span>
+                          </div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-3 text-sm text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        No fonts found
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Font size with +/- */}
             <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
@@ -4036,6 +4378,7 @@ const ProductDesigner = () => {
               </svg>
             </button>
             <button 
+              onClick={handleOpen3DPreview}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold flex items-center gap-2"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
@@ -4076,6 +4419,106 @@ const ProductDesigner = () => {
         verifyOtpButtonLabel="Verify & Download"
         signInButtonLabel="Sign In & Download"
       />
+
+      {show3DPreviewModal && (
+        <div
+          className="fixed inset-0 z-[75] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4"
+          onMouseMove={(event) => {
+            const previewContainer = event.currentTarget.querySelector('[data-3d-preview-container]');
+            if (!previewContainer) return;
+            const rect = previewContainer.getBoundingClientRect();
+            const relativeX = event.clientX - rect.left;
+            const ratio = (relativeX / Math.max(1, rect.width)) * 2 - 1;
+            // Tuned for controlled movement with less cursor travel.
+            previewRotationTargetRef.current = Math.max(-155, Math.min(155, ratio * 110));
+          }}
+        >
+          <div
+            className="w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-[0_25px_60px_-12px_rgba(15,23,42,0.35)] overflow-hidden"
+            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="preview-3d-title"
+          >
+            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h3 id="preview-3d-title" className="text-base font-semibold text-slate-900">
+                  3D Artwork Preview
+                </h3>
+                <p className="mt-0.5 text-xs text-slate-600">
+                  Move your cursor to rotate and inspect the artwork in 3D.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShow3DPreviewModal(false)}
+                className="w-8 h-8 rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50 flex items-center justify-center"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="px-4 py-4 bg-[radial-gradient(circle_at_center,#ffffff_0%,#f8fafc_58%,#e2e8f0_100%)]">
+              <div className="mx-auto flex items-center justify-center min-h-[260px]" style={{ perspective: '2000px' }}>
+                <div
+                  data-3d-preview-container="true"
+                  className="relative"
+                  style={{
+                    width: 'min(420px, 78vw)',
+                    aspectRatio: `${displayWidthMm || 210} / ${displayHeightMm || 148}`,
+                    transformStyle: 'preserve-3d',
+                    transform: `rotateX(14deg) rotateY(${previewRotationY}deg)`,
+                    transition: 'none',
+                  }}
+                >
+                  <div
+                    className="absolute inset-0 rounded-[20px] border border-slate-200 bg-white shadow-[0_50px_120px_-28px_rgba(15,23,42,0.35)] overflow-hidden"
+                    style={{
+                      transform: 'translateZ(16px)',
+                      backfaceVisibility: 'hidden',
+                    }}
+                  >
+                    {sidePreviewUrls.front ? (
+                      <img src={sidePreviewUrls.front} alt="Front 3D preview" className="w-full h-full object-contain bg-white" style={{ imageRendering: 'auto' }} />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-sm text-slate-400">Front preview unavailable</div>
+                    )}
+                  </div>
+
+                  {isDoubleSided && (
+                    <div
+                      className="absolute inset-0 rounded-[20px] border border-slate-200 bg-white shadow-[0_50px_120px_-28px_rgba(15,23,42,0.28)] overflow-hidden"
+                      style={{
+                        transform: 'rotateY(180deg) translateZ(16px)',
+                        backfaceVisibility: 'hidden',
+                      }}
+                    >
+                      {sidePreviewUrls.back ? (
+                        <img src={sidePreviewUrls.back} alt="Back 3D preview" className="w-full h-full object-contain bg-white" style={{ imageRendering: 'auto' }} />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-sm text-slate-400">Back preview unavailable</div>
+                      )}
+                    </div>
+                  )}
+
+                  <div
+                    className="absolute top-[6px] bottom-[6px] right-0 w-8 rounded-r-[14px] bg-gradient-to-b from-slate-100 via-slate-200 to-slate-300"
+                    style={{
+                      transform: 'rotateY(90deg) translateZ(16px)',
+                      transformOrigin: 'right center',
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="mt-2 text-center text-xs text-slate-500">
+                Move cursor left or right to rotate the preview.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showCancelModal && (
         <div className="fixed inset-0 z-[70] bg-slate-900/45 backdrop-blur-sm flex items-center justify-center p-4">
