@@ -8,6 +8,8 @@ import { thirdPartyService } from '../services/thirdPartyService';
 import { decryptId } from '../utils/encryption';
 import EndBenefitsStrip from '../components/EndBenefitsStrip';
 import { saveProductDetailDraft } from '../store/designerSessionSlice';
+import { useAuth } from '../context/AuthContext';
+import DesignerAuthModal from '../components/DesignerAuthModal';
 
 const ProductDetail = ({ productType, productId, product: productProp }) => {
   const { category, productName, encryptedId } = useParams();
@@ -16,7 +18,12 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const dispatch = useDispatch();
   const savedDraft = useSelector((state) => state.designerSession?.productDetailDraft);
   const { addToCart } = useCart();
-  const [designOption, setDesignOption] = useState('custom'); // 'custom' or 'upload'
+  const { isAuthenticated } = useAuth();
+  const [cartAuthOpen, setCartAuthOpen] = useState(false);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const pendingAddToCartRef = useRef(false);
+  const addingCartInFlightRef = useRef(false);
+  const [designOption, setDesignOption] = useState('upload'); // 'custom' (Online Designer) or 'upload' (Upload Artwork); default upload
   const [uploadedImage, setUploadedImage] = useState(null);
   const [selectedSize, setSelectedSize] = useState('');
   const [quantity, setQuantity] = useState(1);
@@ -183,7 +190,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     if (!savedDraft) return;
     if (savedDraft.productRouteKey !== location.pathname) return;
 
-    setDesignOption(savedDraft.designOption || 'custom');
+    setDesignOption(savedDraft.designOption || 'upload');
     setSelectedSize(savedDraft.selectedSize || '');
     setQuantity(Number(savedDraft.quantity) > 0 ? Number(savedDraft.quantity) : 1);
     setMaterial(savedDraft.material || '450gsm-silk-finish');
@@ -363,10 +370,11 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       if (!active) return;
       const list = Array.isArray(res?.quantities) ? res.quantities : (Array.isArray(res?.result) ? res.result : []);
       const nums = (list || []).map((n) => Number(n)).filter((n) => Number.isFinite(n) && n > 0);
-      setQuantitiesOptions(nums);
-      // If current quantity not in options, set to first
-      if (nums.length > 0 && !nums.includes(Number(quantity))) {
-        setQuantity(nums[0]);
+      const sorted = [...new Set(nums)].sort((a, b) => a - b);
+      setQuantitiesOptions(sorted);
+      // If current quantity not in options, snap to smallest valid tier (stable order, not API array order)
+      if (sorted.length > 0 && !sorted.includes(Number(quantity))) {
+        setQuantity(sorted[0]);
       }
     }).catch(() => {
       if (active) setQuantitiesOptions([]);
@@ -627,47 +635,79 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     });
   };
 
+  const performAddToCart = async () => {
+    if (addingCartInFlightRef.current) return;
+    addingCartInFlightRef.current = true;
+    setIsAddingToCart(true);
+    try {
+      const showEditor = displayProduct?.uiOptions?.showEditorButton ?? true;
+      const showUpload = displayProduct?.uiOptions?.showUploadDesignButton ?? true;
+      const sizeEnabled = displayProduct?.sizeOptions?.enabled ?? false;
+
+      // If both design options are disabled, ignore any existing state value
+      const effectiveDesignOption = (showEditor || showUpload) ? designOption : null;
+
+      const qtyToAdd = Math.max(1, Math.floor(Number(quantity)) || 1);
+
+      // Calculate price for business cards and products using a delivery pricing table
+      const exVatPrice = (isBusinessCard() || hasDeliveryPricing) ? getCurrentPrice() : displayProduct.price;
+      const finalPrice = applyVatMode(exVatPrice);
+
+      const imageForCart = selectedImage || displayProduct.image;
+      const isDataUrl = typeof uploadedImage === 'string' && uploadedImage.startsWith('data:');
+
+      const cartProduct = {
+        id: product?._id || `${productType}-${Date.now()}`,
+        name: displayProduct.name,
+        category: displayProduct.category,
+        price: finalPrice,
+        image: imageForCart,
+        quantity: qtyToAdd,
+        designOption: effectiveDesignOption,
+        ...(Boolean(uploadedImage) && { artworkAttached: true }),
+        ...(typeof uploadedImage === 'string' && !isDataUrl ? { artworkPreviewUrl: uploadedImage } : {}),
+        ...(sizeEnabled && { size: selectedSize }),
+        ...(hasDeliveryPricing && { deliveryOption: deliveryOptionRef.current || deliveryOption }),
+        ...(hasDynamicAttributes && { selectedAttributes: selectedAttributeValues }),
+        // Include business card options if applicable
+        ...(isBusinessCard() && {
+          material,
+          sidesPrinted,
+          lamination,
+          roundCorners,
+          deliveryOption: deliveryOptionRef.current || deliveryOption
+        })
+      };
+
+      await addToCart(cartProduct);
+      toast.success(`${displayProduct.name} added to cart!`);
+    } catch (e) {
+      console.error('[cart] add failed', e);
+      toast.error(e?.message || 'Could not add to basket. Please try again.');
+    } finally {
+      addingCartInFlightRef.current = false;
+      setIsAddingToCart(false);
+    }
+  };
+
   const handleAddToCart = () => {
-    const showEditor = displayProduct?.uiOptions?.showEditorButton ?? true;
-    const showUpload = displayProduct?.uiOptions?.showUploadDesignButton ?? true;
     const sizeEnabled = displayProduct?.sizeOptions?.enabled ?? false;
     const sizeRequired = displayProduct?.sizeOptions?.required ?? false;
-
-    // If both design options are disabled, ignore any existing state value
-    const effectiveDesignOption = (showEditor || showUpload) ? designOption : null;
 
     if (sizeEnabled && sizeRequired && !selectedSize) {
       toast.error('Please select a size to continue.');
       return;
     }
 
-    // Calculate price for business cards and products using a delivery pricing table
-    const exVatPrice = (isBusinessCard() || hasDeliveryPricing) ? getCurrentPrice() : displayProduct.price;
-    const finalPrice = applyVatMode(exVatPrice);
-    
-    const cartProduct = {
-      id: product?._id || `${productType}-${Date.now()}`,
-      name: displayProduct.name,
-      category: displayProduct.category,
-      price: finalPrice,
-      image: selectedImage || displayProduct.image,
-      quantity: quantity,
-      designOption: effectiveDesignOption,
-      uploadedImage: uploadedImage,
-      ...(sizeEnabled && { size: selectedSize }),
-      ...(hasDeliveryPricing && { deliveryOption: deliveryOptionRef.current || deliveryOption }),
-      ...(hasDynamicAttributes && { selectedAttributes: selectedAttributeValues }),
-      // Include business card options if applicable
-      ...(isBusinessCard() && {
-        material,
-        sidesPrinted,
-        lamination,
-        roundCorners,
-        deliveryOption: deliveryOptionRef.current || deliveryOption
-      })
-    };
-    addToCart(cartProduct, quantity);
-    toast.success(`${displayProduct.name} added to cart!`);
+    if (addingCartInFlightRef.current) return;
+
+    if (isAuthenticated() && localStorage.getItem('token')) {
+      void performAddToCart();
+      return;
+    }
+
+    pendingAddToCartRef.current = true;
+    setCartAuthOpen(true);
   };
 
   const handleImageMouseMove = (e) => {
@@ -1815,19 +1855,43 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
             </div>
 
             <button
+              type="button"
+              disabled={isAddingToCart}
               onClick={designOption === 'upload' ? handleAddToCart : handleDesignProduct}
-              className={`flex-shrink-0 px-6 md:px-10 py-3 rounded text-white font-bold text-sm md:text-base transition-colors w-[55%] md:w-[520px] text-center ${
+              className={`flex-shrink-0 px-6 md:px-10 py-3 rounded text-white font-bold text-sm md:text-base transition-colors w-[55%] md:w-[520px] text-center disabled:opacity-60 disabled:pointer-events-none ${
                 designOption === 'upload'
                   ? 'bg-green-500 hover:bg-green-600'
                   : 'bg-blue-600 hover:bg-blue-700'
               }`}
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
-              {designOption === 'upload' ? 'Add To Basket' : 'Design Your Product'}
+              {isAddingToCart && designOption === 'upload'
+                ? 'Adding…'
+                : designOption === 'upload'
+                  ? 'Add To Basket'
+                  : 'Design Your Product'}
             </button>
           </div>
         </div>
       </div>
+
+      <DesignerAuthModal
+        open={cartAuthOpen}
+        onClose={() => {
+          setCartAuthOpen(false);
+          pendingAddToCartRef.current = false;
+        }}
+        onAuthenticated={async () => {
+          if (pendingAddToCartRef.current) {
+            pendingAddToCartRef.current = false;
+            await performAddToCart();
+          }
+        }}
+        title="Sign in to add to basket"
+        subtitle="Please sign in or create an account to add this product to your basket."
+        verifyOtpButtonLabel="Verify & add to basket"
+        signInButtonLabel="Sign in & add to basket"
+      />
     </div>
   );
 };

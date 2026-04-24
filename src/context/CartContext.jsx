@@ -47,11 +47,22 @@ export const CartProvider = ({ children }) => {
     refreshCart();
   }, [authReady, user?._id, refreshCart]);
 
-  const addToCart = async (product, quantity = 1) => {
+  const addToCart = async (product, explicitQuantity) => {
     ensureClientId();
-    const qty = Math.max(1, Number(quantity) || 1);
+    const explicitNum =
+      explicitQuantity === undefined || explicitQuantity === null ? NaN : Number(explicitQuantity);
+    const nestedNum = Number(product?.quantity);
+    const qty = Math.max(
+      1,
+      (Number.isFinite(explicitNum) && explicitNum > 0 ? explicitNum : null) ??
+        (Number.isFinite(nestedNum) && nestedNum > 0 ? nestedNum : null) ??
+        1
+    );
+
+    const { quantity: _ignored, ...base } = product || {};
+    // Backend uses top-level `quantity` for the line; payload omits duplicate `quantity` (see cart.routes).
     const data = await httpClient.post(apiRoutes.cart.addItem, {
-      item: product,
+      item: base,
       quantity: qty,
     });
     applyItems(data?.items);

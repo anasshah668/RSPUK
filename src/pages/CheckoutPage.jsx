@@ -59,6 +59,22 @@ function isRecoverableWorldpaySessionConflict(error) {
   );
 }
 
+/** Remove base64 / oversized strings before sending line items to the server for admin fulfilment. */
+function stripHeavyFieldsFromLineItem(item) {
+  if (!item || typeof item !== 'object') return {};
+  const out = { ...item };
+  Object.keys(out).forEach((k) => {
+    const v = out[k];
+    if (typeof v === 'string' && (v.startsWith('data:') || v.length > 8000)) {
+      delete out[k];
+      if (/image|upload|artwork|canvas|designfile/i.test(k)) {
+        out.artworkAttached = true;
+      }
+    }
+  });
+  return out;
+}
+
 function pickOrderReviewSummaryRows(summary) {
   if (!Array.isArray(summary)) return [];
   return summary
@@ -212,6 +228,23 @@ const CheckoutPage = () => {
         if (!sessionForCharge) {
           throw new Error('Secure card session was not generated. Please re-enter card details and try again.');
         }
+        const lineItemsForAdmin =
+          isMultiCheckout && checkoutItems?.length
+            ? checkoutItems.map((item) => stripHeavyFieldsFromLineItem(item))
+            : [
+                stripHeavyFieldsFromLineItem({
+                  type: 'checkout-line',
+                  title: checkoutData.title || 'Order',
+                  description:
+                    typeof checkoutData.description === 'string'
+                      ? checkoutData.description.slice(0, 800)
+                      : '',
+                  quantity: 1,
+                  price: payAmount,
+                  summary: Array.isArray(checkoutData.summary) ? checkoutData.summary : [],
+                }),
+              ];
+
         const paymentResult = await paymentService.chargeWorldpay({
           sessionState: sessionForCharge,
           amount: payAmount,
@@ -224,6 +257,7 @@ const CheckoutPage = () => {
             postalCode: sanitizedCustomerInfo.postalCode,
             countryCode: 'GB',
           },
+          lineItems: lineItemsForAdmin,
           orderDetails: isMultiCheckout
             ? {
                 title: `Order (${checkoutItems.length} items)`,

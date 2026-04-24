@@ -1068,6 +1068,72 @@ const orderIdShort = (order) => {
   return `#${raw.slice(-8)}`;
 };
 
+const designOptionAdminLabel = (v) => {
+  if (v === 'upload') return 'Upload Artwork';
+  if (v === 'custom') return 'Online Designer';
+  return v != null ? String(v) : '';
+};
+
+/** Key/value rows for a saved basket line or checkout snapshot object. */
+const flattenLineSnapshotEntries = (line) => {
+  if (!line || typeof line !== 'object') return [];
+  const skip = new Set([
+    'id',
+    '_id',
+    'image',
+    'lineid',
+    'product',
+    'price',
+    'quantity',
+    'name',
+    'title',
+    'summary',
+    'description',
+    'type',
+  ]);
+  const rows = [];
+  const title = line.title || line.name;
+  if (title) rows.push(['Product / service', String(title)]);
+  if (line.type && String(line.type) !== 'checkout-line') rows.push(['Type', String(line.type)]);
+  if (line.quantity != null) rows.push(['Qty', String(line.quantity)]);
+  if (line.price != null && Number.isFinite(Number(line.price))) {
+    rows.push(['Line price (snapshot)', `£${Number(line.price).toFixed(2)}`]);
+  }
+  if (line.category) rows.push(['Category', String(line.category)]);
+  if (line.size) rows.push(['Size', String(line.size)]);
+  if (line.designOption) rows.push(['Design', designOptionAdminLabel(line.designOption)]);
+  if (line.artworkAttached) rows.push(['Artwork', line.artworkPreviewUrl ? 'Attached (URL on file)' : 'Attached']);
+  if (line.deliveryOption) rows.push(['Delivery', String(line.deliveryOption)]);
+  if (line.material) rows.push(['Material', String(line.material)]);
+  if (line.sidesPrinted) rows.push(['Sides printed', String(line.sidesPrinted)]);
+  if (line.lamination) rows.push(['Lamination / finish', String(line.lamination)]);
+  if (line.roundCorners) rows.push(['Corners', String(line.roundCorners)]);
+  if (line.selectedAttributes && typeof line.selectedAttributes === 'object') {
+    Object.entries(line.selectedAttributes).forEach(([k, v]) => {
+      if (v == null || String(v).trim() === '') return;
+      rows.push([k, String(v)]);
+    });
+  }
+  if (Array.isArray(line.summary)) {
+    line.summary.forEach((row) => {
+      if (!row?.label) return;
+      rows.push([String(row.label), String(row.value ?? '')]);
+    });
+  }
+  if (line.description && String(line.description).trim()) {
+    rows.push(['Description', String(line.description).trim()]);
+  }
+  Object.entries(line).forEach(([k, v]) => {
+    const kl = k.toLowerCase();
+    if (skip.has(kl)) return;
+    if (v == null || v === '') return;
+    if (typeof v === 'object') return;
+    if (rows.some(([a]) => a.toLowerCase() === k.toLowerCase())) return;
+    rows.push([k.replace(/([A-Z])/g, ' $1').replace(/_/g, ' '), String(v)]);
+  });
+  return rows;
+};
+
 const OrderDetailModal = ({ order, onClose }) => {
   if (!order) return null;
   const isCheckout = order.orderKind === 'checkout';
@@ -1075,6 +1141,11 @@ const OrderDetailModal = ({ order, onClose }) => {
   const user = order.user;
   const od = order.orderDetails && typeof order.orderDetails === 'object' ? order.orderDetails : {};
   const summaryLines = Array.isArray(od.summary) ? od.summary : [];
+  const checkoutLineItems = Array.isArray(order.lineItems)
+    ? order.lineItems
+    : Array.isArray(order.checkoutContext?.lineItems)
+      ? order.checkoutContext.lineItems
+      : [];
   const shopItems =
     Array.isArray(order.items) && order.items.length > 0
       ? order.items
@@ -1088,8 +1159,9 @@ const OrderDetailModal = ({ order, onClose }) => {
       it?.customization,
       it?.variant,
       it?.selectedAttributes,
+      it?.customization?.selectedAttributes,
     ]
-      .filter((o) => o && typeof o === 'object')
+      .filter((o) => o && typeof o === 'object' && !Array.isArray(o))
       .flatMap((obj) => Object.entries(obj));
     const explicit = [
       ['Size', it?.size],
@@ -1098,7 +1170,9 @@ const OrderDetailModal = ({ order, onClose }) => {
       ['Lamination', it?.lamination],
       ['Round Corners', it?.roundCorners],
       ['Delivery Option', it?.deliveryOption],
-      ['Design Option', it?.designOption],
+      ['Design Option', it?.designOption ? designOptionAdminLabel(it.designOption) : it?.designOption],
+      ['Artwork', it?.artworkAttached ? 'Yes' : null],
+      ['Category', it?.category],
     ];
     return [...fromObjects, ...explicit]
       .filter(([k, v]) => k && v != null && String(v).trim() !== '')
@@ -1114,7 +1188,7 @@ const OrderDetailModal = ({ order, onClose }) => {
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+        className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3 shrink-0">
@@ -1205,6 +1279,38 @@ const OrderDetailModal = ({ order, onClose }) => {
                     </tbody>
                   </table>
                 ) : null}
+                {checkoutLineItems.length > 0 ? (
+                  <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-3 space-y-3">
+                    <p className="text-xs font-bold uppercase tracking-wide text-indigo-900">
+                      Full order detail (each product and every option the customer selected)
+                    </p>
+                    {checkoutLineItems.map((line, idx) => {
+                      const entries = flattenLineSnapshotEntries(line);
+                      return (
+                        <div
+                          key={`line-${idx}`}
+                          className="border border-gray-200 rounded-lg bg-white p-3 space-y-2 shadow-sm"
+                        >
+                          <p className="text-sm font-semibold text-gray-900">
+                            Item {idx + 1}: {line.title || line.name || line.type || 'Product'}
+                          </p>
+                          {entries.length > 0 ? (
+                            <dl className="grid gap-1.5 text-xs">
+                              {entries.map(([k, v], j) => (
+                                <div key={`${k}-${j}`} className="flex justify-between gap-3">
+                                  <dt className="text-gray-500 shrink-0 max-w-[45%]">{k}</dt>
+                                  <dd className="text-gray-900 text-right break-words">{v}</dd>
+                                </div>
+                              ))}
+                            </dl>
+                          ) : (
+                            <p className="text-xs text-gray-500">No extra fields on this line.</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
                 <p className="text-base font-bold text-gray-900 pt-1">
                   Total: {order.currency === 'GBP' ? '£' : `${order.currency || ''} `}
                   {Number(order.total || 0).toFixed(2)}
@@ -1212,6 +1318,36 @@ const OrderDetailModal = ({ order, onClose }) => {
               </div>
             ) : (
               <div className="space-y-3">
+                {checkoutLineItems.length > 0 ? (
+                  <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-3 space-y-3">
+                    <p className="text-xs font-bold uppercase tracking-wide text-indigo-900">
+                      Basket / checkout snapshot (production detail)
+                    </p>
+                    {checkoutLineItems.map((line, idx) => {
+                      const entries = flattenLineSnapshotEntries(line);
+                      return (
+                        <div
+                          key={`snap-${idx}`}
+                          className="border border-gray-200 rounded-lg bg-white p-3 space-y-2 shadow-sm"
+                        >
+                          <p className="text-sm font-semibold text-gray-900">
+                            Item {idx + 1}: {line.title || line.name || line.type || 'Product'}
+                          </p>
+                          {entries.length > 0 ? (
+                            <dl className="grid gap-1.5 text-xs">
+                              {entries.map(([k, v], j) => (
+                                <div key={`${k}-${j}`} className="flex justify-between gap-3">
+                                  <dt className="text-gray-500 shrink-0 max-w-[45%]">{k}</dt>
+                                  <dd className="text-gray-900 text-right break-words">{v}</dd>
+                                </div>
+                              ))}
+                            </dl>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
                 {shopGlobalInputsEntries.length > 0 ? (
                   <div className="rounded-lg border border-gray-200 overflow-hidden">
                     <div className="px-3 py-2 bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -1233,28 +1369,64 @@ const OrderDetailModal = ({ order, onClose }) => {
                   <div className="space-y-2">
                     {shopItems.map((it, i) => {
                       const optEntries = itemOptionEntries(it);
+                      const thumb =
+                        it.image ||
+                        it.product?.productImage?.url ||
+                        (Array.isArray(it.product?.images) ? it.product.images[0]?.url : null);
                       return (
                         <div key={i} className="border border-gray-200 rounded-lg p-3 bg-white">
-                          <div className="flex justify-between gap-3">
-                            <div>
-                              <p className="font-semibold text-gray-900">
-                                {it.product?.name || it.name || 'Product'} × {Number(it.quantity || 1)}
+                          <div className="flex gap-3 justify-between">
+                            {thumb ? (
+                              <a
+                                href={thumb}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="shrink-0 w-16 h-16 rounded-md overflow-hidden border border-gray-100 bg-gray-50"
+                              >
+                                <img src={thumb} alt="" className="w-full h-full object-cover" />
+                              </a>
+                            ) : null}
+                            <div className="flex justify-between gap-3 flex-1 min-w-0">
+                              <div>
+                                <p className="font-semibold text-gray-900">
+                                  {it.product?.name || it.name || 'Product'} × {Number(it.quantity || 1)}
+                                </p>
+                                {it.design?.previewImage ? (
+                                  <a
+                                    href={it.design.previewImage}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-xs text-blue-600 hover:underline"
+                                  >
+                                    View artwork preview
+                                  </a>
+                                ) : null}
+                                {it.design?.designFile ? (
+                                  <a
+                                    href={it.design.designFile}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-xs text-blue-600 hover:underline block mt-0.5"
+                                  >
+                                    Design file
+                                  </a>
+                                ) : null}
+                              </div>
+                              <p className="tabular-nums font-semibold text-gray-900 shrink-0">
+                                £{Number(it.price || 0).toFixed(2)}
                               </p>
-                              {it.design?.previewImage ? (
-                                <a
-                                  href={it.design.previewImage}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-xs text-blue-600 hover:underline"
-                                >
-                                  View artwork preview
-                                </a>
-                              ) : null}
                             </div>
-                            <p className="tabular-nums font-semibold text-gray-900">
-                              £{Number(it.price || 0).toFixed(2)}
-                            </p>
                           </div>
+                          {it.customization && typeof it.customization === 'object' ? (
+                            <details className="mt-2 text-xs">
+                              <summary className="cursor-pointer text-gray-600 font-medium">
+                                Raw customization JSON
+                              </summary>
+                              <pre className="mt-1 p-2 bg-gray-50 rounded text-[10px] overflow-x-auto max-h-40 whitespace-pre-wrap">
+                                {JSON.stringify(it.customization, null, 2)}
+                              </pre>
+                            </details>
+                          ) : null}
                           {optEntries.length > 0 ? (
                             <dl className="mt-2 pt-2 border-t border-gray-100 grid gap-1.5">
                               {optEntries.map(([k, v], idx) => (

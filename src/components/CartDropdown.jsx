@@ -1,6 +1,89 @@
 import React from 'react';
 import { useCart } from '../context/CartContext';
 
+const API_ORIGIN = (import.meta.env.VITE_API_URL || '')
+  .replace(/\/api\/?$/i, '')
+  .replace(/\/+$/, '');
+
+function resolveCartImageUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  const u = url.trim();
+  if (u.startsWith('data:') || /^https?:\/\//i.test(u)) return u;
+  if (u.startsWith('//')) return `https:${u}`;
+  if (u.startsWith('/') && API_ORIGIN) return `${API_ORIGIN}${u}`;
+  return u;
+}
+
+function designOptionLabel(value) {
+  if (value === 'upload') return 'Upload Artwork';
+  if (value === 'custom') return 'Online Designer';
+  return value ? String(value) : '';
+}
+
+function formatDeliveryKey(key) {
+  if (!key) return '';
+  return String(key)
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Human-readable lines for basket rows (ProductDetail, neon, checkout, etc.). */
+function getCartItemDetailLines(item) {
+  const lines = [];
+
+  if (item.size) {
+    lines.push(`Size: ${item.size}`);
+  }
+
+  const design = designOptionLabel(item.designOption);
+  if (design) {
+    lines.push(`Design: ${design}`);
+  }
+
+  if (item.artworkAttached) {
+    lines.push(item.artworkPreviewUrl ? 'Artwork: preview attached' : 'Artwork: file attached');
+  }
+
+  if (item.deliveryOption) {
+    lines.push(`Delivery: ${formatDeliveryKey(item.deliveryOption)}`);
+  }
+
+  if (item.material) {
+    lines.push(`Material: ${formatDeliveryKey(item.material)}`);
+  }
+  if (item.sidesPrinted) {
+    lines.push(`Print: ${formatDeliveryKey(item.sidesPrinted)}`);
+  }
+  if (item.lamination) {
+    lines.push(`Finish: ${formatDeliveryKey(item.lamination)}`);
+  }
+  if (item.roundCorners) {
+    lines.push(`Corners: ${formatDeliveryKey(item.roundCorners)}`);
+  }
+
+  if (item.selectedAttributes && typeof item.selectedAttributes === 'object') {
+    Object.entries(item.selectedAttributes).forEach(([k, v]) => {
+      if (v == null || v === '') return;
+      lines.push(`${k}: ${v}`);
+    });
+  }
+
+  if (item.summary && Array.isArray(item.summary)) {
+    item.summary.slice(0, 6).forEach(({ label, value }) => {
+      if (!label) return;
+      lines.push(`${label}: ${value}`);
+    });
+  }
+
+  if (item.description && (item.type === 'custom-neon' || item.type === 'checkout-order')) {
+    const short =
+      item.description.length > 120 ? `${item.description.slice(0, 117)}…` : item.description;
+    lines.push(short);
+  }
+
+  return lines;
+}
+
 const CartDropdown = ({ isOpen, onClose }) => {
   const { cartItems, removeFromCart, updateQuantity, getCartTotal, clearCart } = useCart();
 
@@ -65,11 +148,17 @@ const CartDropdown = ({ isOpen, onClose }) => {
                   {/* Product Image */}
                   <div className="w-20 h-20 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
                     <img
-                      src={item.image}
+                      src={
+                        resolveCartImageUrl(item.artworkPreviewUrl) ||
+                        resolveCartImageUrl(item.image) ||
+                        `https://via.placeholder.com/80x80?text=${encodeURIComponent(
+                          (item.name || item.title || 'Item').slice(0, 12),
+                        )}`
+                      }
                       alt={item.name || item.title || 'Item'}
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        const label = item.name || item.title || 'Item';
+                        const label = (item.name || item.title || 'Item').slice(0, 12);
                         e.target.src = 'https://via.placeholder.com/80x80?text=' + encodeURIComponent(label);
                       }}
                     />
@@ -82,13 +171,23 @@ const CartDropdown = ({ isOpen, onClose }) => {
                     >
                       {item.name || item.title || 'Item'}
                     </h4>
-                    <p 
-                      className="text-sm text-gray-500 mb-2"
+                    <p
+                      className="text-sm text-gray-500 mb-1.5"
                       style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                     >
                       {item.category || item.type || ''}
                     </p>
-                    
+                    <ul
+                      className="text-xs text-gray-600 space-y-0.5 mb-2 list-none pl-0"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    >
+                      {getCartItemDetailLines(item).map((line, idx) => (
+                        <li key={idx} className="leading-snug">
+                          {line}
+                        </li>
+                      ))}
+                    </ul>
+
                     {/* Quantity Controls */}
                     <div className="flex items-center gap-3">
                       <div className="flex items-center border border-gray-300 rounded-lg">
