@@ -7,7 +7,6 @@ import { useCart } from '../context/CartContext';
 import { useVatInclusive } from '../hooks/useVatInclusive';
 import {
   grossFromNet,
-  lineBasketPayableAmount,
   payableFromNet,
   vatAmountFromNet,
 } from '../utils/vatUtils';
@@ -93,7 +92,7 @@ function pickOrderReviewSummaryRows(summary) {
 const CheckoutPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { addToCart, clearCart, refreshCart } = useCart();
+  const { addToCart, clearCart, refreshCart, cartItems } = useCart();
   const vatInclusive = useVatInclusive();
 
   const checkoutItems = Array.isArray(location.state?.checkoutItems) ? location.state.checkoutItems : null;
@@ -147,7 +146,13 @@ const CheckoutPage = () => {
   const payAmount = useMemo(() => {
     if (isMultiCheckout) {
       return checkoutItems.reduce(
-        (s, i) => s + lineBasketPayableAmount(i, vatInclusive),
+        (s, i) => {
+          const incomingPrice = Number(i?.price || 0);
+          if (!Number.isFinite(incomingPrice)) return s;
+          if (i?.type === 'checkout-order') return s + incomingPrice;
+          if (i?.type === 'custom-neon') return s + payableFromNet(incomingPrice, vatInclusive);
+          return s + incomingPrice;
+        },
         0
       );
     }
@@ -159,6 +164,14 @@ const CheckoutPage = () => {
     isNeonNetCheckout,
     singleNetAmount,
   ]);
+
+  const lineDisplayAmount = (item) => {
+    const incomingPrice = Number(item?.price || 0);
+    if (!Number.isFinite(incomingPrice)) return 0;
+    if (item?.type === 'checkout-order') return incomingPrice;
+    if (item?.type === 'custom-neon') return payableFromNet(incomingPrice, vatInclusive);
+    return incomingPrice;
+  };
 
   const checkoutBannerTitle = isMultiCheckout
     ? `Your order (${checkoutItems.length} ${checkoutItems.length === 1 ? 'item' : 'items'})`
@@ -264,7 +277,7 @@ const CheckoutPage = () => {
                 description: 'Multi-item checkout',
                 summary: checkoutItems.map((item, idx) => ({
                   label: (item.title || item.name || `Item ${idx + 1}`).slice(0, 100),
-                  value: `Qty ${item.quantity || 1} · £${lineBasketPayableAmount(item, vatInclusive).toFixed(2)}`,
+                  value: `Qty ${item.quantity || 1} · £${lineDisplayAmount(item).toFixed(2)}`,
                 })),
               }
             : {
@@ -349,7 +362,6 @@ const CheckoutPage = () => {
       setIsPaying(false);
     }
   };
-
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="container mx-auto px-4 lg:px-8 max-w-6xl space-y-6">
@@ -419,7 +431,7 @@ const CheckoutPage = () => {
                         </p>
                       </div>
                       <p className="shrink-0 font-semibold text-gray-900 tabular-nums self-start">
-                        £{lineBasketPayableAmount(item, vatInclusive).toFixed(2)}
+                        £{lineDisplayAmount(item).toFixed(2)}
                       </p>
                     </li>
                   ))}

@@ -90,7 +90,6 @@ const CartDropdown = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   const total = getCartTotal();
-
   return (
     <>
       {/* Backdrop */}
@@ -129,7 +128,7 @@ const CartDropdown = ({ isOpen, onClose }) => {
                 className="text-gray-500 mb-2"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
-                Your cart is empty
+                Your basket is empty
               </p>
               <p 
                 className="text-sm text-gray-400"

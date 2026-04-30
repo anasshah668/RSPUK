@@ -605,6 +605,8 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       queryParams.set(safeKey, String(value));
     });
 
+    console.log('[ProductDetail] selected options', material, sidesPrinted, lamination, roundCorners, deliveryOptionRef.current || deliveryOption, selectedAttributeValues);
+
     dispatch(
       saveProductDetailDraft({
         productRouteKey: location.pathname,
@@ -655,6 +657,21 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
 
       const imageForCart = selectedImage || displayProduct.image;
       const isDataUrl = typeof uploadedImage === 'string' && uploadedImage.startsWith('data:');
+      const resolvedDeliveryOption = deliveryOptionRef.current || deliveryOption;
+      const productOptions = [];
+      const pushOption = (label, value) => {
+        if (!label) return;
+        if (value == null || String(value).trim() === '') return;
+        productOptions.push({ label: String(label), value: String(value) });
+      };
+      pushOption('Material', material);
+      pushOption('Sides Printed', sidesPrinted);
+      pushOption('Lamination', lamination);
+      pushOption('Round Corners', roundCorners);
+      pushOption('Delivery Option', resolvedDeliveryOption);
+      Object.entries(selectedAttributeValues || {}).forEach(([label, value]) => {
+        pushOption(label, value);
+      });
 
       const cartProduct = {
         id: product?._id || `${productType}-${Date.now()}`,
@@ -667,15 +684,16 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         ...(Boolean(uploadedImage) && { artworkAttached: true }),
         ...(typeof uploadedImage === 'string' && !isDataUrl ? { artworkPreviewUrl: uploadedImage } : {}),
         ...(sizeEnabled && { size: selectedSize }),
-        ...(hasDeliveryPricing && { deliveryOption: deliveryOptionRef.current || deliveryOption }),
+        ...(hasDeliveryPricing && { deliveryOption: resolvedDeliveryOption }),
         ...(hasDynamicAttributes && { selectedAttributes: selectedAttributeValues }),
+        ...(productOptions.length > 0 && { productOptions }),
         // Include business card options if applicable
         ...(isBusinessCard() && {
           material,
           sidesPrinted,
           lamination,
           roundCorners,
-          deliveryOption: deliveryOptionRef.current || deliveryOption
+          deliveryOption: resolvedDeliveryOption
         })
       };
 
