@@ -74,6 +74,40 @@ function stripHeavyFieldsFromLineItem(item) {
   return out;
 }
 
+function normalizeSelectedAttributesFromLineItem(item) {
+  if (!item || typeof item !== 'object') return {};
+  if (
+    item.selectedAttributes &&
+    typeof item.selectedAttributes === 'object' &&
+    !Array.isArray(item.selectedAttributes)
+  ) {
+    return item.selectedAttributes;
+  }
+
+  const fromSnapshot =
+    item.selectionSnapshot &&
+    typeof item.selectionSnapshot === 'object' &&
+    !Array.isArray(item.selectionSnapshot) &&
+    item.selectionSnapshot.attributes &&
+    typeof item.selectionSnapshot.attributes === 'object' &&
+    !Array.isArray(item.selectionSnapshot.attributes)
+      ? item.selectionSnapshot.attributes
+      : null;
+  if (fromSnapshot) return fromSnapshot;
+
+  if (Array.isArray(item.productOptions)) {
+    const mapped = {};
+    item.productOptions.forEach((row) => {
+      const label = String(row?.label || '').trim();
+      const value = row?.value;
+      if (!label || value == null || String(value).trim() === '') return;
+      mapped[label] = String(value);
+    });
+    return mapped;
+  }
+  return {};
+}
+
 function pickOrderReviewSummaryRows(summary) {
   if (!Array.isArray(summary)) return [];
   return summary
@@ -243,7 +277,18 @@ const CheckoutPage = () => {
         }
         const lineItemsForAdmin =
           isMultiCheckout && checkoutItems?.length
-            ? checkoutItems.map((item) => stripHeavyFieldsFromLineItem(item))
+            ? checkoutItems.map((item) => {
+                const normalizedSelectedAttributes = normalizeSelectedAttributesFromLineItem(item);
+                const cleaned = stripHeavyFieldsFromLineItem({
+                  ...item,
+                  // Ensure each checkout line sends selectedAttributes in payload.
+                  selectedAttributes: normalizedSelectedAttributes,
+                });
+                return {
+                  ...cleaned,
+                  selectedAttributes: normalizedSelectedAttributes,
+                };
+              })
             : [
                 stripHeavyFieldsFromLineItem({
                   type: 'checkout-line',
@@ -255,6 +300,12 @@ const CheckoutPage = () => {
                   quantity: 1,
                   price: payAmount,
                   summary: Array.isArray(checkoutData.summary) ? checkoutData.summary : [],
+                  selectedAttributes:
+                    checkoutData.selectedAttributes &&
+                    typeof checkoutData.selectedAttributes === 'object' &&
+                    !Array.isArray(checkoutData.selectedAttributes)
+                      ? checkoutData.selectedAttributes
+                      : {},
                 }),
               ];
 
@@ -362,6 +413,7 @@ const CheckoutPage = () => {
       setIsPaying(false);
     }
   };
+  console.log(checkoutItems,"cartItems8978657")
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="container mx-auto px-4 lg:px-8 max-w-6xl space-y-6">

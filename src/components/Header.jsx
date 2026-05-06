@@ -203,11 +203,11 @@ const Header = () => {
           description: item.description || 'Complete your purchase securely.',
           amount: lineNet,
           amountBasis: 'net',
-          summary,
+          summary: item?.summary,
+          selectedAttributes: item?.selectedAttributes,
+          selectionSnapshot: item?.selectionSnapshot,
           productOptions: item?.productOptions,
           designOption: item?.designOption,
-
-
         },
       },
     });
@@ -229,9 +229,14 @@ const Header = () => {
           price: item.price,
           amountBasis: item.amountBasis,
           paymentId: item.paymentId,
+          selectedAttributes: item?.selectedAttributes,
+          selectionSnapshot: item?.selectionSnapshot,
           productOptions: item?.productOptions,
           designOption: item?.designOption,
           category: item?.category,
+          summary: item?.summary,
+
+
         })),
       },
     });
