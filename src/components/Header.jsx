@@ -208,6 +208,11 @@ const Header = () => {
           selectionSnapshot: item?.selectionSnapshot,
           productOptions: item?.productOptions,
           designOption: item?.designOption,
+          source: item?.source,
+          thirdPartyProductKey: item?.thirdPartyProductKey,
+          artworkPreviewUrl: item?.artworkPreviewUrl,
+          fileUrls: item?.fileUrls,
+          deliveryOption: item?.deliveryOption,
         },
       },
     });
@@ -235,8 +240,11 @@ const Header = () => {
           designOption: item?.designOption,
           category: item?.category,
           summary: item?.summary,
-
-
+          source: item?.source,
+          thirdPartyProductKey: item?.thirdPartyProductKey,
+          artworkPreviewUrl: item?.artworkPreviewUrl,
+          fileUrls: item?.fileUrls,
+          deliveryOption: item?.deliveryOption,
         })),
       },
     });

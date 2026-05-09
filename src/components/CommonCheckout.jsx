@@ -131,6 +131,11 @@ const CommonCheckout = ({
   acceptTerms,
   onAcceptTermsChange,
   onSubmit,
+  /**
+   * Runs before any card session/tokenization. Return falsy or throw to abort payment.
+   * Use this for backend pre-flight validation (e.g. third-party order validate).
+   */
+  onPreValidate = null,
   submitDisabled = false,
   /** First reason checkout details block payment (shown under the button when disabled). */
   submitBlockedReason = null,
@@ -140,6 +145,7 @@ const CommonCheckout = ({
   /** Increment to force secure-fields reinit (e.g. after safe 409 session conflict). */
   worldpayReloadSignal = 0,
 }) => {
+  const [preValidating, setPreValidating] = useState(false);
   const [loadingWorldpay, setLoadingWorldpay] = useState(false);
   const [worldpayReady, setWorldpayReady] = useState(false);
   const [worldpayInitError, setWorldpayInitError] = useState('');
@@ -391,6 +397,17 @@ const CommonCheckout = ({
     return null;
   })();
 
+  const runPreValidate = async () => {
+    if (typeof onPreValidate !== 'function') return true;
+    setPreValidating(true);
+    try {
+      const result = await onPreValidate();
+      return result !== false;
+    } finally {
+      setPreValidating(false);
+    }
+  };
+
   const handleSubmit = async () => {
     try {
       if (paymentMethod === 'worldpay-card' && totalAmount > 0) {
@@ -405,6 +422,9 @@ const CommonCheckout = ({
           return;
         }
 
+        const okToProceed = await runPreValidate();
+        if (!okToProceed) return;
+
         const sessionPayload = await worldpaySessionStateFromInstance(payInstance);
         await onSubmit({
           provider: 'worldpay',
@@ -413,6 +433,9 @@ const CommonCheckout = ({
         });
         return;
       }
+
+      const okToProceed = await runPreValidate();
+      if (!okToProceed) return;
 
       await onSubmit({
         provider: paymentMethod === 'klarna-3' ? 'klarna' : 'manual',
@@ -630,13 +653,13 @@ const CommonCheckout = ({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={payButtonDisabled}
+            disabled={payButtonDisabled || preValidating}
             className={`w-full px-6 py-3.5 rounded-xl font-semibold text-white transition-colors ${
-              payButtonDisabled ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow'
+              payButtonDisabled || preValidating ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow'
             }`}
             style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >
-            {submitLabel}
+            {preValidating ? 'Validating order...' : submitLabel}
           </button>
         </div>
 

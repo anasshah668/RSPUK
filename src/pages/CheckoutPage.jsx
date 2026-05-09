@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import CommonCheckout from '../components/CommonCheckout';
 import { paymentService } from '../services/paymentService';
+import { thirdPartyService } from '../services/thirdPartyService';
+import { uploadService } from '../services/uploadService';
 import { useCart } from '../context/CartContext';
 import { useVatInclusive } from '../hooks/useVatInclusive';
 import {
@@ -41,6 +43,28 @@ const ORDER_REVIEW_SUMMARY_LABELS = new Set([
   'Product type',
   'Item',
 ]);
+
+const TRADEPRINT_PARTNER_CONTACT_DETAILS = {
+  firstName: 'John',
+  lastName: 'Doe',
+  email: 'john@doe.com',
+  contactPhone: '07655 568 134',
+  companyName: 'Tradeprint Distribution Ltd.',
+};
+
+const TRADEPRINT_BILLING_ADDRESS = {
+  firstName: 'Steeve',
+  lastName: 'Roucaute',
+  add1: 'Tradeprint Distribution Ltd',
+  add2: '2 FULTON ROAD',
+  postcode: 'DD2 4SW',
+  town: 'DUNDEE',
+  country: 'GB',
+  companyName: 'TRADEPRINT DISTRIBUTION LTD',
+  email: 'steeve@tradeprint.co.uk',
+  contactPhone: '0123456879',
+  mobile: '0751424242',
+};
 
 function isRecoverableWorldpaySessionConflict(error) {
   const status = Number(error?.status || error?.data?.status || 0);
@@ -123,31 +147,218 @@ function pickOrderReviewSummaryRows(summary) {
     .slice(0, 4);
 }
 
+function formatSourceLabel(source) {
+  const value = String(source || '').trim();
+  if (!value) return '';
+  if (value === 'third-party') return 'Trade Print';
+  if (value === 'in-house') return 'In House';
+  return value
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function splitCustomerName(fullName) {
+  const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts[0] || 'Customer',
+    lastName: parts.slice(1).join(' ') || 'Customer',
+  };
+}
+
+function getTradeprintServiceLevel(item) {
+  const value = String(
+    item?.serviceLevel ||
+    item?.deliveryOption ||
+    item?.selectedAttributes?.deliveryOption ||
+    ''
+  ).trim().toLowerCase();
+  if (value === 'express') return 'Express';
+  if (value === 'saver') return 'Saver';
+  return 'Standard';
+}
+
+function getTradeprintFileUrls(item) {
+  if (Array.isArray(item?.fileUrls)) {
+    return item.fileUrls.filter((url) => /^https?:\/\//i.test(String(url || '')));
+  }
+  if (/^https?:\/\//i.test(String(item?.artworkPreviewUrl || ''))) {
+    return [item.artworkPreviewUrl];
+  }
+  return [];
+}
+
+function getCheckoutLineKey(item, idx) {
+  return String(item?.lineId || item?.id || `line-${idx}`);
+}
+
+/**
+ * Detect whether a Tradeprint validation failure was caused by the artwork
+ * (e.g. "Line item artwork validation failed", or any errorDetails entry
+ * mentioning artwork / fileUrls).
+ */
+function isArtworkValidationFailure(summary, details) {
+  const text = String(summary || '').toLowerCase();
+  if (text.includes('artwork') || text.includes('fileurl') || text.includes('file url')) {
+    return true;
+  }
+  if (Array.isArray(details)) {
+    return details.some((d) => {
+      const message = String(d?.message || '').toLowerCase();
+      const argument = String(d?.argument || '').toLowerCase();
+      return (
+        message.includes('artwork') ||
+        message.includes('fileurl') ||
+        argument.includes('artwork') ||
+        argument.includes('fileurl') ||
+        argument === 'fileurls'
+      );
+    });
+  }
+  return false;
+}
+
+/**
+ * Returns the order-item indices flagged in errorDetails.property values like
+ * "instance.orderItems[2]". Empty array means no specific index is known.
+ */
+function extractFailingOrderItemIndices(details) {
+  if (!Array.isArray(details)) return [];
+  const indices = new Set();
+  details.forEach((d) => {
+    const property = String(d?.property || '');
+    const match = property.match(/orderItems\[(\d+)\]/);
+    if (match) indices.add(Number(match[1]));
+  });
+  return [...indices];
+}
+
+function getTradeprintProductionData(item) {
+  const attributes = normalizeSelectedAttributesFromLineItem(item);
+  const {
+    deliveryOption: _deliveryOption,
+    source: _source,
+    ...productionData
+  } = attributes || {};
+  return productionData;
+}
+
+function buildTradeprintValidationPayload({ lines, customerInfo, orderReference }) {
+  const customerName = splitCustomerName(customerInfo.name);
+  return {
+    currency: 'GBP',
+    orderReference,
+    orderItems: lines.map((line, index) => {
+      const productId = line.thirdPartyProductKey || line.productId;
+      if (!productId) {
+        throw new Error(`Missing Tradeprint product id for item ${index + 1}.`);
+      }
+
+      const fileUrls = getTradeprintFileUrls(line);
+      return {
+        productId,
+        fileUrls,
+        withoutArtwork: fileUrls.length === 0,
+        quantity: Math.max(1, Number(line.quantity) || 1),
+        serviceLevel: getTradeprintServiceLevel(line),
+        productionData: getTradeprintProductionData(line),
+        partnerContactDetails: TRADEPRINT_PARTNER_CONTACT_DETAILS,
+        deliveryAddress: {
+          companyName: customerInfo.name || 'Customer',
+          firstName: customerName.firstName,
+          lastName: customerName.lastName,
+          add1: customerInfo.address,
+          add2: '',
+          town: customerInfo.city,
+          postcode: customerInfo.postalCode,
+          country: 'GB',
+        },
+        extraData: {
+          description: line.description || line.title || line.name || 'Order description',
+          comments: 'Please ensure not to trim into text',
+          partnerItemId: line.lineId || line.id || `${orderReference}-${index + 1}`,
+          merchandisingProductName: line.title || line.name || 'Product',
+          referenceLabel: line.title || line.name || orderReference,
+          purchaseOrder: orderReference,
+        },
+      };
+    }),
+    billingAddress: TRADEPRINT_BILLING_ADDRESS,
+  };
+}
+
 const CheckoutPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { addToCart, clearCart, refreshCart, cartItems } = useCart();
   const vatInclusive = useVatInclusive();
-
   const checkoutItems = Array.isArray(location.state?.checkoutItems) ? location.state.checkoutItems : null;
   const isMultiCheckout = Boolean(checkoutItems?.length);
 
-  const checkoutData = location.state?.checkoutData || {
-    title: 'Custom Neon Sign',
-    description: 'Standalone secure checkout',
-    amount: 50,
-    summary: [
-      { label: 'Product', value: 'Custom Neon Sign' },
-      { label: 'Size', value: '120cm x 24cm' },
-      { label: 'Build', value: 'Indoor • Bold Tube' },
-    ],
-  };
+  const checkoutData = useMemo(() => {
+    const passed = location?.state?.checkoutData;
+    if (passed && typeof passed === 'object') return passed;
 
+    if (Array.isArray(checkoutItems) && checkoutItems.length > 0) {
+      const totalAmount = checkoutItems.reduce(
+        (sum, i) => sum + Number(i?.price || 0),
+        0
+      );
+      const first = checkoutItems[0] || {};
+      const sources = [
+        ...new Set(
+          checkoutItems
+            .map((i) => String(i?.source || '').trim())
+            .filter(Boolean)
+        ),
+      ];
+
+      return {
+        title:
+          checkoutItems.length === 1
+            ? first.title || first.name || 'Order'
+            : `Order (${checkoutItems.length} items)`,
+        description:
+          checkoutItems.length === 1
+            ? first.description || ''
+            : 'Multi-item checkout',
+        amount: totalAmount,
+        amountBasis: first.amountBasis || null,
+        summary: Array.isArray(first.summary) ? first.summary : [],
+        selectedAttributes: first.selectedAttributes,
+        selectionSnapshot: first.selectionSnapshot,
+        productOptions: first.productOptions,
+        designOption: first.designOption,
+        source: sources.length === 1 ? sources[0] : sources.join(', '),
+        thirdPartyProductKey: first.thirdPartyProductKey,
+        artworkPreviewUrl: first.artworkPreviewUrl,
+        fileUrls: first.fileUrls,
+        deliveryOption: first.deliveryOption,
+      };
+    }
+
+    return undefined;
+  }, [location?.state?.checkoutData, checkoutItems]);
+
+  const checkoutSourceLabel = formatSourceLabel(checkoutData?.source);
+ 
   const [activeSlide, setActiveSlide] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('worldpay-card');
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   const [worldpayReloadSignal, setWorldpayReloadSignal] = useState(0);
+  const [validationErrors, setValidationErrors] = useState([]);
+  const [validationSummary, setValidationSummary] = useState('');
+  // Artwork re-upload state (only used when Tradeprint rejects current artwork).
+  // Keyed by `getCheckoutLineKey(item, idx)`.
+  const [artworkOverridesByLine, setArtworkOverridesByLine] = useState({}); // { [key]: { url, fileName } }
+  const [artworkUploadingByLine, setArtworkUploadingByLine] = useState({}); // { [key]: boolean }
+  const [artworkUploadErrorByLine, setArtworkUploadErrorByLine] = useState({}); // { [key]: string }
+  // When true, the inline "re-upload artwork" panel is shown above the checkout form.
+  const [needsArtworkReupload, setNeedsArtworkReupload] = useState(false);
+  // Indices of third-party lines flagged by the validate API (when known).
+  const [failingArtworkLineKeys, setFailingArtworkLineKeys] = useState([]);
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
     email: '',
@@ -174,8 +385,8 @@ const CheckoutPage = () => {
     );
   }, [isMultiCheckout, allCustomNeon, checkoutItems]);
 
-  const singleNetAmount = Number(checkoutData.amount) > 0 ? Number(checkoutData.amount) : 50;
-  const isNeonNetCheckout = isMultiCheckout ? allCustomNeon : checkoutData.amountBasis === 'net';
+  const singleNetAmount = Number(checkoutData?.amount) > 0 ? Number(checkoutData?.amount) : 50;
+  const isNeonNetCheckout = isMultiCheckout ? allCustomNeon : checkoutData?.amountBasis === 'net';
   const netAmount = isMultiCheckout && allCustomNeon ? multiNeonNetTotal : singleNetAmount;
   const payAmount = useMemo(() => {
     if (isMultiCheckout) {
@@ -209,11 +420,11 @@ const CheckoutPage = () => {
 
   const checkoutBannerTitle = isMultiCheckout
     ? `Your order (${checkoutItems.length} ${checkoutItems.length === 1 ? 'item' : 'items'})`
-    : checkoutData.title || 'Secure Checkout';
+    : checkoutData?.title || 'Secure Checkout';
 
   const reviewSummaryRows = useMemo(
-    () => pickOrderReviewSummaryRows(checkoutData.summary),
-    [checkoutData.summary]
+    () => pickOrderReviewSummaryRows(checkoutData?.summary),
+    [checkoutData?.summary]
   );
   const sanitizedCustomerInfo = {
     name: String(customerInfo.name || '').trim(),
@@ -242,6 +453,155 @@ const CheckoutPage = () => {
     if (!acceptTerms) return 'Tick the box to accept the Terms & Conditions.';
     return null;
   })();
+
+  const buildLineItemsForAdmin = () =>
+    isMultiCheckout && checkoutItems?.length
+      ? checkoutItems.map((item) => {
+          const normalizedSelectedAttributes = normalizeSelectedAttributesFromLineItem(item);
+          const cleaned = stripHeavyFieldsFromLineItem({
+            ...item,
+            selectedAttributes: normalizedSelectedAttributes,
+          });
+          return {
+            ...cleaned,
+            selectedAttributes: normalizedSelectedAttributes,
+          };
+        })
+      : [
+          stripHeavyFieldsFromLineItem({
+            type: 'checkout-line',
+            title: checkoutData?.title || 'Order',
+            description:
+              typeof checkoutData?.description === 'string'
+                ? checkoutData?.description.slice(0, 800)
+                : '',
+            quantity: 1,
+            price: payAmount,
+            summary: Array.isArray(checkoutData?.summary) ? checkoutData?.summary : [],
+            source: checkoutData?.source,
+            thirdPartyProductKey: checkoutData?.thirdPartyProductKey,
+            artworkPreviewUrl: checkoutData?.artworkPreviewUrl,
+            fileUrls: checkoutData?.fileUrls,
+            deliveryOption: checkoutData?.deliveryOption,
+            selectedAttributes:
+              checkoutData?.selectedAttributes &&
+              typeof checkoutData?.selectedAttributes === 'object' &&
+              !Array.isArray(checkoutData?.selectedAttributes)
+                ? checkoutData?.selectedAttributes
+                : {},
+          }),
+        ];
+
+  /**
+   * Apply any user-uploaded artwork overrides to a line. If an override exists
+   * for the line key, replace `fileUrls` / `artworkPreviewUrl` and clear
+   * `withoutArtwork` so Tradeprint validates against the new artwork.
+   */
+  const applyArtworkOverrideToLine = (item, key) => {
+    const override = artworkOverridesByLine[key];
+    if (!override?.url) return item;
+    return {
+      ...item,
+      fileUrls: [override.url],
+      artworkPreviewUrl: override.url,
+      withoutArtwork: false,
+      artworkAttached: true,
+    };
+  };
+
+  const runThirdPartyPreValidation = async () => {
+    setValidationErrors([]);
+    setValidationSummary('');
+
+    if (paymentMethod !== 'worldpay-card') return true;
+
+    const lineItemsForAdmin = buildLineItemsForAdmin();
+    // Apply any artwork re-uploads the user has made since the last attempt
+    // before sending the validation request.
+    const linesWithOverrides = lineItemsForAdmin.map((item, idx) =>
+      applyArtworkOverrideToLine(item, getCheckoutLineKey(item, idx)),
+    );
+    const thirdPartyLines = linesWithOverrides.filter(
+      (item) => String(item?.source || '').trim() === 'third-party'
+    );
+    if (thirdPartyLines.length === 0) return true;
+
+    let validationPayload;
+    try {
+      validationPayload = buildTradeprintValidationPayload({
+        lines: thirdPartyLines,
+        customerInfo: sanitizedCustomerInfo,
+        orderReference: `CHECKOUT-${Date.now()}`,
+      });
+    } catch (e) {
+      const message = e?.message || 'Could not prepare validation request.';
+      setValidationSummary(message);
+      toast.error(message);
+      return false;
+    }
+
+    try {
+      const result = await thirdPartyService.validateOrders(validationPayload);
+      if (result?.success) {
+        // Validation cleared — drop the re-upload panel state.
+        setNeedsArtworkReupload(false);
+        setFailingArtworkLineKeys([]);
+        return true;
+      }
+
+      const details = Array.isArray(result?.errorDetails) ? result.errorDetails : [];
+      const summary =
+        result?.errorMessage ||
+        details[0]?.message ||
+        'We could not validate your order with the printer. Please review the details and try again.';
+      setValidationSummary(summary);
+      setValidationErrors(details);
+
+      const isArtworkIssue = isArtworkValidationFailure(summary, details);
+      if (isArtworkIssue) {
+        // Map third-party lines back to keys so the UI can highlight which
+        // ones need a fresh upload. If errorDetails specifies indices, only
+        // mark those; otherwise mark every third-party line.
+        const flaggedIndices = extractFailingOrderItemIndices(details);
+        const thirdPartyKeys = [];
+        let tpCounter = 0;
+        linesWithOverrides.forEach((item, idx) => {
+          if (String(item?.source || '').trim() !== 'third-party') return;
+          const key = getCheckoutLineKey(item, idx);
+          const indexAmongThirdParty = tpCounter;
+          tpCounter += 1;
+          if (
+            flaggedIndices.length === 0 ||
+            flaggedIndices.includes(indexAmongThirdParty)
+          ) {
+            thirdPartyKeys.push(key);
+          }
+        });
+
+        setFailingArtworkLineKeys(thirdPartyKeys);
+        setNeedsArtworkReupload(true);
+        toast.error(
+          'Your artwork was rejected by the printer. Please upload a new file to continue.',
+        );
+      } else {
+        setNeedsArtworkReupload(false);
+        setFailingArtworkLineKeys([]);
+        toast.error(summary);
+      }
+      return false;
+    } catch (error) {
+      const summary =
+        error?.data?.message ||
+        error?.message ||
+        'Order validation request failed. Please try again.';
+      setValidationSummary(summary);
+      setValidationErrors([]);
+      setNeedsArtworkReupload(false);
+      setFailingArtworkLineKeys([]);
+      toast.error(summary);
+      return false;
+    }
+  };
 
   const handleCheckout = async (paymentPayload = null) => {
     if (isPaying) return;
@@ -275,45 +635,17 @@ const CheckoutPage = () => {
         if (!sessionForCharge) {
           throw new Error('Secure card session was not generated. Please re-enter card details and try again.');
         }
-        const lineItemsForAdmin =
-          isMultiCheckout && checkoutItems?.length
-            ? checkoutItems.map((item) => {
-                const normalizedSelectedAttributes = normalizeSelectedAttributesFromLineItem(item);
-                const cleaned = stripHeavyFieldsFromLineItem({
-                  ...item,
-                  // Ensure each checkout line sends selectedAttributes in payload.
-                  selectedAttributes: normalizedSelectedAttributes,
-                });
-                return {
-                  ...cleaned,
-                  selectedAttributes: normalizedSelectedAttributes,
-                };
-              })
-            : [
-                stripHeavyFieldsFromLineItem({
-                  type: 'checkout-line',
-                  title: checkoutData.title || 'Order',
-                  description:
-                    typeof checkoutData.description === 'string'
-                      ? checkoutData.description.slice(0, 800)
-                      : '',
-                  quantity: 1,
-                  price: payAmount,
-                  summary: Array.isArray(checkoutData.summary) ? checkoutData.summary : [],
-                  selectedAttributes:
-                    checkoutData.selectedAttributes &&
-                    typeof checkoutData.selectedAttributes === 'object' &&
-                    !Array.isArray(checkoutData.selectedAttributes)
-                      ? checkoutData.selectedAttributes
-                      : {},
-                }),
-              ];
+        const lineItemsForAdmin = buildLineItemsForAdmin().map((item, idx) =>
+          applyArtworkOverrideToLine(item, getCheckoutLineKey(item, idx)),
+        );
+
+        const orderReference = `CHECKOUT-${Date.now()}`;
 
         const paymentResult = await paymentService.chargeWorldpay({
           sessionState: sessionForCharge,
           amount: payAmount,
           currency: 'GBP',
-          orderReference: `CHECKOUT-${Date.now()}`,
+          orderReference,
           customerInfo: sanitizedCustomerInfo,
           billingAddress: {
             address1: sanitizedCustomerInfo.address,
@@ -332,9 +664,9 @@ const CheckoutPage = () => {
                 })),
               }
             : {
-                title: checkoutData.title,
-                description: checkoutData.description,
-                summary: checkoutData.summary || [],
+                title: checkoutData?.title,
+                description: checkoutData?.description,
+                summary: checkoutData?.summary || [],
               },
         });
         paymentId = paymentResult?.paymentId || null;
@@ -370,7 +702,7 @@ const CheckoutPage = () => {
               ? checkoutItems.length === 1
                 ? checkoutItems[0].title || checkoutItems[0].name || 'Order'
                 : `${checkoutItems.length} items`
-              : checkoutData.title,
+              : checkoutData?.title,
             receiptEmailSent,
             receiptEmailReason,
           },
@@ -386,10 +718,10 @@ const CheckoutPage = () => {
           type: 'checkout-order',
           title: isMultiCheckout
             ? `Order (${checkoutItems.length} items)`
-            : checkoutData.title,
+            : checkoutData?.title,
           description: isMultiCheckout
             ? 'Multi-item checkout (pending payment)'
-            : checkoutData.description,
+            : checkoutData?.description,
           paymentMethod,
           paymentId,
           price: payAmount,
@@ -413,7 +745,73 @@ const CheckoutPage = () => {
       setIsPaying(false);
     }
   };
-  console.log(checkoutItems,"cartItems8978657")
+  // List of third-party lines that should be shown in the artwork re-upload
+  // panel. Falls back to all third-party lines when the validate API didn't
+  // tell us which one(s) failed.
+  const artworkReuploadLines = useMemo(() => {
+    if (!needsArtworkReupload) return [];
+    const allLines = buildLineItemsForAdmin();
+    const thirdPartyEntries = allLines
+      .map((item, idx) => ({ item, key: getCheckoutLineKey(item, idx) }))
+      .filter((entry) => String(entry.item?.source || '').trim() === 'third-party');
+    if (failingArtworkLineKeys.length === 0) return thirdPartyEntries;
+    const keySet = new Set(failingArtworkLineKeys);
+    return thirdPartyEntries.filter((entry) => keySet.has(entry.key));
+    // buildLineItemsForAdmin reads checkoutItems / checkoutData from closure,
+    // both of which are already in the dependency list via their drivers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    needsArtworkReupload,
+    failingArtworkLineKeys,
+    isMultiCheckout,
+    checkoutItems,
+    checkoutData,
+    payAmount,
+  ]);
+
+  const handleArtworkReupload = async (key, file) => {
+    if (!file) return;
+    setArtworkUploadErrorByLine((prev) => ({ ...prev, [key]: '' }));
+    setArtworkUploadingByLine((prev) => ({ ...prev, [key]: true }));
+    try {
+      const result = await uploadService.uploadArtwork(file);
+      const hostedUrl = result?.url;
+      if (!hostedUrl) {
+        throw new Error('Upload did not return a URL.');
+      }
+      setArtworkOverridesByLine((prev) => ({
+        ...prev,
+        [key]: { url: hostedUrl, fileName: file.name || 'artwork' },
+      }));
+      // Clear the prior error banner so the user sees the cleared state and
+      // can press Pay Securely again.
+      setValidationErrors([]);
+      setValidationSummary('');
+      toast.success('Artwork uploaded. You can now retry the payment.');
+    } catch (error) {
+      console.error('[checkout] artwork re-upload failed', error);
+      const message =
+        error?.data?.message ||
+        error?.message ||
+        'Could not upload artwork. Please try again.';
+      setArtworkUploadErrorByLine((prev) => ({ ...prev, [key]: message }));
+      toast.error(message);
+    } finally {
+      setArtworkUploadingByLine((prev) => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const dismissArtworkReupload = () => {
+    setNeedsArtworkReupload(false);
+    setFailingArtworkLineKeys([]);
+    setArtworkUploadErrorByLine({});
+  };
+
+  const isAnyArtworkUploading = Object.values(artworkUploadingByLine).some(Boolean);
+  const allFlaggedLinesHaveOverride =
+    artworkReuploadLines.length > 0 &&
+    artworkReuploadLines.every((entry) => Boolean(artworkOverridesByLine[entry.key]?.url));
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="container mx-auto px-4 lg:px-8 max-w-6xl space-y-6">
@@ -462,9 +860,246 @@ const CheckoutPage = () => {
           </div>
         </div>
 
+        {(validationSummary || validationErrors.length > 0) && (
+          <div
+            className="rounded-xl border border-red-200 bg-red-50 p-4 shadow-sm"
+            role="alert"
+            aria-live="polite"
+          >
+            <div className="flex items-start gap-3">
+              <svg
+                className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3l-6.93-12a2 2 0 00-3.48 0L3.34 16a2 2 0 001.73 3z"
+                />
+              </svg>
+              <div className="flex-1 min-w-0">
+                <p
+                  className="text-sm font-semibold text-red-800"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  We can't process this order yet
+                </p>
+                {validationSummary && (
+                  <p
+                    className="text-sm text-red-700 mt-1"
+                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  >
+                    {validationSummary}
+                  </p>
+                )}
+                {validationErrors.length > 0 && (
+                  <ul
+                    className="mt-2 list-disc list-inside space-y-1 text-xs text-red-700"
+                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  >
+                    {validationErrors.map((err, idx) => (
+                      <li key={`${err?.argument || 'err'}-${idx}`}>
+                        {err?.argument ? (
+                          <span className="font-semibold">{err.argument}: </span>
+                        ) : null}
+                        {err?.message || 'Validation failed.'}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p
+                  className="text-[11px] text-red-600 mt-2"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  Please update your selection and try again. Your card has not been charged.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setValidationSummary('');
+                  setValidationErrors([]);
+                }}
+                className="text-xs font-semibold text-red-700 hover:text-red-900"
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
+
+        {needsArtworkReupload && artworkReuploadLines.length > 0 && (
+          <section
+            className="rounded-2xl border border-amber-200 bg-amber-50/70 p-5 shadow-sm"
+            role="region"
+            aria-label="Artwork re-upload required"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M16 8l-4-4m0 0l-4 4m4-4v12" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base font-semibold text-amber-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    Re-upload your artwork to continue
+                  </h3>
+                  <p className="text-sm text-amber-800 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    The printer couldn't validate the artwork supplied for the
+                    {artworkReuploadLines.length === 1 ? ' item' : ' items'} below.
+                    Upload a new file (image or PDF) and we'll re-check before any payment is taken.
+                    Your card has not been charged.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={dismissArtworkReupload}
+                className="text-xs font-semibold text-amber-800 hover:text-amber-900"
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+              >
+                Dismiss
+              </button>
+            </div>
+
+            <ul className="mt-4 space-y-3">
+              {artworkReuploadLines.map(({ item, key }, idx) => {
+                const override = artworkOverridesByLine[key];
+                const isUploading = Boolean(artworkUploadingByLine[key]);
+                const lineError = artworkUploadErrorByLine[key];
+                const itemTitle = item?.title || item?.name || `Item ${idx + 1}`;
+                const previewUrl = override?.url || (
+                  /^https?:\/\//i.test(String(item?.artworkPreviewUrl || ''))
+                    ? item.artworkPreviewUrl
+                    : ''
+                );
+                const isImagePreview = previewUrl && !/\.pdf(\?|$)/i.test(previewUrl);
+
+                return (
+                  <li
+                    key={key}
+                    className="rounded-xl bg-white border border-amber-200 p-4 flex flex-col sm:flex-row sm:items-center gap-4"
+                  >
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div className="w-14 h-14 rounded-lg bg-amber-50 border border-amber-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                        {previewUrl && isImagePreview ? (
+                          <img src={previewUrl} alt={`${itemTitle} artwork`} className="w-full h-full object-cover" />
+                        ) : previewUrl ? (
+                          <span className="text-[10px] font-semibold text-amber-700 px-1 text-center leading-tight">PDF</span>
+                        ) : (
+                          <svg className="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4-4 4 4m0 0l4-4 4 4M4 8h16" />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className="text-sm font-semibold text-gray-900 truncate"
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                          title={itemTitle}
+                        >
+                          {itemTitle}
+                        </p>
+                        <p
+                          className="text-[11px] text-gray-500 mt-0.5"
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        >
+                          Qty {item?.quantity || 1} · Source: {formatSourceLabel(item?.source) || 'Trade Print'}
+                        </p>
+                        {override ? (
+                          <p
+                            className="text-[11px] text-green-700 font-medium mt-1 flex items-center gap-1.5"
+                            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                            New artwork uploaded{override.fileName ? ` · ${override.fileName}` : ''}
+                          </p>
+                        ) : isUploading ? (
+                          <p
+                            className="text-[11px] text-blue-700 font-medium mt-1 flex items-center gap-1.5"
+                            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                          >
+                            <span className="inline-block w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+                            Uploading new artwork…
+                          </p>
+                        ) : lineError ? (
+                          <p
+                            className="text-[11px] text-red-600 font-medium mt-1"
+                            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                          >
+                            {lineError}
+                          </p>
+                        ) : (
+                          <p
+                            className="text-[11px] text-amber-700 font-medium mt-1"
+                            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                          >
+                            Upload a replacement file to retry validation.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <label className="inline-flex items-center justify-center px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-60 sm:flex-shrink-0">
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="hidden"
+                        disabled={isUploading}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleArtworkReupload(key, file);
+                          e.target.value = '';
+                        }}
+                      />
+                      {isUploading
+                        ? 'Uploading…'
+                        : override
+                          ? 'Replace artwork'
+                          : 'Upload artwork'}
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div className="mt-4 flex items-center justify-between flex-wrap gap-2">
+              <p
+                className="text-[11px] text-amber-800"
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+              >
+                {allFlaggedLinesHaveOverride
+                  ? 'All artwork ready. Press Pay Securely below to re-validate and complete the order.'
+                  : 'Once every flagged item has new artwork attached, press Pay Securely to retry.'}
+              </p>
+              <span
+                className={`text-[11px] font-semibold px-2 py-1 rounded-full ${
+                  allFlaggedLinesHaveOverride
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-amber-100 text-amber-800'
+                }`}
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+              >
+                {artworkReuploadLines.filter((e) => artworkOverridesByLine[e.key]).length}
+                {' / '}
+                {artworkReuploadLines.length} re-uploaded
+              </span>
+            </div>
+          </section>
+        )}
+
         <CommonCheckout
           title={checkoutBannerTitle}
           totalAmount={payAmount}
+          onPreValidate={runThirdPartyPreValidation}
           orderSummary={
             isMultiCheckout ? (
               <div className="space-y-3">
@@ -481,6 +1116,11 @@ const CheckoutPage = () => {
                         <p className="text-xs text-gray-500 mt-0.5 tabular-nums">
                           Qty {item.quantity || 1}
                         </p>
+                        {formatSourceLabel(item.source) ? (
+                          <p className="text-[11px] text-gray-500 mt-0.5">
+                            Source: {formatSourceLabel(item.source)}
+                          </p>
+                        ) : null}
                       </div>
                       <p className="shrink-0 font-semibold text-gray-900 tabular-nums self-start">
                         £{lineDisplayAmount(item).toFixed(2)}
@@ -510,8 +1150,13 @@ const CheckoutPage = () => {
                     className="font-semibold text-gray-900 mt-1 leading-snug"
                     style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                   >
-                    {checkoutData.title}
+                    {checkoutData?.title}
                   </p>
+                  {checkoutSourceLabel ? (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Source: {checkoutSourceLabel}
+                    </p>
+                  ) : null}
                 </div>
                 {reviewSummaryRows.length > 0 ? (
                   <dl className="grid gap-2 text-sm">
@@ -572,7 +1217,6 @@ const CheckoutPage = () => {
           acceptTerms={acceptTerms}
           onAcceptTermsChange={setAcceptTerms}
           onSubmit={handleCheckout}
-          submitBlockedReason={submitBlockedReason}
           isProcessingPayment={isPaying}
           submitDisabled={
             isPaying
@@ -586,8 +1230,23 @@ const CheckoutPage = () => {
             || !isPhoneValid
             || !isUkPostcodeLoose
             || !acceptTerms
+            || isAnyArtworkUploading
+            || (needsArtworkReupload && !allFlaggedLinesHaveOverride)
           }
-          submitLabel={isPaying ? 'Processing Payment...' : 'Pay Securely'}
+          submitBlockedReason={
+            isAnyArtworkUploading
+              ? 'Please wait for your artwork to finish uploading.'
+              : needsArtworkReupload && !allFlaggedLinesHaveOverride
+                ? 'Upload artwork for every flagged item to retry payment.'
+                : submitBlockedReason
+          }
+          submitLabel={
+            isPaying
+              ? 'Processing Payment...'
+              : needsArtworkReupload
+                ? 'Retry Payment'
+                : 'Pay Securely'
+          }
           worldpayReloadSignal={worldpayReloadSignal}
         />
       </div>

@@ -5,6 +5,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useCart } from '../context/CartContext';
 import { productService } from '../services/productService';
 import { thirdPartyService } from '../services/thirdPartyService';
+import { uploadService } from '../services/uploadService';
 import { decryptId } from '../utils/encryption';
 import EndBenefitsStrip from '../components/EndBenefitsStrip';
 import { saveProductDetailDraft } from '../store/designerSessionSlice';
@@ -25,6 +26,11 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const addingCartInFlightRef = useRef(false);
   const [designOption, setDesignOption] = useState('upload'); // 'custom' (Online Designer) or 'upload' (Upload Artwork); default upload
   const [uploadedImage, setUploadedImage] = useState(null);
+  // Hosted URL for the uploaded artwork (after Cloudinary upload). Sent to
+  // cart as `artworkPreviewUrl` / `fileUrls` and used by Tradeprint.
+  const [artworkUploadUrl, setArtworkUploadUrl] = useState(null);
+  const [isUploadingArtwork, setIsUploadingArtwork] = useState(false);
+  const [artworkUploadError, setArtworkUploadError] = useState('');
   const [selectedSize, setSelectedSize] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [product, setProduct] = useState(null);
@@ -104,6 +110,8 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         uiOptions: product.uiOptions || {},
         sizeOptions: product.sizeOptions || {},
         pricingTable: product.pricingTable || {},
+        source: product.source || 'in-house',
+        thirdPartyProductKey: product.thirdPartyProductKey || null,
       };
     }
     // If we have productProp passed from parent, use it (this prevents image flash)
@@ -126,6 +134,8 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         uiOptions: productProp.uiOptions || {},
         sizeOptions: productProp.sizeOptions || {},
         pricingTable: productProp.pricingTable || {},
+        source: productProp.source || 'in-house',
+        thirdPartyProductKey: productProp.thirdPartyProductKey || null,
       };
     }
     // Otherwise use hardcoded data based on productType (only if not loading from backend)
@@ -138,6 +148,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const productImages = Array.isArray(displayProduct?.images) && displayProduct.images.length > 0
     ? displayProduct.images
     : (displayProduct?.image ? [displayProduct.image] : []);
+  const source = displayProduct?.source || 'in-house';
   const selectedImage = productImages[selectedImageIndex] || productImages[0] || '';
 
   // Check if this is a business card product
@@ -148,6 +159,9 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
            categoryLower.includes('businesscard') ||
            categoryLower === 'business card';
   };
+
+
+  console.log('[ProductDetail] displayProduct', displayProduct);
   const dynamicAttributes = product?.thirdPartyAttributes || productProp?.thirdPartyAttributes || {};
   const hasDynamicAttributes = Object.keys(dynamicAttributes).length > 0;
   const thirdPartyProductKey = product?.thirdPartyProductKey || productProp?.thirdPartyProductKey || null;
@@ -560,14 +574,42 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     );
   }
 
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Reset prior upload state for the new file selection.
+    setArtworkUploadUrl(null);
+    setArtworkUploadError('');
+
+    // Show an immediate local preview while we upload to the backend.
+    if (file.type && file.type.startsWith('image/')) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setUploadedImage(reader.result);
-      };
+      reader.onloadend = () => setUploadedImage(reader.result);
       reader.readAsDataURL(file);
+    } else {
+      // For PDFs (or other non-image artwork) we don't have a thumbnail yet;
+      // mark the slot as filled so the UI reflects the selection.
+      setUploadedImage(file.name || 'artwork');
+    }
+
+    try {
+      setIsUploadingArtwork(true);
+      const result = await uploadService.uploadArtwork(file);
+      const hostedUrl = result?.url;
+      if (!hostedUrl) {
+        throw new Error('Upload did not return a URL.');
+      }
+      setArtworkUploadUrl(hostedUrl);
+    } catch (error) {
+      console.error('[artwork-upload] failed', error);
+      const message =
+        error?.data?.message || error?.message || 'Could not upload artwork. Please try again.';
+      setArtworkUploadError(message);
+      setArtworkUploadUrl(null);
+      toast.error(message);
+    } finally {
+      setIsUploadingArtwork(false);
     }
   };
 
@@ -656,8 +698,13 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       const finalPrice = applyVatMode(exVatPrice);
 
       const imageForCart = selectedImage || displayProduct.image;
-      const isDataUrl = typeof uploadedImage === 'string' && uploadedImage.startsWith('data:');
       const resolvedDeliveryOption = deliveryOptionRef.current || deliveryOption;
+      // Artwork status flowing into the cart line. We only consider artwork
+      // "attached" when we have a hosted URL we can hand to Tradeprint.
+      const hasUploadedArtwork = Boolean(artworkUploadUrl);
+      const artworkDesignFlow = effectiveDesignOption === 'upload' && showUpload;
+      const fileUrls = hasUploadedArtwork ? [artworkUploadUrl] : [];
+      const withoutArtwork = artworkDesignFlow ? !hasUploadedArtwork : true;
       const productOptions = [];
       const pushOption = (label, value) => {
         if (!label) return;
@@ -680,9 +727,15 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         price: finalPrice,
         image: imageForCart,
         quantity: qtyToAdd,
+        source: source,
+        thirdPartyProductKey,
         designOption: effectiveDesignOption,
-        ...(Boolean(uploadedImage) && { artworkAttached: true }),
-        ...(typeof uploadedImage === 'string' && !isDataUrl ? { artworkPreviewUrl: uploadedImage } : {}),
+        withoutArtwork,
+        ...(hasUploadedArtwork && {
+          artworkAttached: true,
+          artworkPreviewUrl: artworkUploadUrl,
+          fileUrls,
+        }),
         ...(sizeEnabled && { size: selectedSize }),
         ...(hasDeliveryPricing && { deliveryOption: resolvedDeliveryOption }),
         ...(hasDynamicAttributes && { selectedAttributes: selectedAttributeValues }),
@@ -708,6 +761,13 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     }
   };
 
+  const showUploadOption = displayProduct?.uiOptions?.showUploadDesignButton ?? true;
+  // For the Upload Artwork flow we need the file *and* a hosted URL from the
+  // backend before the user can add to cart. While the upload is in flight we
+  // also block the button.
+  const requiresArtworkUpload =
+    designOption === 'upload' && showUploadOption && !artworkUploadUrl;
+
   const handleAddToCart = () => {
     const sizeEnabled = displayProduct?.sizeOptions?.enabled ?? false;
     const sizeRequired = displayProduct?.sizeOptions?.required ?? false;
@@ -715,6 +775,17 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     if (sizeEnabled && sizeRequired && !selectedSize) {
       toast.error('Please select a size to continue.');
       return;
+    }
+
+    if (designOption === 'upload' && showUploadOption) {
+      if (isUploadingArtwork) {
+        toast.error('Please wait for your artwork upload to finish.');
+        return;
+      }
+      if (!artworkUploadUrl) {
+        toast.error('Please upload your artwork to add this product to your basket.');
+        return;
+      }
     }
 
     if (addingCartInFlightRef.current) return;
@@ -748,7 +819,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       }
     }, 120);
   };
-
+console.log('fretrhyrtewrfew', source);
   return (
     <div className="min-h-screen bg-gray-50 py-6 pb-24">
       <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
@@ -1637,9 +1708,29 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                                 type="file"
                                 accept="image/*,.pdf"
                                 onChange={handleImageUpload}
-                                className="text-xs text-gray-600 w-full"
+                                disabled={isUploadingArtwork}
+                                aria-required="true"
+                                aria-invalid={!artworkUploadUrl}
+                                className={`text-xs text-gray-600 w-full rounded border ${
+                                  !artworkUploadUrl ? 'border-red-300' : 'border-gray-200'
+                                } disabled:opacity-60`}
                               />
-                              {uploadedImage && (
+                              {isUploadingArtwork ? (
+                                <p className="text-[11px] text-blue-600 font-medium flex items-center gap-1.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                                  <span className="inline-block w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+                                  Uploading artwork…
+                                </p>
+                              ) : !artworkUploadUrl ? (
+                                <p className="text-[11px] text-red-600 font-medium" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                                  {artworkUploadError ||
+                                    'Artwork is required. Please upload an image or PDF to enable “Add To Basket”.'}
+                                </p>
+                              ) : (
+                                <p className="text-[11px] text-green-700 font-medium" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                                  Artwork uploaded successfully.
+                                </p>
+                              )}
+                              {uploadedImage && typeof uploadedImage === 'string' && uploadedImage.startsWith('data:') && (
                                 <img src={uploadedImage} alt="Uploaded design" className="w-24 h-24 object-cover rounded border" />
                               )}
                             </div>
@@ -1874,7 +1965,17 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
 
             <button
               type="button"
-              disabled={isAddingToCart}
+              disabled={
+                isAddingToCart ||
+                (designOption === 'upload' && (isUploadingArtwork || requiresArtworkUpload))
+              }
+              title={
+                designOption === 'upload' && isUploadingArtwork
+                  ? 'Please wait for your artwork upload to finish.'
+                  : designOption === 'upload' && requiresArtworkUpload
+                    ? 'Upload your artwork to enable Add To Basket.'
+                    : undefined
+              }
               onClick={designOption === 'upload' ? handleAddToCart : handleDesignProduct}
               className={`flex-shrink-0 px-6 md:px-10 py-3 rounded text-white font-bold text-sm md:text-base transition-colors w-[55%] md:w-[520px] text-center disabled:opacity-60 disabled:pointer-events-none ${
                 designOption === 'upload'
@@ -1883,11 +1984,13 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
               }`}
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
-              {isAddingToCart && designOption === 'upload'
-                ? 'Adding…'
-                : designOption === 'upload'
-                  ? 'Add To Basket'
-                  : 'Design Your Product'}
+              {designOption === 'upload'
+                ? isUploadingArtwork
+                  ? 'Uploading artwork…'
+                  : isAddingToCart
+                    ? 'Adding…'
+                    : 'Add To Basket'
+                : 'Design Your Product'}
             </button>
           </div>
         </div>

@@ -65,7 +65,8 @@
     "productAttributesByName": "third-party/products/attributes",
     "productPrices": "third-party/products/prices",
     "expectedDeliveryDate": "third-party/products/expected-delivery-date",
-    "quantities": "third-party/products/quantities"
+    "quantities": "third-party/products/quantities",
+    "validateOrders": "third-party/validate/orders"
   },
   "payments": {
     "worldpayCheckoutSession": "payments/worldpay/checkout-session",
@@ -77,5 +78,8 @@
     "merge": "cart/merge",
     "clear": "cart",
     "item": "cart/items"
+  },
+  "uploads": {
+    "artwork": "uploads/artwork"
   }
 }

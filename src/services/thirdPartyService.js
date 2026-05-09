@@ -30,6 +30,10 @@ const getQuantities = (payload) => {
   return httpClient.post(apiRoutes.thirdParty.quantities, payload);
 };
 
+const validateOrders = (payload) => {
+  return httpClient.post(apiRoutes.thirdParty.validateOrders, payload);
+};
+
 export const thirdPartyService = {
   getProductAttributes,
   getProductAttributesByName,
@@ -38,6 +42,7 @@ export const thirdPartyService = {
   getProductPrices,
   getExpectedDeliveryDate,
   getQuantities,
+  validateOrders,
 };
 
 export default thirdPartyService;
