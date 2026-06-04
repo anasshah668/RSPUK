@@ -48,10 +48,14 @@
     "galleryProjects": "settings/gallery-projects",
     "galleryProjectById": "settings/gallery-projects",
     "neonPricing": "admin/neon-pricing",
+    "featuredSignagePricing": "admin/featured-signage-pricing",
     "ordersFromCheckout": "admin/orders-from-checkout"
   },
   "neonPricing": {
     "calculate": "neon-pricing/calculate"
+  },
+  "featuredSignagePricing": {
+    "calculate": "featured-signage-pricing/calculate"
   },
   "settings": {
     "topAnnouncement": "settings/top-announcement",

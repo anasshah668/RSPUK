@@ -1,5 +1,6 @@
 import React from 'react';
 import Hero from '../components/Hero';
+import VideoShowcase from '../components/VideoShowcase';
 import Services from '../components/Services';
 import Features from '../components/Features';
 import WhyChooseUs from '../components/WhyChooseUs';
@@ -20,6 +21,7 @@ const HomePage = () => {
         <Hero />
       </div>
       <Services />
+      <VideoShowcase />
       <FeaturedSignageProducts />
       <Features />
       <CustomNeonPrinting />

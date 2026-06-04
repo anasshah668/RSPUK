@@ -2,7 +2,12 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { quoteService } from '../services/quoteService';
+import { featuredSignagePricingService } from '../services/featuredSignagePricingService';
 import { getFeaturedSignageBySlug } from '../data/featuredSignageData';
+import FeaturedPriceSummary from '../components/FeaturedPriceSummary';
+import { useFeaturedSignagePrice } from '../hooks/useFeaturedSignagePrice';
+import { buildFeaturedPricingInput } from '../utils/featuredSignagePricing';
+import { readVatInclusiveFromStorage, payableFromNet } from '../utils/vatUtils';
 
 const getInitialFormState = (productType) => ({
   customerName: '',
@@ -155,6 +160,15 @@ const FeaturedQuoteRequestPage = () => {
     }
   }, [categorySlug, formData]);
 
+  const pricingInput = useMemo(
+    () => buildFeaturedPricingInput(categorySlug, formData, productSpecificInputs),
+    [categorySlug, formData, productSpecificInputs]
+  );
+
+  const pricingDepsKey = JSON.stringify(pricingInput);
+  const { pricing, loading: pricingLoading, error: pricingError, displayTotal, vatInclusive } =
+    useFeaturedSignagePrice(pricingInput, pricingDepsKey);
+
   const orderPayload = useMemo(() => {
     const quantityNum = Math.max(1, Number(formData.quantity) || 1);
     const globalInputsRaw = {
@@ -175,6 +189,11 @@ const FeaturedQuoteRequestPage = () => {
       Object.entries(productSpecificInputs || {}).filter(([, v]) => !(v === '' || v === null || v === undefined))
     );
 
+    const unitNet = pricing?.unitPrice ?? 0;
+    const totalNet = pricing?.total ?? 0;
+    const vatInc = readVatInclusiveFromStorage();
+    const totalDisplay = payableFromNet(totalNet, vatInc);
+
     return {
       source: 'featured-signage-order',
       category: categorySlug,
@@ -189,12 +208,22 @@ const FeaturedQuoteRequestPage = () => {
       globalInputs,
       productSpecificInputs: productInputsPruned,
       notes: formData.notes || '',
-      orderItems: [{ name: `${heading} - Custom`, qty: quantityNum, price: 0, image: heroImage }],
-      itemsPrice: 0,
+      pricing: pricing
+        ? {
+            unitPriceNet: unitNet,
+            totalNet,
+            totalDisplay,
+            vatInclusive: vatInc,
+            breakdown: pricing.breakdown,
+            currency: pricing.currency,
+          }
+        : null,
+      orderItems: [{ name: `${heading} - Custom`, qty: quantityNum, price: unitNet, image: heroImage }],
+      itemsPrice: totalNet,
       taxPrice: 0,
       shippingPrice: 0,
-      totalPrice: 0,
-      total: 0,
+      totalPrice: totalNet,
+      total: totalNet,
       paymentMethod: 'quote',
       shippingAddress: {
         address: formData.customerAddress || 'TBD',
@@ -204,9 +233,9 @@ const FeaturedQuoteRequestPage = () => {
       },
       metadata: { submittedFrom: 'featured-quote-screen', featuredCategorySlug: categorySlug },
     };
-  }, [categorySlug, formData, heading, heroImage, productSpecificInputs]);
+  }, [categorySlug, formData, heading, heroImage, productSpecificInputs, pricing]);
 
-  const handlePreview = (e) => {
+  const handlePreview = async (e) => {
     e.preventDefault();
     if (!formData.customerName || !formData.customerPhone || !formData.customerEmail || !formData.productType) {
       toast.error('Please fill Name, Email, Phone and Product Type.');
@@ -216,6 +245,20 @@ const FeaturedQuoteRequestPage = () => {
       toast.error('Please fill Width, Height and Quantity.');
       return;
     }
+    try {
+      const snapshot = await featuredSignagePricingService.calculate(pricingInput);
+      if (!snapshot?.complete) {
+        toast.error('Unable to calculate price. Check your inputs and admin pricing.');
+        return;
+      }
+      if (!(snapshot.total > 0)) {
+        toast.error('Pricing is £0 — set rates in Admin → Featured pricing for this category.');
+        return;
+      }
+    } catch (err) {
+      toast.error(err?.message || 'Unable to calculate price.');
+      return;
+    }
     setStep('preview');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -223,6 +266,16 @@ const FeaturedQuoteRequestPage = () => {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
+      let finalPricing = pricing;
+      try {
+        finalPricing = await featuredSignagePricingService.calculate(pricingInput);
+      } catch {
+        /* use last estimate if recalc fails */
+      }
+      const totalNet = finalPricing?.total ?? 0;
+      const vatInc = readVatInclusiveFromStorage();
+      const totalDisplay = payableFromNet(totalNet, vatInc);
+
       const composed = {
         name: formData.customerName,
         email: formData.customerEmail,
@@ -232,6 +285,10 @@ const FeaturedQuoteRequestPage = () => {
         idealSignWidth: orderPayload.globalInputs?.width ?? undefined,
         country: 'United Kingdom',
         additionalInfo: `Featured Request • ${categorySlug}
+
+Estimated price (${vatInc ? 'Inc VAT' : 'Ex VAT'}): £${totalDisplay.toFixed(2)}
+Net total (ex VAT): £${totalNet.toFixed(2)}
+${finalPricing?.breakdown?.length ? `Breakdown:\n${finalPricing.breakdown.map((l) => `  ${l.label}: £${Number(l.amount).toFixed(2)}`).join('\n')}` : ''}
 
 Global Inputs:
 ${JSON.stringify(orderPayload?.globalInputs || {}, null, 2)}
@@ -374,9 +431,23 @@ ${(orderPayload?.notes || '').trim()}`.trim(),
                 </div>
               </section>
 
+              <FeaturedPriceSummary
+                pricing={pricing}
+                loading={pricingLoading}
+                error={pricingError}
+                displayTotal={displayTotal}
+                vatInclusive={vatInclusive}
+              />
+
               <div className="flex justify-end gap-3">
                 <button type="button" onClick={() => navigate(`/featured/${categorySlug}`)} className="px-5 py-2.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50">Back</button>
-              <button type="submit" className="px-6 py-2.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700">Preview Order</button>
+              <button
+                type="submit"
+                disabled={pricingLoading || !pricing?.complete}
+                className="px-6 py-2.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-60"
+              >
+                Preview Order
+              </button>
               </div>
             </form>
           )}
@@ -444,6 +515,18 @@ ${(orderPayload?.notes || '').trim()}`.trim(),
                   <div className="mt-4 bg-white border border-gray-100 rounded-lg p-4">
                     <p className="text-xs text-gray-500 mb-2">Notes</p>
                     <p className="text-sm text-gray-800 whitespace-pre-wrap">{formData.notes}</p>
+                  </div>
+                ) : null}
+
+                {orderPayload.pricing ? (
+                  <div className="mt-4">
+                    <FeaturedPriceSummary
+                      pricing={{ ...pricing, complete: true, total: orderPayload.pricing.totalNet, quantity: orderPayload.globalInputs?.quantity }}
+                      loading={false}
+                      error={null}
+                      displayTotal={orderPayload.pricing.totalDisplay}
+                      vatInclusive={orderPayload.pricing.vatInclusive}
+                    />
                   </div>
                 ) : null}
               </div>

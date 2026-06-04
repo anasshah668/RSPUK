@@ -10,6 +10,7 @@ import { categoryService } from '../services/categoryService';
 import { thirdPartyService } from '../services/thirdPartyService';
 import { neonPricingService } from '../services/neonPricingService';
 import AdminNeonPricingTab from '../components/AdminNeonPricingTab';
+import AdminFeaturedSignagePricingTab from '../components/AdminFeaturedSignagePricingTab';
 
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -163,7 +164,7 @@ const AdminDashboard = () => {
       <div className="bg-white border-b">
         <div className="container mx-auto px-4">
           <div className="flex gap-1">
-            {['overview', 'products', 'categories', 'orders', 'quotes', 'neon-pricing', 'settings'].map((tab) => (
+            {['overview', 'products', 'categories', 'orders', 'quotes', 'neon-pricing', 'featured-pricing', 'settings'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -174,7 +175,11 @@ const AdminDashboard = () => {
                 }`}
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
-                {tab === 'neon-pricing' ? 'Neon pricing' : tab}
+                {tab === 'neon-pricing'
+                  ? 'Neon pricing'
+                  : tab === 'featured-pricing'
+                    ? 'Featured pricing'
+                    : tab}
               </button>
             ))}
           </div>
@@ -212,6 +217,7 @@ const AdminDashboard = () => {
                 </p>
               )
             )}
+            {activeTab === 'featured-pricing' && <AdminFeaturedSignagePricingTab />}
             {activeTab === 'settings' && <SettingsTab />}
           </>
         )}

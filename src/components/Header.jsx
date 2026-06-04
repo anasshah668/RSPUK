@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -15,10 +15,12 @@ const Header = () => {
   const [shopOpen, setShopOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [basketOpen, setBasketOpen] = useState(false);
+  const [basketFlyoutStyle, setBasketFlyoutStyle] = useState(null);
   const shopRef = useRef(null);
   const userMenuRef = useRef(null);
   const basketDesktopRef = useRef(null);
   const basketMobileRef = useRef(null);
+  const basketFlyoutRef = useRef(null);
 
   const shopMenu = [
     {
@@ -153,7 +155,8 @@ const Header = () => {
       }
       const inBasketUi =
         basketDesktopRef.current?.contains(event.target) ||
-        basketMobileRef.current?.contains(event.target);
+        basketMobileRef.current?.contains(event.target) ||
+        basketFlyoutRef.current?.contains(event.target);
       if (!inBasketUi) {
         setBasketOpen(false);
       }
@@ -170,6 +173,43 @@ const Header = () => {
     window.addEventListener('rspuk-basket-open', openBasket);
     return () => window.removeEventListener('rspuk-basket-open', openBasket);
   }, []);
+
+  const getActiveBasketAnchor = useCallback(() => {
+    const mobile = basketMobileRef.current;
+    const desktop = basketDesktopRef.current;
+    if (mobile && mobile.offsetWidth > 0 && mobile.offsetHeight > 0) return mobile;
+    if (desktop && desktop.offsetWidth > 0 && desktop.offsetHeight > 0) return desktop;
+    return desktop || mobile;
+  }, []);
+
+  const updateBasketFlyoutPosition = useCallback(() => {
+    const anchor = getActiveBasketAnchor();
+    if (!anchor) return;
+    const rect = anchor.getBoundingClientRect();
+    const width = Math.min(window.innerWidth - 16, window.innerWidth < 1024 ? 320 : 352);
+    setBasketFlyoutStyle({
+      position: 'fixed',
+      top: rect.bottom + 8,
+      right: Math.max(8, window.innerWidth - rect.right),
+      width,
+      maxHeight: 'min(70vh, 26rem)',
+      zIndex: 200,
+    });
+  }, [getActiveBasketAnchor]);
+
+  useLayoutEffect(() => {
+    if (!basketOpen) {
+      setBasketFlyoutStyle(null);
+      return undefined;
+    }
+    updateBasketFlyoutPosition();
+    window.addEventListener('resize', updateBasketFlyoutPosition);
+    window.addEventListener('scroll', updateBasketFlyoutPosition, true);
+    return () => {
+      window.removeEventListener('resize', updateBasketFlyoutPosition);
+      window.removeEventListener('scroll', updateBasketFlyoutPosition, true);
+    };
+  }, [basketOpen, updateBasketFlyoutPosition]);
 
   const basketCount = getCartItemCount();
 
@@ -258,11 +298,13 @@ const Header = () => {
     !item.paymentId &&
     item.type !== 'checkout-order';
 
-  const BasketFlyout = ({ alignClass }) =>
-    basketOpen ? (
+  const BasketFlyout = () =>
+    basketOpen && basketFlyoutStyle ? (
       <div
-        className={`absolute z-[60] mt-2 rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[min(70vh,26rem)] ${alignClass}`}
-        style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+        ref={basketFlyoutRef}
+        className="rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden flex flex-col"
+        style={{ ...basketFlyoutStyle, fontFamily: 'Lexend Deca, sans-serif' }}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 shrink-0">
           <p className="text-sm font-bold text-gray-900">Your basket</p>
@@ -321,7 +363,10 @@ const Header = () => {
                 {showBasketCheckoutCta(item) ? (
                   <button
                     type="button"
-                    onClick={() => goToCheckoutForItem(item)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      goToCheckoutForItem(item);
+                    }}
                     className="mt-2 w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors"
                   >
                     Checkout this item
@@ -342,7 +387,10 @@ const Header = () => {
             </p>
             <button
               type="button"
-              onClick={goToCheckoutAll}
+              onClick={(e) => {
+                e.stopPropagation();
+                goToCheckoutAll();
+              }}
               className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors"
             >
               Proceed to checkout
@@ -354,8 +402,14 @@ const Header = () => {
   const BasketIconButton = () => (
     <button
       type="button"
-      onClick={() => setBasketOpen((o) => !o)}
-      className={`relative p-2 rounded-lg transition-colors ${
+      onClick={() => {
+        setBasketOpen((o) => {
+          const next = !o;
+          if (next) setTimeout(updateBasketFlyoutPosition, 0);
+          return next;
+        });
+      }}
+      className={`relative flex-shrink-0 p-2 rounded-lg transition-colors ${
         basketCount > 0
           ? 'text-blue-300 bg-blue-500/10 ring-1 ring-blue-400/40 hover:bg-blue-500/20 hover:text-blue-200'
           : 'text-gray-300 hover:text-blue-400 hover:bg-gray-700/50'
@@ -371,12 +425,6 @@ const Header = () => {
           d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
         />
       </svg>
-      {basketCount > 0 ? (
-        <>
-          <span className="absolute -top-1.5 left-0 w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span className="absolute -top-1.5 left-0 w-2 h-2 rounded-full bg-emerald-400" />
-        </>
-      ) : null}
     </button>
   );
 
@@ -394,22 +442,56 @@ const Header = () => {
     window.dispatchEvent(new CustomEvent('vat-mode-changed', { detail: { mode: vatMode } }));
   }, [isVatInclusive]);
 
+  const VatToggle = ({ compact = false }) => (
+    <div className={`flex items-center gap-2 text-gray-300 ${compact ? 'gap-1.5' : ''}`}>
+      <span
+        className={`font-semibold uppercase ${compact ? 'text-[10px] text-gray-400' : 'text-xs text-white'}`}
+        style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+      >
+        VAT
+      </span>
+      <button
+        type="button"
+        onClick={() => setIsVatInclusive((prev) => !prev)}
+        className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${
+          isVatInclusive ? 'bg-blue-600' : 'bg-gray-500'
+        }`}
+        aria-label="Toggle VAT mode"
+        title={`Showing ${isVatInclusive ? 'Inc VAT' : 'Ex VAT'} prices`}
+      >
+        <span
+          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+            isVatInclusive ? 'translate-x-5' : 'translate-x-1'
+          }`}
+        />
+      </button>
+      <span
+        className={`font-semibold tabular-nums ${compact ? 'text-[10px] text-gray-400' : 'text-[11px] text-gray-400'}`}
+        style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+      >
+        {isVatInclusive ? 'Inc' : 'Ex'}
+      </span>
+    </div>
+  );
+
   const handleLogout = async () => {
     if (!(await confirmLeavePreview())) return;
     await logout();
     setUserMenuOpen(false);
     navigate('/');
   };
-console.log(cartItems,"cartItems")
+
   return (
-    <header className="bg-gray-800 sticky top-0 z-50">
-      <nav className="mx-auto max-w-[1440px] px-3 md:px-6 lg:px-8 xl:px-10">
-        <div className="flex items-center justify-between h-20">
-          {/* Left Navigation */}
-          <div className="hidden lg:flex items-center space-x-6 lg:pr-24">
+    <header className="bg-gray-800 sticky top-0 z-[100] overflow-visible isolate">
+      <nav className="mx-auto max-w-[1440px] px-3 md:px-6 lg:px-8 xl:px-10 overflow-visible">
+        <div className="relative min-h-[5rem] h-20 overflow-visible">
+          {/* Desktop: three columns so logo never overlaps nav links */}
+          <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center h-full gap-3 xl:gap-6 overflow-visible">
+            {/* Left Navigation */}
+            <div className="flex items-center gap-3 xl:gap-5 min-w-0 justify-start">
             <button
               onClick={() => handleNavClick('home')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Home
@@ -418,7 +500,7 @@ console.log(cartItems,"cartItems")
             <div className="relative" ref={shopRef}>
               <button
                 onClick={() => setShopOpen(!shopOpen)}
-                className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 flex items-center gap-1.5"
+                className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 flex items-center gap-1.5 whitespace-nowrap shrink-0"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
                 Shop
@@ -463,7 +545,7 @@ console.log(cartItems,"cartItems")
             </div>
             <button
               onClick={() => handleNavClick('product-designer')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Design Tool
@@ -471,66 +553,45 @@ console.log(cartItems,"cartItems")
             
             <button
               onClick={() => handleNavClick('custom-neon-builder')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Design Custom Neon
             </button>
             <button
               onClick={() => handleNavClick('gallery')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Gallery
             </button>
           </div>
 
-          {/* Center Logo */}
-          <div 
-            className="flex items-center cursor-pointer group absolute left-1/2 transform -translate-x-1/2"
-            onClick={() => handleNavClick('home')}
-          >
-            <img 
-              src="/logo.png" 
-              alt="RER Logo" 
-              className="h-12 w-auto object-contain"
-              onError={(e) => {
-                e.target.style.display = 'none';
-                e.target.nextSibling.style.display = 'flex';
-              }}
-            />
-            <div className="hidden text-3xl font-bold items-center" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-              <span className="text-blue-500">R</span>
-              <span className="text-white">ER</span>
-            </div>
-          </div>
-
-          {/* Right Navigation */}
-          <div className="hidden lg:flex items-center space-x-6 lg:pl-24">
-            <div className="flex items-center gap-2 text-gray-300">
-              <span className="text-xs font-semibold text-white" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                VAT
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsVatInclusive((prev) => !prev)}
-                className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${
-                  isVatInclusive ? 'bg-blue-600' : 'bg-gray-500'
-                }`}
-                aria-label="Toggle VAT mode"
-                title={`Showing ${isVatInclusive ? 'Inc VAT' : 'Ex VAT'} prices`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    isVatInclusive ? 'translate-x-5' : 'translate-x-1'
-                  }`}
-                />
-              </button>
+            {/* Center Logo */}
+            <div
+              className="flex items-center justify-center shrink-0 px-2 cursor-pointer"
+              onClick={() => handleNavClick('home')}
+            >
+              <img
+                src="/logo.png"
+                alt="RER Logo"
+                className="h-12 w-auto max-w-[140px] xl:max-w-none object-contain"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+                }}
+              />
+              <div className="hidden text-3xl font-bold items-center" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                <span className="text-blue-500">R</span>
+                <span className="text-white">ER</span>
+              </div>
             </div>
 
+            {/* Right Navigation */}
+            <div className="flex items-center gap-2 xl:gap-4 min-w-0 justify-end overflow-visible">
             <button
               onClick={() => handleNavClick('quote')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Get a Free Quote
@@ -539,7 +600,7 @@ console.log(cartItems,"cartItems")
 
             <button
               onClick={() => handleNavClick('about-us')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               About Us
@@ -547,7 +608,7 @@ console.log(cartItems,"cartItems")
 
             <button
               onClick={() => handleNavClick('contact')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               Contact
@@ -558,14 +619,14 @@ console.log(cartItems,"cartItems")
               <>
                 <button
                   onClick={() => handleNavClick('login')}
-                  className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+                  className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
                   Login
                 </button>
                 <button
                   onClick={() => handleNavClick('register')}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors duration-200"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 xl:px-4 py-2 rounded-lg font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
                   Sign Up
@@ -575,28 +636,48 @@ console.log(cartItems,"cartItems")
               <>
                 <button
                   onClick={() => handleNavClick('account')}
-                  className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+                  className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
                   My Account
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200"
+                  className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
                   Logout
                 </button>
               </>
             )}
-            <div className="relative pl-2 border-l border-gray-600 ml-1" ref={basketDesktopRef}>
+            <div className="relative z-[110] flex items-center gap-2 xl:gap-3 pl-2 xl:pl-3 border-l border-gray-600 ml-0.5 shrink-0 overflow-visible" ref={basketDesktopRef}>
+              <VatToggle />
               <BasketIconButton />
-              <BasketFlyout alignClass="right-0 w-[min(100vw-2rem,22rem)]" />
+            </div>
             </div>
           </div>
 
           {/* Mobile: Menu + Basket (basket rightmost) */}
-          <div className="lg:hidden flex items-center gap-1">
+          <div className="lg:hidden flex items-center justify-between h-full">
+            <div
+              className="flex items-center cursor-pointer shrink-0"
+              onClick={() => handleNavClick('home')}
+            >
+              <img
+                src="/logo.png"
+                alt="RER Logo"
+                className="h-10 w-auto max-w-[120px] object-contain"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+                }}
+              />
+              <div className="hidden text-2xl font-bold items-center" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                <span className="text-blue-500">R</span>
+                <span className="text-white">ER</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
             <button
               className="text-white p-2 hover:bg-gray-700 rounded-lg transition-colors"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -609,12 +690,15 @@ console.log(cartItems,"cartItems")
                 )}
               </svg>
             </button>
-            <div className="relative" ref={basketMobileRef}>
+            <div className="relative z-[110] flex items-center gap-2 shrink-0 overflow-visible" ref={basketMobileRef}>
+              <VatToggle compact />
               <BasketIconButton />
-              <BasketFlyout alignClass="right-0 w-[min(calc(100vw-2rem),20rem)]" />
+            </div>
             </div>
           </div>
         </div>
+
+        <BasketFlyout />
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
@@ -718,28 +802,6 @@ console.log(cartItems,"cartItems")
             </button>
 
             {/* Auth Buttons / User Icon - Mobile */}
-            <div className="px-4 py-3 border-t border-gray-700 flex items-center justify-between gap-3">
-              <span className="text-sm font-medium text-gray-300" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                VAT
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsVatInclusive((prev) => !prev)}
-                  className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${
-                    isVatInclusive ? 'bg-blue-600' : 'bg-gray-500'
-                  }`}
-                  aria-label="Toggle VAT mode"
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      isVatInclusive ? 'translate-x-5' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
-
             {!isAuthenticated() ? (
               <>
                 <button

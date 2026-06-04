@@ -3,9 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { productService } from '../services/productService';
 import { quoteService } from '../services/quoteService';
+import { featuredSignagePricingService } from '../services/featuredSignagePricingService';
 import { encryptId, createSlug } from '../utils/encryption';
 import { getRoutePath } from '../config/routes.config';
 import { getFeaturedSignageBySlug } from '../data/featuredSignageData';
+import FeaturedPriceSummary from './FeaturedPriceSummary';
+import { useFeaturedSignagePrice } from '../hooks/useFeaturedSignagePrice';
+import { buildFeaturedPricingInput } from '../utils/featuredSignagePricing';
+import { readVatInclusiveFromStorage, payableFromNet } from '../utils/vatUtils';
 
 const getInitialFormState = (productType) => ({
   productType: productType || '',
@@ -247,7 +252,22 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
     }
   };
 
-  const buildOrderPayload = () => {
+  const productSpecificInputsMemo = useMemo(() => getProductSpecificInputs(), [categorySlug, formData]);
+
+  const pricingInput = useMemo(
+    () =>
+      buildFeaturedPricingInput(categorySlug, formData, productSpecificInputsMemo, {
+        rushOrder: formData.rushOrder,
+        designServiceRequired: formData.designServiceRequired,
+      }),
+    [categorySlug, formData, productSpecificInputsMemo]
+  );
+
+  const pricingDepsKey = JSON.stringify(pricingInput);
+  const { pricing, loading: pricingLoading, error: pricingError, displayTotal, vatInclusive } =
+    useFeaturedSignagePrice(pricingInput, pricingDepsKey);
+
+  const buildOrderPayload = (pricingSnapshot = pricing) => {
     if (!formData.width || !formData.height || !formData.quantity) {
       return null;
     }
@@ -263,7 +283,7 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
       installationRequired: formData.installationRequired === 'yes',
       deliveryRequired: formData.deliveryRequired === 'yes',
     };
-    const productSpecificInputs = getProductSpecificInputs();
+    const productSpecificInputs = productSpecificInputsMemo;
     const advancedInputs = {
       rushOrder: formData.rushOrder === 'yes',
       designServiceRequired: formData.designServiceRequired === 'yes',
@@ -272,7 +292,12 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
       deliveryCostAuto: true,
     };
 
-    const orderPayload = {
+    const unitNet = pricingSnapshot?.unitPrice ?? 0;
+    const totalNet = pricingSnapshot?.total ?? 0;
+    const vatInc = readVatInclusiveFromStorage();
+    const totalDisplay = payableFromNet(totalNet, vatInc);
+
+    return {
       source: 'featured-signage-order',
       category: categorySlug,
       productType: formData.productType || pageCopy.heading,
@@ -283,19 +308,29 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
       designUploadName: designFile?.name || '',
 
       // Send common order schema fields for compatibility with admin/orders API.
+      pricing: pricingSnapshot
+        ? {
+            unitPriceNet: unitNet,
+            totalNet,
+            totalDisplay,
+            vatInclusive: vatInc,
+            breakdown: pricingSnapshot.breakdown,
+            currency: pricingSnapshot.currency,
+          }
+        : null,
       orderItems: [
         {
           name: `${pageCopy.heading} - Custom`,
           qty: quantityNum,
-          price: 0,
+          price: unitNet,
           image: activeHeroImage || galleryImages[0] || '',
         },
       ],
-      itemsPrice: 0,
+      itemsPrice: totalNet,
       taxPrice: 0,
       shippingPrice: 0,
-      totalPrice: 0,
-      total: 0,
+      totalPrice: totalNet,
+      total: totalNet,
       paymentMethod: 'quote',
       shippingAddress: {
         address: 'TBD',
@@ -310,9 +345,28 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
     };
   };
 
-  const handleContinueToPreview = (e) => {
+  const handleContinueToPreview = async (e) => {
     e.preventDefault();
-    const payload = buildOrderPayload();
+    if (!formData.width || !formData.height || !formData.quantity) {
+      toast.error('Please fill width, height and quantity.');
+      return;
+    }
+    let snapshot = pricing;
+    try {
+      snapshot = await featuredSignagePricingService.calculate(pricingInput);
+    } catch (err) {
+      toast.error(err?.message || 'Unable to calculate price. Check admin pricing is configured.');
+      return;
+    }
+    if (!snapshot?.complete) {
+      toast.error('Unable to calculate price. Check width, height, quantity and admin pricing.');
+      return;
+    }
+    if (!(snapshot.total > 0)) {
+      toast.error('Pricing is £0 — set rates in Admin → Featured pricing for this category.');
+      return;
+    }
+    const payload = buildOrderPayload(snapshot);
     if (!payload) {
       toast.error('Please fill width, height and quantity.');
       return;
@@ -535,6 +589,20 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
                 onClick={async () => {
                   const orderPayload = previewPayload || buildOrderPayload();
                   if (!orderPayload) return;
+                  let finalPricing = orderPayload.pricing;
+                  try {
+                    const recalc = await featuredSignagePricingService.calculate(pricingInput);
+                    finalPricing = {
+                      unitPriceNet: recalc.unitPrice,
+                      totalNet: recalc.total,
+                      totalDisplay: payableFromNet(recalc.total, readVatInclusiveFromStorage()),
+                      vatInclusive: readVatInclusiveFromStorage(),
+                      breakdown: recalc.breakdown,
+                      currency: recalc.currency,
+                    };
+                  } catch {
+                    /* keep preview pricing */
+                  }
                   const composed = {
                     name: contact.name,
                     email: contact.email,
@@ -543,7 +611,23 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
                     quantity: orderPayload?.globalInputs?.quantity,
                     idealSignWidth: orderPayload?.globalInputs?.width,
                     country: 'United Kingdom',
-                    additionalInfo: `Featured Request • ${categorySlug}\n\nGlobal Inputs:\n${JSON.stringify(orderPayload?.globalInputs || {}, null, 2)}\n\nDetails:\n${JSON.stringify(orderPayload?.productSpecificInputs || {}, null, 2)}\n\nAdvanced:\n${JSON.stringify(orderPayload?.advancedInputs || {}, null, 2)}\n\nNotes:\n${orderPayload?.notes || ''}`,
+                    additionalInfo: `Featured Request • ${categorySlug}
+
+Estimated price (${finalPricing?.vatInclusive ? 'Inc VAT' : 'Ex VAT'}): £${Number(finalPricing?.totalDisplay || 0).toFixed(2)}
+Net total (ex VAT): £${Number(finalPricing?.totalNet || 0).toFixed(2)}
+${finalPricing?.breakdown?.length ? `Breakdown:\n${finalPricing.breakdown.map((l) => `  ${l.label}: £${Number(l.amount).toFixed(2)}`).join('\n')}` : ''}
+
+Global Inputs:
+${JSON.stringify(orderPayload?.globalInputs || {}, null, 2)}
+
+Details:
+${JSON.stringify(orderPayload?.productSpecificInputs || {}, null, 2)}
+
+Advanced:
+${JSON.stringify(orderPayload?.advancedInputs || {}, null, 2)}
+
+Notes:
+${orderPayload?.notes || ''}`,
                   };
                   try {
                     setContactSubmitting(true);
@@ -966,6 +1050,14 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
                 </div>
               </section>
 
+              <FeaturedPriceSummary
+                pricing={pricing}
+                loading={pricingLoading}
+                error={pricingError}
+                displayTotal={displayTotal}
+                vatInclusive={vatInclusive}
+              />
+
               <div className="pt-2 flex flex-col sm:flex-row gap-3 sm:justify-end">
                 <button
                   type="button"
@@ -979,7 +1071,7 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
                 <button
                   type="submit"
                   className="px-6 py-2.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-60"
-                  disabled={isSubmittingOrder}
+                  disabled={isSubmittingOrder || pricingLoading || !pricing?.complete}
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
                   Continue to Preview
@@ -990,6 +1082,20 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
 
               {orderFlowStep === 'preview' && (
                 <div className="p-6 space-y-6">
+                  {previewPayload?.pricing ? (
+                    <FeaturedPriceSummary
+                      pricing={{
+                        complete: true,
+                        total: previewPayload.pricing.totalNet,
+                        quantity: previewPayload.globalInputs?.quantity,
+                        breakdown: previewPayload.pricing.breakdown,
+                      }}
+                      loading={false}
+                      error={null}
+                      displayTotal={previewPayload.pricing.totalDisplay}
+                      vatInclusive={previewPayload.pricing.vatInclusive}
+                    />
+                  ) : null}
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div className="rounded-xl border border-gray-100 p-4">
                       <p className="text-xs text-gray-500">Product</p>
