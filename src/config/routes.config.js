@@ -4,6 +4,7 @@ import { lazy } from "react";
 const HomePage = lazy(() => import("../pages/HomePage"));
 const AboutUs = lazy(() => import("../pages/AboutUs"));
 const GetQuote = lazy(() => import("../pages/GetQuote"));
+const DesignServicePage = lazy(() => import("../pages/DesignServicePage"));
 const GalleryPage = lazy(() => import("../pages/GalleryPage"));
 const Login = lazy(() => import("../pages/Login"));
 const Register = lazy(() => import("../pages/Register"));
@@ -17,6 +18,7 @@ const NeonTextBuilder = lazy(() => import("../pages/NeonTextBuilder"));
 const CustomNeonBuilder = lazy(() => import("../pages/CustomNeonBuilder"));
 const CheckoutPage = lazy(() => import("../pages/CheckoutPage"));
 const PaymentSuccessPage = lazy(() => import("../pages/PaymentSuccessPage"));
+const FileViewerPage = lazy(() => import("../pages/FileViewerPage"));
 const AdminLogin = lazy(() => import("../pages/AdminLogin"));
 const AdminDashboard = lazy(() => import("../pages/AdminDashboard"));
 const CategoryProducts = lazy(() => import("../pages/CategoryProducts"));
@@ -85,6 +87,11 @@ export const routes = [
   {
     path: "/get-free-quote",
     component: GetQuote,
+    layout: "default",
+  },
+  {
+    path: "/design-service",
+    component: DesignServicePage,
     layout: "default",
   },
   {
@@ -235,6 +242,11 @@ export const routes = [
     component: Account,
     layout: "default",
   },
+  {
+    path: "/view-file",
+    component: FileViewerPage,
+    layout: "minimal",
+  },
   // Product detail route: /category/productname/encryptedId
   {
     path: "/:category/:productName/:encryptedId",
@@ -261,6 +273,7 @@ export const getRoutePath = (routeName, params = {}) => {
     home: "/",
     aboutUs: "/about-us",
     getQuote: "/get-free-quote",
+    designService: "/design-service",
     gallery: "/gallery",
     login: "/login",
     register: "/register",
@@ -269,6 +282,7 @@ export const getRoutePath = (routeName, params = {}) => {
     customNeonBuilder: "/custom-neon-builder",
     checkout: "/checkout",
     paymentSuccess: "/payment-success",
+    fileViewer: "/view-file",
     productDesigner: "/product-designer",
     genericProductDesigner: "/generic-product-designer",
     productDetail: (category, productName, encryptedId) =>

@@ -11,8 +11,12 @@ const DesignerAuthModal = ({
   onClose,
   /** Called after successful login/signup; run preview/download/export here. */
   onAuthenticated,
+  /** 'signup' | 'signin' — which tab is active when the modal opens */
+  initialAuthMode = 'signup',
   title = 'Continue to Download',
   subtitle = 'Sign in once and download your artwork instantly.',
+  /** Short bullet points explaining why an account is needed */
+  benefits = [],
   verifyOtpButtonLabel = 'Verify & Download',
   signInButtonLabel = 'Sign In & Download',
 }) => {
@@ -39,12 +43,12 @@ const DesignerAuthModal = ({
     setOtp('');
     setOtpSent(false);
     setOtpExpiresIn(0);
-    setAuthMode('signup');
+    setAuthMode(initialAuthMode === 'signin' ? 'signin' : 'signup');
     setAuthForm({ email: '', password: '', signupPassword: '', signupConfirmPassword: '' });
     setShowPassword(false);
     setShowSignupPassword(false);
     return undefined;
-  }, [open]);
+  }, [open, initialAuthMode]);
 
   useEffect(() => {
     if (!open || !otpSent || otpExpiresIn <= 0) return undefined;
@@ -185,6 +189,9 @@ const DesignerAuthModal = ({
   if (!open) return null;
 
   const showSubtitle = Boolean(subtitle && String(subtitle).trim());
+  const benefitItems = (Array.isArray(benefits) ? benefits : [])
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
 
   const inputClass =
     'w-full px-3 py-2 border border-slate-200 rounded-md text-sm text-slate-900 placeholder:text-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-slate-900/[0.07] focus:border-slate-300 transition-shadow';
@@ -260,6 +267,26 @@ const DesignerAuthModal = ({
               </div>
             ))}
           </div>
+
+          {benefitItems.length > 0 ? (
+            <div className="mb-3 rounded-lg border border-blue-100 bg-gradient-to-br from-blue-50 to-slate-50 p-3.5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-blue-800 mb-2.5">
+                Why we ask you to sign in
+              </p>
+              <ul className="space-y-2">
+                {benefitItems.map((item) => (
+                  <li key={item} className="flex items-start gap-2.5 text-xs text-slate-700 leading-snug">
+                    <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
+                      <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           <div className="grid grid-cols-2 gap-0.5 p-0.5 rounded-md bg-slate-100/90 mb-3">
             <button

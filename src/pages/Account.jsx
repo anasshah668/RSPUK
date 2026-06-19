@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/authService';
 import { quoteService } from '../services/quoteService';
 import { orderService } from '../services/orderService';
+import { designService } from '../services/designService';
 
 const Section = ({ title, children }) => (
   <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
@@ -298,6 +299,132 @@ const ViewQuotes = () => {
   );
 };
 
+const ViewDesignOrders = () => {
+  const [requests, setRequests] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const data = await designService.listMy();
+        if (mounted) setRequests(data?.requests || []);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  const statusClass = (status) => {
+    const v = String(status || '').toLowerCase();
+    if (v === 'delivered') return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+    if (v === 'in_progress') return 'bg-blue-50 text-blue-700 border-blue-100';
+    if (v === 'paid') return 'bg-purple-50 text-purple-700 border-purple-100';
+    return 'bg-gray-100 text-gray-700 border-gray-200';
+  };
+
+  const paidRequests = requests.filter((row) => row.paymentStatus === 'paid');
+
+  if (loading) return <div className="text-gray-600">Loading design orders...</div>;
+  if (!paidRequests.length) {
+    return (
+      <div className="text-gray-600">
+        No paid design orders yet.{' '}
+        <a href="/design-service" className="text-blue-600 underline font-medium">
+          Request a design
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {paidRequests.map((row) => (
+        <div key={row._id} className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+            <div className="flex flex-wrap justify-between gap-3 items-start">
+              <div>
+                <div className="text-base font-semibold text-gray-900">{row.title}</div>
+                <div className="text-xs text-gray-500 mt-1">
+                  Submitted: {new Date(row.createdAt).toLocaleString()}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <span className={`text-[11px] px-2.5 py-1 rounded-full border font-semibold uppercase ${statusClass(row.status)}`}>
+                  {String(row.status || 'paid').replace(/_/g, ' ')}
+                </span>
+                <span className="text-[11px] px-2.5 py-1 rounded-full border font-semibold uppercase bg-emerald-50 text-emerald-700 border-emerald-100">
+                  Paid
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 grid md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Your brief</p>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap">{row.brief}</p>
+              {row.productType && (
+                <p className="text-xs text-gray-500 mt-2">Format: {row.productType}</p>
+              )}
+              <p className="text-sm font-semibold text-gray-900 mt-3">
+                £{Number(row.priceAmount || 0).toFixed(2)}
+                {row.trackingId ? (
+                  <span className="block text-xs font-normal text-gray-500 mt-1">
+                    Ref: {row.trackingId}
+                  </span>
+                ) : null}
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {row.referenceFiles?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Your uploads</p>
+                  <ul className="space-y-1">
+                    {row.referenceFiles.map((file) => (
+                      <li key={file.url}>
+                        <a href={file.url} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline">
+                          {file.originalName || 'Reference file'}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {row.deliverables?.length > 0 ? (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Your finished design</p>
+                  <ul className="space-y-1">
+                    {row.deliverables.map((d) => (
+                      <li key={d.url}>
+                        <a
+                          href={d.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 underline"
+                        >
+                          Download {d.originalName || 'design file'}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3 text-sm text-gray-600">
+                  Our team is working on your design. You will be able to download it here when ready.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const ChangePassword = () => {
   const [form, setForm] = React.useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [saving, setSaving] = React.useState(false);
@@ -544,7 +671,7 @@ const Account = () => {
     <div className="max-w-5xl mx-auto px-4 py-10">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 mb-6 overflow-x-auto">
         <div className="flex gap-2 md:gap-3">
-          {['profile','quotes','change-password','track-order'].map((key) => (
+          {['profile','quotes','design-orders','change-password','track-order'].map((key) => (
             <button
               key={key}
               onClick={() => setTab(key)}
@@ -553,6 +680,7 @@ const Account = () => {
             >
               {key === 'profile' && 'View Profile'}
               {key === 'quotes' && 'View Quotes'}
+              {key === 'design-orders' && 'My Design Orders'}
               {key === 'change-password' && 'Change Password'}
               {key === 'track-order' && 'Track Order'}
             </button>
@@ -560,9 +688,16 @@ const Account = () => {
         </div>
       </div>
 
-      <Section title={tab === 'profile' ? 'Your Profile' : tab === 'quotes' ? 'Your Quotes' : tab === 'change-password' ? 'Change Password' : 'Track Order'}>
+      <Section title={
+        tab === 'profile' ? 'Your Profile'
+          : tab === 'quotes' ? 'Your Quotes'
+            : tab === 'design-orders' ? 'My Design Orders'
+              : tab === 'change-password' ? 'Change Password'
+                : 'Track Order'
+      }>
         {tab === 'profile' && <ViewProfile />}
         {tab === 'quotes' && <ViewQuotes />}
+        {tab === 'design-orders' && <ViewDesignOrders />}
         {tab === 'change-password' && <ChangePassword />}
         {tab === 'track-order' && <TrackOrder />}
       </Section>

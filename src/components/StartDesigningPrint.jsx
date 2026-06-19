@@ -38,6 +38,13 @@ const StartDesigningPrint = () => {
               >
                 Get a Free Quote
               </button>
+              <button
+                onClick={() => navigate(getRoutePath('designService'))}
+                className="px-6 py-3 rounded-lg border border-white/30 hover:bg-white/10 text-white font-semibold text-sm transition-colors"
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+              >
+                We Design For You
+              </button>
             </div>
           </div>
         </div>

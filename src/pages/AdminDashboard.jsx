@@ -11,6 +11,8 @@ import { thirdPartyService } from '../services/thirdPartyService';
 import { neonPricingService } from '../services/neonPricingService';
 import AdminNeonPricingTab from '../components/AdminNeonPricingTab';
 import AdminFeaturedSignagePricingTab from '../components/AdminFeaturedSignagePricingTab';
+import AdminDesignServiceTab from '../components/AdminDesignServiceTab';
+import { FileViewerLink, isHttpUrl, linkLabelForUrl, openFileViewer } from '../components/FileDocViewer';
 
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -164,7 +166,7 @@ const AdminDashboard = () => {
       <div className="bg-white border-b">
         <div className="container mx-auto px-4">
           <div className="flex gap-1">
-            {['overview', 'products', 'categories', 'orders', 'quotes', 'neon-pricing', 'featured-pricing', 'settings'].map((tab) => (
+            {['overview', 'products', 'categories', 'orders', 'quotes', 'design-service', 'neon-pricing', 'featured-pricing', 'settings'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -179,7 +181,9 @@ const AdminDashboard = () => {
                   ? 'Neon pricing'
                   : tab === 'featured-pricing'
                     ? 'Featured pricing'
-                    : tab}
+                    : tab === 'design-service'
+                      ? 'Design service'
+                      : tab}
               </button>
             ))}
           </div>
@@ -205,6 +209,7 @@ const AdminDashboard = () => {
             {activeTab === 'quotes' && (
               <QuotesTab quotes={quotes} onResponse={handleQuoteResponse} />
             )}
+            {activeTab === 'design-service' && <AdminDesignServiceTab />}
             {activeTab === 'neon-pricing' && (
               neonPricingSettings ? (
                 <AdminNeonPricingTab
@@ -1080,6 +1085,13 @@ const designOptionAdminLabel = (v) => {
   return v != null ? String(v) : '';
 };
 
+const renderOrderDetailValue = (value) => {
+  const text = String(value ?? '');
+  if (!isHttpUrl(text)) return text;
+  const url = text.trim();
+  return <FileViewerLink url={url} label={linkLabelForUrl(url)} />;
+};
+
 /** Key/value rows for a saved basket line or checkout snapshot object. */
 const flattenLineSnapshotEntries = (line) => {
   if (!line || typeof line !== 'object') return [];
@@ -1108,7 +1120,22 @@ const flattenLineSnapshotEntries = (line) => {
   if (line.category) rows.push(['Category', String(line.category)]);
   if (line.size) rows.push(['Size', String(line.size)]);
   if (line.designOption) rows.push(['Design', designOptionAdminLabel(line.designOption)]);
-  if (line.artworkAttached) rows.push(['Artwork', line.artworkPreviewUrl ? 'Attached (URL on file)' : 'Attached']);
+  if (line.artworkAttached) {
+    rows.push([
+      'Artwork',
+      line.artworkPreviewUrl && isHttpUrl(line.artworkPreviewUrl)
+        ? String(line.artworkPreviewUrl).trim()
+        : 'Attached',
+    ]);
+  }
+  if (Array.isArray(line.fileUrls)) {
+    line.fileUrls
+      .map((url) => String(url || '').trim())
+      .filter(isHttpUrl)
+      .forEach((url, index) => {
+        rows.push([line.fileUrls.length > 1 ? `File URL ${index + 1}` : 'File URL', url]);
+      });
+  }
   if (line.deliveryOption) rows.push(['Delivery', String(line.deliveryOption)]);
   if (line.material) rows.push(['Material', String(line.material)]);
   if (line.sidesPrinted) rows.push(['Sides printed', String(line.sidesPrinted)]);
@@ -1132,6 +1159,8 @@ const flattenLineSnapshotEntries = (line) => {
   Object.entries(line).forEach(([k, v]) => {
     const kl = k.toLowerCase();
     if (skip.has(kl)) return;
+    if (kl === 'fileurls') return;
+    if (kl === 'artworkpreviewurl' && line.artworkAttached) return;
     if (v == null || v === '') return;
     if (typeof v === 'object') return;
     if (rows.some(([a]) => a.toLowerCase() === k.toLowerCase())) return;
@@ -1279,7 +1308,7 @@ const OrderDetailModal = ({ order, onClose }) => {
                       {summaryLines.map((row, i) => (
                         <tr key={`${row.label}-${i}`} className="bg-white">
                           <td className="px-3 py-2 text-gray-500 w-2/5">{row.label}</td>
-                          <td className="px-3 py-2 text-gray-900">{row.value}</td>
+                          <td className="px-3 py-2 text-gray-900">{renderOrderDetailValue(row.value)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1305,7 +1334,7 @@ const OrderDetailModal = ({ order, onClose }) => {
                               {entries.map(([k, v], j) => (
                                 <div key={`${k}-${j}`} className="flex justify-between gap-3">
                                   <dt className="text-gray-500 shrink-0 max-w-[45%]">{k}</dt>
-                                  <dd className="text-gray-900 text-right break-words">{v}</dd>
+                                  <dd className="text-gray-900 text-right break-words">{renderOrderDetailValue(v)}</dd>
                                 </div>
                               ))}
                             </dl>
@@ -1344,7 +1373,7 @@ const OrderDetailModal = ({ order, onClose }) => {
                               {entries.map(([k, v], j) => (
                                 <div key={`${k}-${j}`} className="flex justify-between gap-3">
                                   <dt className="text-gray-500 shrink-0 max-w-[45%]">{k}</dt>
-                                  <dd className="text-gray-900 text-right break-words">{v}</dd>
+                                  <dd className="text-gray-900 text-right break-words">{renderOrderDetailValue(v)}</dd>
                                 </div>
                               ))}
                             </dl>
@@ -1363,7 +1392,7 @@ const OrderDetailModal = ({ order, onClose }) => {
                       {shopGlobalInputsEntries.map(([k, v]) => (
                         <div key={k} className="px-3 py-2 flex items-start justify-between gap-3">
                           <dt className="text-gray-500 capitalize">{String(k).replace(/([A-Z])/g, ' $1')}</dt>
-                          <dd className="text-gray-900 text-right break-words">{String(v)}</dd>
+                          <dd className="text-gray-900 text-right break-words">{renderOrderDetailValue(String(v))}</dd>
                         </div>
                       ))}
                     </dl>
@@ -1398,24 +1427,18 @@ const OrderDetailModal = ({ order, onClose }) => {
                                   {it.product?.name || it.name || 'Product'} × {Number(it.quantity || 1)}
                                 </p>
                                 {it.design?.previewImage ? (
-                                  <a
-                                    href={it.design.previewImage}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-xs text-blue-600 hover:underline"
-                                  >
-                                    View artwork preview
-                                  </a>
+                                  <FileViewerLink
+                                    url={it.design.previewImage}
+                                    label="View artwork preview"
+                                    className="text-xs"
+                                  />
                                 ) : null}
                                 {it.design?.designFile ? (
-                                  <a
-                                    href={it.design.designFile}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-xs text-blue-600 hover:underline block mt-0.5"
-                                  >
-                                    Design file
-                                  </a>
+                                  <FileViewerLink
+                                    url={it.design.designFile}
+                                    label="Design file"
+                                    className="text-xs block mt-0.5"
+                                  />
                                 ) : null}
                               </div>
                               <p className="tabular-nums font-semibold text-gray-900 shrink-0">
@@ -1438,7 +1461,7 @@ const OrderDetailModal = ({ order, onClose }) => {
                               {optEntries.map(([k, v], idx) => (
                                 <div key={`${k}-${idx}`} className="flex justify-between gap-3 text-xs">
                                   <dt className="text-gray-500 capitalize">{String(k).replace(/([A-Z])/g, ' $1')}</dt>
-                                  <dd className="text-gray-900 text-right break-words">{String(v)}</dd>
+                                  <dd className="text-gray-900 text-right break-words">{renderOrderDetailValue(String(v))}</dd>
                                 </div>
                               ))}
                             </dl>
@@ -2028,11 +2051,10 @@ const QuotesTab = ({ quotes, onResponse }) => {
               <div className="rounded-xl border border-gray-100 p-4">
                 <p className="text-xs text-gray-500 mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Uploaded Artwork</p>
                 {selectedQuote.artworkUrl ? (
-                  <a
-                    href={selectedQuote.artworkUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-4 hover:bg-gray-50 rounded-lg p-2 -m-2"
+                  <button
+                    type="button"
+                    onClick={() => openFileViewer(selectedQuote.artworkUrl, 'Uploaded artwork')}
+                    className="flex items-center gap-4 hover:bg-gray-50 rounded-lg p-2 -m-2 text-left w-full"
                   >
                     <img
                       src={selectedQuote.artworkUrl}
@@ -2041,13 +2063,13 @@ const QuotesTab = ({ quotes, onResponse }) => {
                     />
                     <div>
                       <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                        View full image
+                        View full file
                       </p>
                       <p className="text-xs text-blue-600 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                        Opens in a new tab
+                        Opens in-app preview
                       </p>
                     </div>
-                  </a>
+                  </button>
                 ) : (
                   <p className="font-medium text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>N/A</p>
                 )}
@@ -2464,8 +2486,13 @@ const SettingsTab = () => {
     prefix: 'Top Announcement',
     message: 'Price Promise | UK wide delivery',
   });
+  const [designServicePrice, setDesignServicePrice] = useState({
+    price: 50,
+    vatInclusive: true,
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingDesignPrice, setSavingDesignPrice] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [syncingThirdParty, setSyncingThirdParty] = useState(false);
@@ -2480,8 +2507,9 @@ const SettingsTab = () => {
     const load = async () => {
       try {
         setLoading(true);
-        const [data, galleryData] = await Promise.all([
+        const [data, designPrice, galleryData] = await Promise.all([
           adminService.getTopAnnouncement(),
+          adminService.getDesignServicePrice(),
           adminService.listGalleryProjectsAdmin(),
         ]);
         if (data) {
@@ -2489,6 +2517,12 @@ const SettingsTab = () => {
             enabled: data.enabled !== false,
             prefix: data.prefix || 'Top Announcement',
             message: data.message || 'Price Promise | UK wide delivery',
+          });
+        }
+        if (designPrice) {
+          setDesignServicePrice({
+            price: Number(designPrice.price) > 0 ? Number(designPrice.price) : 50,
+            vatInclusive: designPrice.vatInclusive !== false,
           });
         }
         setGalleryProjects(Array.isArray(galleryData?.projects) ? galleryData.projects : []);
@@ -2526,6 +2560,25 @@ const SettingsTab = () => {
       setError(e?.message || 'Failed to save settings');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveDesignServicePrice = async (e) => {
+    e.preventDefault();
+    setSavingDesignPrice(true);
+    setNotice('');
+    setError('');
+    try {
+      const saved = await adminService.updateDesignServicePrice(designServicePrice);
+      setDesignServicePrice({
+        price: Number(saved?.price) > 0 ? Number(saved.price) : designServicePrice.price,
+        vatInclusive: saved?.vatInclusive !== false,
+      });
+      setNotice('Design service price updated successfully.');
+    } catch (e) {
+      setError(e?.message || 'Failed to save design service price');
+    } finally {
+      setSavingDesignPrice(false);
     }
   };
 
@@ -2661,6 +2714,63 @@ const SettingsTab = () => {
             style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >
             {saving ? 'Saving...' : 'Save Settings'}
+          </button>
+        </form>
+      </div>
+
+      <div className="bg-white rounded-xl shadow p-6 max-w-3xl">
+        <h3 className="text-lg font-bold text-gray-900 mb-2">Design Service Price</h3>
+        <p className="text-sm text-gray-600 mb-6" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+          Set the fixed price customers pay for the &quot;We&apos;ll design it for you&quot; service on{' '}
+          <span className="font-medium text-gray-800">/design-service</span>.
+        </p>
+
+        <form onSubmit={handleSaveDesignServicePrice} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Price (GBP)</label>
+            <div className="relative max-w-xs">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">£</span>
+              <input
+                type="number"
+                min="1"
+                step="0.01"
+                value={designServicePrice.price}
+                onChange={(e) =>
+                  setDesignServicePrice((prev) => ({
+                    ...prev,
+                    price: e.target.value,
+                  }))
+                }
+                className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="50.00"
+              />
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              New requests use this price at checkout. Existing unpaid requests keep their original price.
+            </p>
+          </div>
+
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={designServicePrice.vatInclusive}
+              onChange={(e) =>
+                setDesignServicePrice((prev) => ({ ...prev, vatInclusive: e.target.checked }))
+              }
+              className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+            />
+            <span className="text-sm text-gray-700" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              Price includes VAT
+            </span>
+          </label>
+
+          <button
+            type="submit"
+            disabled={savingDesignPrice}
+            className="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm disabled:opacity-50"
+            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+          >
+            {savingDesignPrice ? 'Saving...' : 'Save design service price'}
           </button>
         </form>
       </div>

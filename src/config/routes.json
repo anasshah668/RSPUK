@@ -44,6 +44,7 @@
   "admin": {
     "analytics": "admin/analytics",
     "topAnnouncement": "settings/top-announcement",
+    "designServicePrice": "settings/design-service-price",
     "galleryProjectsAdmin": "settings/gallery-projects/admin",
     "galleryProjects": "settings/gallery-projects",
     "galleryProjectById": "settings/gallery-projects",
@@ -59,6 +60,7 @@
   },
   "settings": {
     "topAnnouncement": "settings/top-announcement",
+    "designServicePrice": "settings/design-service-price",
     "galleryProjects": "settings/gallery-projects"
   },
   "thirdParty": {
@@ -85,5 +87,14 @@
   },
   "uploads": {
     "artwork": "uploads/artwork"
+  },
+  "designService": {
+    "price": "design-service/price",
+    "create": "design-service",
+    "my": "design-service/my",
+    "getById": "design-service",
+    "adminList": "design-service/admin/all",
+    "adminUpdate": "design-service/admin",
+    "adminDeliverable": "design-service/admin"
   }
 }

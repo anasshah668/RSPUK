@@ -20,9 +20,13 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const savedDraft = useSelector((state) => state.designerSession?.productDetailDraft);
   const { addToCart } = useCart();
   const { isAuthenticated } = useAuth();
-  const [cartAuthOpen, setCartAuthOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authModalPurpose, setAuthModalPurpose] = useState('cart');
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const pendingAddToCartRef = useRef(false);
+  const pendingArtworkUploadRef = useRef(false);
+  const pendingArtworkFileRef = useRef(null);
+  const artworkFileInputRef = useRef(null);
   const addingCartInFlightRef = useRef(false);
   const [designOption, setDesignOption] = useState('upload'); // 'custom' (Online Designer) or 'upload' (Upload Artwork); default upload
   const [uploadedImage, setUploadedImage] = useState(null);
@@ -574,22 +578,17 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     );
   }
 
-  const handleImageUpload = async (e) => {
-    const file = e.target.files?.[0];
+  const performArtworkUpload = async (file) => {
     if (!file) return;
 
-    // Reset prior upload state for the new file selection.
     setArtworkUploadUrl(null);
     setArtworkUploadError('');
 
-    // Show an immediate local preview while we upload to the backend.
     if (file.type && file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onloadend = () => setUploadedImage(reader.result);
       reader.readAsDataURL(file);
     } else {
-      // For PDFs (or other non-image artwork) we don't have a thumbnail yet;
-      // mark the slot as filled so the UI reflects the selection.
       setUploadedImage(file.name || 'artwork');
     }
 
@@ -613,6 +612,37 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     }
   };
 
+  const openAuthModal = (purpose) => {
+    setAuthModalPurpose(purpose);
+    setAuthModalOpen(true);
+  };
+
+  const handleArtworkFileInputClick = (e) => {
+    if (!isAuthenticated() || !localStorage.getItem('token')) {
+      e.preventDefault();
+      pendingAddToCartRef.current = false;
+      pendingArtworkUploadRef.current = true;
+      pendingArtworkFileRef.current = null;
+      openAuthModal('upload');
+    }
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!isAuthenticated() || !localStorage.getItem('token')) {
+      pendingArtworkFileRef.current = file;
+      pendingAddToCartRef.current = false;
+      pendingArtworkUploadRef.current = false;
+      openAuthModal('upload');
+      e.target.value = '';
+      return;
+    }
+
+    await performArtworkUpload(file);
+  };
+
   const handleDesignProduct = () => {
     // Navigate to product designer with the product type and image
     const type = product?.category || productType || 'pen';
@@ -634,7 +664,17 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     if (designOption) queryParams.set('designOption', designOption);
 
     if (material) queryParams.set('material', material);
-    if (sidesPrinted) queryParams.set('sidePrinted', sidesPrinted);
+    const sidesPrintedFromAttributes = Object.entries(selectedAttributeValues || {}).find(([key]) =>
+      String(key).toLowerCase().includes('sides printed')
+    )?.[1];
+    const sidesPrintedForDesigner =
+      sidesPrintedFromAttributes ||
+      (sidesPrinted === 'double-sided'
+        ? 'Double Sided'
+        : sidesPrinted === 'single-sided'
+          ? 'Single Sided'
+          : sidesPrinted);
+    if (sidesPrintedForDesigner) queryParams.set('sidePrinted', sidesPrintedForDesigner);
     if (lamination) queryParams.set('lamination', lamination);
     if (roundCorners) queryParams.set('roundCorners', roundCorners);
     if (deliveryOptionRef.current || deliveryOption) {
@@ -649,6 +689,8 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
 
     console.log('[ProductDetail] selected options', material, sidesPrinted, lamination, roundCorners, deliveryOptionRef.current || deliveryOption, selectedAttributeValues);
 
+    console.log(selectedAttributeValues,"selectedAttributeValues")
+
     dispatch(
       saveProductDetailDraft({
         productRouteKey: location.pathname,
@@ -662,6 +704,16 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         roundCorners,
         deliveryOption: deliveryOptionRef.current || deliveryOption,
         selectedAttributeValues,
+        productId: product?._id || '',
+        productName: displayProduct?.name || '',
+        productCategory: displayProduct?.category || product?.category || '',
+        productImage: displayProduct?.image || '',
+        linePriceExVat: getPriceExVat(),
+        linePriceIncVat: applyVatMode(getPriceExVat()),
+        isVatInclusive,
+        source: displayProduct?.source || 'in-house',
+        thirdPartyProductKey: displayProduct?.thirdPartyProductKey || null,
+        hasDeliveryPricing,
       })
     );
 
@@ -796,7 +848,9 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     }
 
     pendingAddToCartRef.current = true;
-    setCartAuthOpen(true);
+    pendingArtworkUploadRef.current = false;
+    pendingArtworkFileRef.current = null;
+    openAuthModal('cart');
   };
 
   const handleImageMouseMove = (e) => {
@@ -1705,8 +1759,10 @@ console.log('fretrhyrtewrfew', source);
                           {designOption === 'upload' && (
                             <div className="space-y-2">
                               <input
+                                ref={artworkFileInputRef}
                                 type="file"
                                 accept="image/*,.pdf"
+                                onClick={handleArtworkFileInputClick}
                                 onChange={handleImageUpload}
                                 disabled={isUploadingArtwork}
                                 aria-required="true"
@@ -1997,21 +2053,53 @@ console.log('fretrhyrtewrfew', source);
       </div>
 
       <DesignerAuthModal
-        open={cartAuthOpen}
+        open={authModalOpen}
+        initialAuthMode="signup"
         onClose={() => {
-          setCartAuthOpen(false);
+          setAuthModalOpen(false);
           pendingAddToCartRef.current = false;
+          pendingArtworkUploadRef.current = false;
+          pendingArtworkFileRef.current = null;
         }}
         onAuthenticated={async () => {
+          if (pendingArtworkFileRef.current) {
+            const file = pendingArtworkFileRef.current;
+            pendingArtworkFileRef.current = null;
+            await performArtworkUpload(file);
+            return;
+          }
+          if (pendingArtworkUploadRef.current) {
+            pendingArtworkUploadRef.current = false;
+            requestAnimationFrame(() => artworkFileInputRef.current?.click());
+            return;
+          }
           if (pendingAddToCartRef.current) {
             pendingAddToCartRef.current = false;
             await performAddToCart();
           }
         }}
-        title="Sign in to add to basket"
-        subtitle="Please sign in or create an account to add this product to your basket."
-        verifyOtpButtonLabel="Verify & add to basket"
-        signInButtonLabel="Sign in & add to basket"
+        title={
+          authModalPurpose === 'upload'
+            ? 'Sign in to upload artwork'
+            : 'Sign in to add to basket'
+        }
+        subtitle={
+          authModalPurpose === 'upload'
+            ? 'A free account keeps your artwork secure and links it to your order.'
+            : 'Sign in or create a free account to save this item and complete your purchase.'
+        }
+        benefits={[
+          'View and track your orders anytime from your account',
+          'Manage your profile, addresses, and saved details',
+          'Access order history, invoices, and design files in one place',
+          'Faster checkout on future orders with your saved information',
+        ]}
+        verifyOtpButtonLabel={
+          authModalPurpose === 'upload' ? 'Verify & upload' : 'Verify & add to basket'
+        }
+        signInButtonLabel={
+          authModalPurpose === 'upload' ? 'Sign in & upload' : 'Sign in & add to basket'
+        }
       />
     </div>
   );

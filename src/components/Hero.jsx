@@ -75,6 +75,16 @@ const Hero = () => {
                   </svg>
                 </button>
                 <button
+                  onClick={() => navigate(getRoutePath('designService'))}
+                  className="group bg-gray-900 hover:bg-gray-800 text-white px-4 md:px-5 py-2.5 rounded-lg transition-all duration-300 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  We Design For You
+                  <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+                <button
                   onClick={() => {
                     navigate('/');
                     setTimeout(() => {

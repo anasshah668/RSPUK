@@ -1,32 +1,114 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { fabric } from 'fabric';
 import QRCode from 'qrcode';
+import { toast } from 'react-toastify';
 import { productTemplates } from '../utils/productTemplates';
 import { getProductPrintAreas, validatePrintArea,  } from '../config/productPrintAreas';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 import DesignerAuthModal from '../components/DesignerAuthModal';
+import DesignReviewScreen from '../components/DesignReviewScreen';
+import {
+  destroyDesignerTour,
+  hasCompletedDesignerTour,
+  startDesignerTour,
+} from '../utils/designerTour';
+import { uploadService } from '../services/uploadService';
 import { useSelector } from 'react-redux';
 
 import { useNavigate, useLocation } from 'react-router-dom';
+
+const normalizeOptionKey = (key) =>
+  String(key || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_');
+
+const getQueryOptions = (searchParams) => {
+  const options = {};
+  searchParams.forEach((value, key) => {
+    if (!key.startsWith('option_')) return;
+    options[normalizeOptionKey(key.slice(7))] = value;
+  });
+  return options;
+};
+
+const resolveSidesPrintedValue = (searchParams, locationState) => {
+  const queryOptions = getQueryOptions(searchParams);
+
+  const fromQueryOptions =
+    queryOptions.sides_printed ||
+    queryOptions.side_printed ||
+    queryOptions.sidesprinted ||
+    queryOptions.sideprinted;
+
+  if (fromQueryOptions) return fromQueryOptions;
+
+  const matchingOptionEntry = Object.entries(queryOptions).find(([key]) =>
+    key.includes('sides') && key.includes('print')
+  );
+  if (matchingOptionEntry?.[1]) return matchingOptionEntry[1];
+
+  if (searchParams.get('sidePrinted')) return searchParams.get('sidePrinted');
+  if (locationState?.sidesPrinted) return locationState.sidesPrinted;
+
+  return '';
+};
+
+const resolveIsDoubleSided = (rawValue) => {
+  const normalized = String(rawValue || '').trim().toLowerCase();
+  if (!normalized) return false;
+
+  const singlePatterns = [
+    'single-sided',
+    'single sided',
+    'single side',
+    'one-sided',
+    'one sided',
+    'front only',
+    'front side only',
+  ];
+  if (singlePatterns.some((pattern) => normalized.includes(pattern) || normalized === pattern)) {
+    return false;
+  }
+
+  const doublePatterns = [
+    'double-sided',
+    'double sided',
+    'double side',
+    'both sides',
+    'both-sides',
+    'front and back',
+    'front & back',
+    'duplex',
+  ];
+  if (doublePatterns.some((pattern) => normalized.includes(pattern) || normalized === pattern)) {
+    return true;
+  }
+
+  if (normalized === 'double' || normalized === 'both') return true;
+  if (normalized === 'single' || normalized === 'front') return false;
+
+  return false;
+};
 
 const ProductDesigner = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated } = useAuth();
+  const { addToCart } = useCart();
   const savedDraft = useSelector((state) => state.designerSession?.productDetailDraft);
   
   // Get props from query params first, then fallback to location state.
   const searchParams = new URLSearchParams(location.search);
   const productType = searchParams.get('productType') || location.state?.productType || 'pen';
   const productCategory = searchParams.get('productCategory') || location.state?.productCategory || null;
+  const queryOptions = getQueryOptions(searchParams);
+  const sidePrintedParam = resolveSidesPrintedValue(searchParams, location.state);
   const selectedSizeParam =
     searchParams.get('size') ||
+    queryOptions.size ||
     searchParams.get('option_size') ||
-    '';
-  const sidePrintedParam =
-    searchParams.get('sidePrinted') ||
-    searchParams.get('option_sideprinted') ||
-    location.state?.sidesPrinted ||
     '';
   const canvasRef = useRef(null);
   const uploadInputRef = useRef(null);
@@ -83,6 +165,16 @@ const ProductDesigner = () => {
   const activePrintSideRef = useRef('front');
   const isDoubleSidedRef = useRef(false);
   const pendingExportRef = useRef(false);
+  const pendingReviewActionRef = useRef(null);
+  const [hasDownloadedDesign, setHasDownloadedDesign] = useState(false);
+  const [showReviewScreen, setShowReviewScreen] = useState(false);
+  const tourStartedRef = useRef(false);
+  const [designArtworkUrl, setDesignArtworkUrl] = useState('');
+  const [designPdfFileName, setDesignPdfFileName] = useState('');
+  const [isExportingDesign, setIsExportingDesign] = useState(false);
+  const [reviewAuthOpen, setReviewAuthOpen] = useState(false);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
 
   const [currentProductType, setCurrentProductType] = useState(productType);
   const [dynamicPrintAreas, setDynamicPrintAreas] = useState([]);
@@ -141,8 +233,8 @@ const ProductDesigner = () => {
     font.label.toLowerCase().includes((fontSearch || '').toLowerCase())
   );
 
-  const isDoubleSided = ['double-sided', 'double sided', 'double', 'both', 'both-sides']
-    .includes(String(sidePrintedParam || '').trim().toLowerCase());
+  const isDoubleSided = resolveIsDoubleSided(sidePrintedParam);
+  const quantityParam = Math.max(1, Number(searchParams.get('quantity') || savedDraft?.quantity || 1));
 
   useEffect(() => {
     if (!isDoubleSided && activePrintSide !== 'front') {
@@ -182,6 +274,13 @@ const ProductDesigner = () => {
   }, [designerAuthOpen, showCancelModal, show3DPreviewModal]);
 
   useEffect(() => {
+    if (showReviewScreen) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      document.body.style.overscrollBehavior = '';
+      return undefined;
+    }
+
     const previousHtmlOverflow = document.documentElement.style.overflow;
     const previousBodyOverflow = document.body.style.overflow;
     const previousBodyOverscroll = document.body.style.overscrollBehavior;
@@ -195,7 +294,59 @@ const ProductDesigner = () => {
       document.body.style.overflow = previousBodyOverflow;
       document.body.style.overscrollBehavior = previousBodyOverscroll;
     };
+  }, [showReviewScreen]);
+
+  useEffect(() => {
+    if (showReviewScreen || !canvas) return undefined;
+    const frame = requestAnimationFrame(() => {
+      try {
+        canvas.calcOffset();
+        canvas.requestRenderAll();
+      } catch {
+        /* canvas may still be initializing */
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [showReviewScreen, canvas]);
+
+  const handleDesignerTourStepPrepare = useCallback((action) => {
+    if (action === 'open-drawer') {
+      setIsLeftDrawerOpen(true);
+      setSidebarTab('uploads');
+      setActiveTool('select');
+    }
   }, []);
+
+  const handleReplayDesignerTour = useCallback(() => {
+    destroyDesignerTour();
+    startDesignerTour({
+      isDoubleSided,
+      onStepPrepare: handleDesignerTourStepPrepare,
+    });
+  }, [isDoubleSided, handleDesignerTourStepPrepare]);
+
+  useEffect(() => {
+    if (showReviewScreen) {
+      destroyDesignerTour();
+      return undefined;
+    }
+
+    if (!canvas || tourStartedRef.current || hasCompletedDesignerTour()) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      tourStartedRef.current = true;
+      startDesignerTour({
+        isDoubleSided,
+        onStepPrepare: handleDesignerTourStepPrepare,
+      });
+    }, 700);
+
+    return () => window.clearTimeout(timer);
+  }, [canvas, showReviewScreen, isDoubleSided, handleDesignerTourStepPrepare]);
+
+  useEffect(() => () => destroyDesignerTour(), []);
 
   const isGuideObject = (obj) => {
     const name = obj?.name || '';
@@ -313,7 +464,7 @@ const ProductDesigner = () => {
       );
     sideDesignsRef.current[side] = userObjects;
     sideBackgroundsRef.current[side] = backgroundStyle;
-    if (isDoubleSided) {
+    if (side === 'front' || isDoubleSided) {
       void generateSidePreview(side, userObjects);
     }
   };
@@ -2432,8 +2583,9 @@ const ProductDesigner = () => {
   };
 
   const exportDesign = async () => {
-    if (!canvas) return;
+    if (!canvas || isExportingDesign) return false;
 
+    setIsExportingDesign(true);
     const waitForRender = () => new Promise((resolve) => setTimeout(resolve, 80));
 
     const captureCurrentCanvasPage = async () => {
@@ -2556,7 +2708,30 @@ const ProductDesigner = () => {
       });
 
       const formattedDate = new Date().toISOString().slice(0, 10);
-      pdf.save(`Artwork_${formattedDate}.pdf`);
+      const fileName = `Artwork_${formattedDate}.pdf`;
+      pdf.save(fileName);
+
+      const blob = pdf.output('blob');
+      let hostedUrl = '';
+      try {
+        const file = new File([blob], fileName, { type: 'application/pdf' });
+        const uploaded = await uploadService.uploadArtwork(file);
+        hostedUrl = uploaded?.url || '';
+      } catch (uploadError) {
+        console.error('[designer-export] upload failed', uploadError);
+        toast.error(uploadError?.message || 'Design downloaded, but upload failed. Sign in and try again.');
+        return false;
+      }
+
+      if (!hostedUrl) {
+        toast.error('Could not save your design for production. Please try downloading again.');
+        return false;
+      }
+
+      setDesignPdfFileName(fileName);
+      setDesignArtworkUrl(hostedUrl);
+      setHasDownloadedDesign(true);
+      toast.success('Design saved to your device. You can now review and confirm your order.');
 
       if (isDoubleSided && currentSide !== activePrintSideRef.current) {
         await loadSideDesign(currentSide);
@@ -2565,19 +2740,175 @@ const ProductDesigner = () => {
         await waitForRender();
         await renderBackgroundStyle(sideBackgroundsRef.current[currentSide] || { kind: 'solid', color: '#ffffff' });
       }
+
+      return true;
     } catch (error) {
       console.error('Error exporting design:', error);
-      try { const { toast } = await import('react-toastify'); toast.error('Error exporting design. Please try again.'); } catch(_) {}
+      toast.error('Error exporting design. Please try again.');
+      return false;
+    } finally {
+      setIsExportingDesign(false);
     }
   };
 
-  const handleSaveAndDownload = () => {
+  const handleSaveAndDownload = async () => {
+    if (isExportingDesign) return;
     if (isAuthenticated() && localStorage.getItem('token')) {
-      exportDesign();
+      await exportDesign();
       return;
     }
     pendingExportRef.current = true;
     setDesignerAuthOpen(true);
+  };
+
+  const humanizeOptionKey = (key) =>
+    String(key || '')
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+
+  const buildReviewSummaryRows = useCallback(() => {
+    const rows = [];
+    const draft = savedDraft || {};
+    const push = (label, value) => {
+      if (!label || value == null || String(value).trim() === '') return;
+      rows.push({ label: String(label), value: String(value) });
+    };
+
+    push('Product', draft.productName || productType);
+    push('Design method', 'Online Designer');
+    push('Quantity', quantityParam);
+    push('Size', selectedSizeParam || draft.selectedSize);
+    push('Material', searchParams.get('material') || draft.material);
+    push('Sides printed', sidePrintedParam || draft.sidesPrinted);
+    push('Lamination', searchParams.get('lamination') || draft.lamination);
+    push('Corners', searchParams.get('roundCorners') || draft.roundCorners);
+    push('Delivery', searchParams.get('deliveryOption') || draft.deliveryOption);
+
+    Object.entries(queryOptions).forEach(([key, value]) => {
+      if (['size', 'material', 'lamination', 'round_corners', 'delivery_option'].includes(key)) return;
+      push(humanizeOptionKey(key), value);
+    });
+
+    Object.entries(draft.selectedAttributeValues || {}).forEach(([label, value]) => {
+      push(label, value);
+    });
+
+    return rows;
+  }, [savedDraft, productType, quantityParam, selectedSizeParam, sidePrintedParam, searchParams, queryOptions]);
+
+  const buildCartLineItem = useCallback(() => {
+    const draft = savedDraft || {};
+    const productOptions = buildReviewSummaryRows()
+      .filter((row) => !['Product', 'Design method', 'Quantity'].includes(row.label))
+      .map((row) => ({ label: row.label, value: row.value }));
+
+    const linePrice =
+      draft.isVatInclusive === false
+        ? Number(draft.linePriceExVat || 0)
+        : Number(draft.linePriceIncVat || draft.linePriceExVat || 0);
+
+    return {
+      id: draft.productId || `${productType}-${Date.now()}`,
+      name: draft.productName || productType,
+      title: draft.productName || productType,
+      category: draft.productCategory || productCategory,
+      price: linePrice,
+      image: draft.productImage || '',
+      quantity: quantityParam,
+      designOption: 'custom',
+      withoutArtwork: false,
+      artworkAttached: true,
+      artworkPreviewUrl: designArtworkUrl,
+      fileUrls: designArtworkUrl ? [designArtworkUrl] : [],
+      source: draft.source || 'in-house',
+      thirdPartyProductKey: draft.thirdPartyProductKey || null,
+      deliveryOption: searchParams.get('deliveryOption') || draft.deliveryOption,
+      selectedAttributes: draft.selectedAttributeValues || {},
+      productOptions,
+      summary: buildReviewSummaryRows().map((row) => ({ label: row.label, value: row.value })),
+      description: 'Custom design via online designer',
+    };
+  }, [
+    savedDraft,
+    buildReviewSummaryRows,
+    designArtworkUrl,
+    productType,
+    productCategory,
+    quantityParam,
+    searchParams,
+  ]);
+
+  const reviewPriceLabel = useMemo(() => {
+    const draft = savedDraft || {};
+    const amount =
+      draft.isVatInclusive === false
+        ? Number(draft.linePriceExVat || 0)
+        : Number(draft.linePriceIncVat || draft.linePriceExVat || 0);
+    if (!amount) return '';
+    const suffix = draft.isVatInclusive === false ? ' (Ex VAT)' : ' (Inc VAT)';
+    return `£${amount.toFixed(2)}${suffix}`;
+  }, [savedDraft]);
+
+  const performReviewAddToCart = async () => {
+    if (!designArtworkUrl) {
+      toast.error('Design file is missing. Please download your design again.');
+      return;
+    }
+    setIsAddingToCart(true);
+    try {
+      await addToCart(buildCartLineItem());
+      toast.success('Added to basket');
+      navigate(savedDraft?.returnPath || location.state?.fromPath || '/');
+    } catch (error) {
+      toast.error(error?.message || 'Could not add to basket.');
+    } finally {
+      setIsAddingToCart(false);
+    }
+  };
+
+  const performReviewCheckout = async () => {
+    if (!designArtworkUrl) {
+      toast.error('Design file is missing. Please download your design again.');
+      return;
+    }
+    setIsProcessingCheckout(true);
+    try {
+      const line = buildCartLineItem();
+      navigate('/checkout', {
+        state: {
+          checkoutItems: [line],
+        },
+      });
+    } finally {
+      setIsProcessingCheckout(false);
+    }
+  };
+
+  const requireAuthForReviewAction = (action) => {
+    if (isAuthenticated() && localStorage.getItem('token')) {
+      return true;
+    }
+    pendingReviewActionRef.current = action;
+    setReviewAuthOpen(true);
+    return false;
+  };
+
+  const handleReviewAddToCart = () => {
+    if (!requireAuthForReviewAction('cart')) return;
+    void performReviewAddToCart();
+  };
+
+  const handleReviewCheckout = () => {
+    if (!requireAuthForReviewAction('checkout')) return;
+    void performReviewCheckout();
+  };
+
+  const handleReviewConfirmClick = () => {
+    if (!hasDownloadedDesign || !designArtworkUrl) {
+      toast.info('Please download your design first so we can attach your print-ready PDF to the order.');
+      return;
+    }
+    setShowReviewScreen(true);
   };
 
   const handleCancelClick = () => {
@@ -2648,11 +2979,59 @@ const ProductDesigner = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-0 flex min-h-0 bg-gray-100 overflow-hidden">
+    <>
+      {showReviewScreen ? (
+        <>
+          <DesignReviewScreen
+            productTitle={savedDraft?.productName || productType}
+            pdfUrl={designArtworkUrl}
+            pdfFileName={designPdfFileName}
+            summaryRows={buildReviewSummaryRows()}
+            priceLabel={reviewPriceLabel}
+            onBackToEditor={() => setShowReviewScreen(false)}
+            onAddToCart={handleReviewAddToCart}
+            onProceedToCheckout={handleReviewCheckout}
+            isAddingToCart={isAddingToCart}
+            isProcessingCheckout={isProcessingCheckout}
+          />
+          <DesignerAuthModal
+            open={reviewAuthOpen}
+            onClose={() => {
+              setReviewAuthOpen(false);
+              pendingReviewActionRef.current = null;
+            }}
+            onAuthenticated={async () => {
+              const action = pendingReviewActionRef.current;
+              pendingReviewActionRef.current = null;
+              if (action === 'cart') await performReviewAddToCart();
+              if (action === 'checkout') await performReviewCheckout();
+            }}
+            title="Sign in to continue"
+            subtitle="Sign in or create an account to add your design to basket or checkout."
+            benefits={[
+              'Save your design to your order history',
+              'Track production and delivery from your account',
+              'Checkout securely with your saved details',
+            ]}
+            verifyOtpButtonLabel="Verify & continue"
+            signInButtonLabel="Sign in & continue"
+          />
+        </>
+      ) : null}
+
+    <div
+      className={`fixed inset-0 z-0 flex min-h-0 bg-gray-100 overflow-hidden ${
+        showReviewScreen ? 'invisible pointer-events-none' : ''
+      }`}
+      aria-hidden={showReviewScreen}
+    >
       {/* Left Sidebar (Icon Rail + Panel) */}
       <div className={`flex h-full min-h-0 flex-shrink-0 overflow-hidden transition-all duration-300 ${isLeftDrawerOpen ? 'w-[368px]' : 'w-20'}`}>
         {/* Icon Rail */}
-        <div className="w-20 h-full min-h-0 bg-white border-r border-gray-200 py-4 flex flex-col items-center gap-4 overflow-y-auto">
+        <div
+          data-tour="designer-tools-rail"
+          className="w-20 h-full min-h-0 bg-white border-r border-gray-200 py-4 flex flex-col items-center gap-4 overflow-y-auto"
+        >
           <button
             onClick={() => handleSidebarTabClick('uploads', 'select')}
             className="w-full flex flex-col items-center gap-2 px-2"
@@ -4009,7 +4388,10 @@ const ProductDesigner = () => {
       {/* Main Canvas Area */}
       <div className="flex-1 flex min-h-0 flex-col overflow-hidden">
         {/* Top Toolbar */}
-        <div className="bg-white shadow-md p-3 flex items-center justify-between gap-2 flex-shrink-0 overflow-visible">
+        <div
+          data-tour="designer-toolbar"
+          className="bg-white shadow-md p-3 flex items-center justify-between gap-2 flex-shrink-0 overflow-visible"
+        >
           {/* Hand tool + Zoom controls + product selector */}
           <div className="flex items-center gap-2 flex-shrink-0">
             {/* Hand/Pan Tool */}
@@ -4045,6 +4427,18 @@ const ProductDesigner = () => {
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleReplayDesignerTour}
+              className="w-9 h-9 flex items-center justify-center border border-gray-300 rounded-lg hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors text-gray-600"
+              title="Take a tour of the designer"
+              aria-label="Take a tour of the designer"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </button>
 
@@ -4225,19 +4619,46 @@ const ProductDesigner = () => {
             >
               Cancel
             </button>
-            <button
-              type="button"
-              className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-semibold text-sm whitespace-nowrap"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              Review & Confirm
-            </button>
+            {!hasDownloadedDesign ? (
+              <div
+                className="hidden lg:flex items-center gap-2 max-w-xs rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-950 leading-snug"
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+              >
+                <span className="font-bold shrink-0">Step 1:</span>
+                <span>
+                  Download your design first — we attach the PDF to your order and you keep a copy for your records.
+                </span>
+              </div>
+            ) : null}
+            {hasDownloadedDesign ? (
+              <button
+                type="button"
+                onClick={handleReviewConfirmClick}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-semibold text-sm whitespace-nowrap"
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+              >
+                Review & Confirm
+              </button>
+            ) : null}
           </div>
         </div>
 
+        {!hasDownloadedDesign ? (
+          <div
+            className="lg:hidden px-3 py-2 border-b border-amber-200 bg-amber-50 text-[11px] text-amber-950 leading-snug"
+            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+          >
+            <span className="font-bold">Step 1:</span> Use <strong>Save & Download</strong> below to save your PDF locally and unlock review.
+          </div>
+        ) : null}
+
         {/* Canvas + Side selector */}
         <div className="flex-1 flex min-h-0 bg-gray-200">
-          <div className="flex-1 overflow-auto p-2 md:p-3" id="canvas-container">
+          <div
+            data-tour="designer-canvas"
+            className="flex-1 overflow-auto p-2 md:p-3"
+            id="canvas-container"
+          >
             <div className="flex items-center justify-center h-full">
               <div className="relative inline-block pt-10 px-4 pb-14" style={{ maxWidth: 'calc(100% - 1rem)', maxHeight: 'calc(100% - 1rem)' }}>
                 {/* Reference labels */}
@@ -4279,65 +4700,89 @@ const ProductDesigner = () => {
             </div>
           </div>
 
-          {isDoubleSided && (
-            <div className="w-64 bg-white border-l border-gray-200 p-3 overflow-y-auto">
-              <h4 className="text-sm font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                Print Sides
-              </h4>
-              <div className="space-y-3">
-                <button
-                  onClick={() => handleSideSwitch('front')}
-                  disabled={isSwitchingSide}
-                  className={`w-full text-left rounded-lg border p-3 transition-colors ${
-                    activePrintSide === 'front'
-                      ? 'border-emerald-500 bg-emerald-50'
-                      : 'border-gray-200 hover:bg-gray-50'
-                  } ${isSwitchingSide ? 'opacity-60 cursor-not-allowed' : ''}`}
-                >
-                  <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Front Print</p>
+          <div
+            data-tour="designer-sides"
+            className="w-64 bg-white border-l border-gray-200 p-3 overflow-y-auto"
+          >
+            <h4 className="text-sm font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              {isDoubleSided ? 'Print Sides' : 'Print Side'}
+            </h4>
+            <div className="space-y-3">
+              {isDoubleSided ? (
+                <>
+                  <button
+                    onClick={() => handleSideSwitch('front')}
+                    disabled={isSwitchingSide}
+                    className={`w-full text-left rounded-lg border p-3 transition-colors ${
+                      activePrintSide === 'front'
+                        ? 'border-emerald-500 bg-emerald-50'
+                        : 'border-gray-200 hover:bg-gray-50'
+                    } ${isSwitchingSide ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  >
+                    <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Front Print</p>
+                    <div className="mt-2 h-20 rounded-md border border-gray-200 bg-white overflow-hidden flex items-center justify-center">
+                      {sidePreviewUrls.front ? (
+                        <img src={sidePreviewUrls.front} alt="Front preview" className="w-full h-full object-contain" />
+                      ) : (
+                        <span className="text-[11px] text-gray-400" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>No preview yet</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Design front side artwork</p>
+                  </button>
+
+                  <button
+                    onClick={() => handleSideSwitch('back')}
+                    disabled={isSwitchingSide}
+                    className={`w-full text-left rounded-lg border p-3 transition-colors ${
+                      activePrintSide === 'back'
+                        ? 'border-emerald-500 bg-emerald-50'
+                        : 'border-gray-200 hover:bg-gray-50'
+                    } ${isSwitchingSide ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  >
+                    <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Back Print</p>
+                    <div className="mt-2 h-20 rounded-md border border-gray-200 bg-white overflow-hidden flex items-center justify-center">
+                      {sidePreviewUrls.back ? (
+                        <img src={sidePreviewUrls.back} alt="Back preview" className="w-full h-full object-contain" />
+                      ) : (
+                        <span className="text-[11px] text-gray-400" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>No preview yet</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Design back side artwork</p>
+                  </button>
+                </>
+              ) : (
+                <div className="w-full rounded-lg border border-emerald-500 bg-emerald-50 p-3">
+                  <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Single Sided</p>
                   <div className="mt-2 h-20 rounded-md border border-gray-200 bg-white overflow-hidden flex items-center justify-center">
                     {sidePreviewUrls.front ? (
-                      <img src={sidePreviewUrls.front} alt="Front preview" className="w-full h-full object-contain" />
+                      <img src={sidePreviewUrls.front} alt="Print preview" className="w-full h-full object-contain" />
                     ) : (
                       <span className="text-[11px] text-gray-400" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>No preview yet</span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Design front side artwork</p>
-                </button>
-
-                <button
-                  onClick={() => handleSideSwitch('back')}
-                  disabled={isSwitchingSide}
-                  className={`w-full text-left rounded-lg border p-3 transition-colors ${
-                    activePrintSide === 'back'
-                      ? 'border-emerald-500 bg-emerald-50'
-                      : 'border-gray-200 hover:bg-gray-50'
-                  } ${isSwitchingSide ? 'opacity-60 cursor-not-allowed' : ''}`}
-                >
-                  <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Back Print</p>
-                  <div className="mt-2 h-20 rounded-md border border-gray-200 bg-white overflow-hidden flex items-center justify-center">
-                    {sidePreviewUrls.back ? (
-                      <img src={sidePreviewUrls.back} alt="Back preview" className="w-full h-full object-contain" />
-                    ) : (
-                      <span className="text-[11px] text-gray-400" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>No preview yet</span>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>Design back side artwork</p>
-                </button>
-              </div>
-
-              <div className="mt-4 p-2 rounded-md bg-gray-50 border border-gray-200">
-                <p className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  Currently editing: <span className="font-semibold text-gray-800">{activePrintSide === 'front' ? 'Front Print' : 'Back Print'}</span>
-                </p>
-                {isSwitchingSide && (
-                  <p className="text-[11px] text-emerald-700 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                    Switching side...
+                  <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    Design your single-sided artwork
                   </p>
-                )}
-              </div>
+                </div>
+              )}
             </div>
-          )}
+
+            <div className="mt-4 p-2 rounded-md bg-gray-50 border border-gray-200">
+              <p className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                Currently editing:{' '}
+                <span className="font-semibold text-gray-800">
+                  {isDoubleSided
+                    ? (activePrintSide === 'front' ? 'Front Print' : 'Back Print')
+                    : 'Single Sided Print'}
+                </span>
+              </p>
+              {isDoubleSided && isSwitchingSide && (
+                <p className="text-[11px] text-emerald-700 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  Switching side...
+                </p>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Bottom Controls */}
@@ -4347,7 +4792,7 @@ const ProductDesigner = () => {
               ? `Page ${activePrintSide === 'front' ? '1/2' : '2/2'}`
               : 'Page 1/1'}
           </div>
-          <div className="flex gap-4 items-center">
+          <div data-tour="designer-actions" className="flex gap-4 items-center">
             <button 
               onClick={undo}
               disabled={historyIndex <= 0}
@@ -4390,13 +4835,14 @@ const ProductDesigner = () => {
             </button>
             <button 
               onClick={handleSaveAndDownload}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center gap-2"
+              disabled={isExportingDesign}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center gap-2 disabled:opacity-60"
               style={{ fontFamily: 'Lexend Deca, sans-serif' }}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
-              Save & Download
+              {isExportingDesign ? 'Preparing PDF…' : hasDownloadedDesign ? 'Download again' : 'Save & Download'}
             </button>
           </div>
         </div>
@@ -4411,11 +4857,16 @@ const ProductDesigner = () => {
         onAuthenticated={async () => {
           if (pendingExportRef.current) {
             pendingExportRef.current = false;
-            exportDesign();
+            await exportDesign();
           }
         }}
-        title="Continue to Download"
-        subtitle="Please sign in to save and download your design."
+        title="Download your design"
+        subtitle="Sign in to save a print-ready PDF to your device and attach it to your order."
+        benefits={[
+          'Keep a copy of your artwork on your computer',
+          'Unlock review & confirm when your PDF is ready',
+          'Attach the correct file to production automatically',
+        ]}
         verifyOtpButtonLabel="Verify & Download"
         signInButtonLabel="Sign In & Download"
       />
@@ -4557,6 +5008,7 @@ const ProductDesigner = () => {
         </div>
       )}
     </div>
+    </>
   );
 };
 

@@ -9,17 +9,23 @@ const createWorldpayCheckoutSession = (payload) => {
   );
 };
 
-const chargeWorldpay = (payload) => {
+const chargeWorldpay = (payload, options = {}) => {
   return httpClient.post(
     `${apiRoutes.payments.worldpayCharge}`,
     payload,
-    { skipAuth: true }
+    { skipAuth: true, ...options },
   );
+};
+
+/** Design service payments always require a valid Bearer token — no guest checkout. */
+const chargeDesignServiceWorldpay = (payload) => {
+  return httpClient.post(`${apiRoutes.payments.worldpayCharge}`, payload);
 };
 
 export const paymentService = {
   createWorldpayCheckoutSession,
   chargeWorldpay,
+  chargeDesignServiceWorldpay,
 };
 
 export default paymentService;

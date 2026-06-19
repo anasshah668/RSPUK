@@ -1,28 +1,26 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 const font = { fontFamily: 'Lexend Deca, sans-serif' };
 
-function receiptHelpText(receiptEmailSent, receiptEmailReason) {
+function receiptHelpContent({ receiptEmailSent, designServiceSuccess, trackingId }) {
   if (receiptEmailSent) {
     return null;
   }
-  switch (receiptEmailReason) {
-    case 'no_sendgrid':
-      return 'Receipt email was not sent because SendGrid is not configured (set SENDGRID_API_KEY and SENDGRID_FROM_EMAIL on the server).';
-    case 'no_smtp':
-      return 'Receipt email was not sent because outgoing mail is not configured on the server yet.';
-    case 'no_nodemailer':
-      return 'Receipt email was not sent — mail is not configured on the server.';
-    case 'disabled':
-      return 'Receipt emails are turned off (RECEIPT_EMAIL_ENABLED=false).';
-    case 'send_failed':
-      return 'We could not send the receipt email. Your payment still went through — save this page or contact us with your order reference.';
-    case 'no_customer_email':
-      return 'No email was on file for a receipt.';
-    default:
-      return 'If you do not receive a receipt shortly, check spam or contact us with your order reference below.';
-  }
+
+  const trackLabel = designServiceSuccess ? 'My Design Orders' : 'Track Order';
+  const trackPath = designServiceSuccess
+    ? 'My Account > My Design Orders'
+    : 'My Account > Track Order';
+
+  return {
+    bullets: [
+      'Download the PDF below and save it on your device as your receipt.',
+      trackingId
+        ? `Track your order in ${trackPath} by entering your Tracking ID: ${trackingId}.`
+        : `Track your order anytime from My Account > ${trackLabel}.`,
+    ],
+  };
 }
 
 /**
@@ -47,8 +45,8 @@ const PaymentSuccessPage = () => {
     email,
     customerName,
     orderTitle,
+    designServiceSuccess,
     receiptEmailSent,
-    receiptEmailReason,
   } = s;
 
   const amountLabel =
@@ -56,46 +54,82 @@ const PaymentSuccessPage = () => {
       ? new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(amount)
       : `£${amount}`;
 
-  const receiptNote = receiptHelpText(Boolean(receiptEmailSent), receiptEmailReason);
-  const handleDownloadReceiptPdf = () => {
-    const popup = window.open('', '_blank', 'width=900,height=1100');
-    if (!popup) return;
-    const html = `
-      <!doctype html>
-      <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>Receipt ${orderReference || ''}</title>
-        <style>
-          body { font-family: Arial, sans-serif; color: #111827; padding: 24px; }
-          .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; }
-          .row { display: flex; justify-content: space-between; gap: 8px; margin: 8px 0; }
-          .muted { color: #6b7280; }
-          .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
-          .title { font-size: 20px; font-weight: 700; margin-bottom: 12px; }
-        </style>
-      </head>
-      <body>
-        <div class="title">Payment receipt</div>
-        <div class="card">
-          <div class="row"><span class="muted">Order reference</span><span class="mono">${orderReference || '—'}</span></div>
-          <div class="row"><span class="muted">Payment reference</span><span class="mono">${paymentId || '—'}</span></div>
-          <div class="row"><span class="muted">Tracking ID</span><span class="mono">${trackingId || '—'}</span></div>
-          <div class="row"><span class="muted">Amount paid</span><strong>${amountLabel}</strong></div>
-          <div class="row"><span class="muted">Customer</span><span>${customerName || 'Customer'}</span></div>
-          <div class="row"><span class="muted">Email</span><span>${email || '—'}</span></div>
-          <p style="margin-top:14px; color:#1d4ed8;">
-            You can track your order in My Account > Track Order using Tracking ID: <strong>${trackingId || '—'}</strong>.
-          </p>
-        </div>
-      </body>
-      </html>
-    `;
-    popup.document.open();
-    popup.document.write(html);
-    popup.document.close();
-    popup.focus();
-    popup.print();
+  const receiptHelp = receiptHelpContent({
+    receiptEmailSent: Boolean(receiptEmailSent),
+    designServiceSuccess,
+    trackingId,
+  });
+  const [downloadingReceipt, setDownloadingReceipt] = useState(false);
+
+  const handleDownloadReceiptPdf = async () => {
+    if (downloadingReceipt) return;
+    setDownloadingReceipt(true);
+    try {
+      const { jsPDF } = await import('jspdf');
+      const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const margin = 18;
+      let y = 22;
+
+      const addRow = (label, value, boldValue = false) => {
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(10);
+        pdf.setTextColor(107, 114, 128);
+        pdf.text(String(label), margin, y);
+        pdf.setTextColor(17, 24, 39);
+        pdf.setFont('helvetica', boldValue ? 'bold' : 'normal');
+        const lines = pdf.splitTextToSize(String(value || '—'), pageWidth - margin * 2 - 52);
+        pdf.text(lines, pageWidth - margin, y, { align: 'right' });
+        y += Math.max(7, lines.length * 5);
+      };
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(18);
+      pdf.setTextColor(5, 150, 105);
+      pdf.text('Payment receipt', margin, y);
+      y += 10;
+
+      if (orderTitle) {
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(11);
+        pdf.setTextColor(55, 65, 81);
+        pdf.text(`Order: ${orderTitle}`, margin, y);
+        y += 8;
+      }
+
+      pdf.setDrawColor(229, 231, 235);
+      pdf.line(margin, y, pageWidth - margin, y);
+      y += 8;
+
+      addRow('Order reference', orderReference || '—', true);
+      addRow('Payment reference', paymentId || '—');
+      addRow('Tracking ID', trackingId || '—');
+      addRow('Amount paid', amountLabel, true);
+      addRow('Customer', customerName || 'Customer');
+      addRow('Email', email || '—');
+
+      y += 4;
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(9);
+      pdf.setTextColor(29, 78, 216);
+      const trackText = trackingId
+        ? `Track your order in My Account using Tracking ID ${trackingId}.`
+        : 'Keep this receipt for your records.';
+      const trackLines = pdf.splitTextToSize(trackText, pageWidth - margin * 2);
+      pdf.text(trackLines, margin, y);
+
+      y += trackLines.length * 5 + 8;
+      pdf.setFontSize(8);
+      pdf.setTextColor(107, 114, 128);
+      pdf.text('Thank you for your payment.', margin, y);
+
+      const safeRef = String(orderReference || paymentId || 'receipt').replace(/[^\w-]+/g, '_');
+      pdf.save(`Receipt_${safeRef}.pdf`);
+    } catch (error) {
+      console.error('[receipt-pdf] download failed', error);
+    } finally {
+      setDownloadingReceipt(false);
+    }
   };
 
   return (
@@ -141,8 +175,17 @@ const PaymentSuccessPage = () => {
             </div>
             {trackingId && (
               <p className="text-sm text-blue-800 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-                You can track your order in <strong>My Account &gt; Track Order</strong> using Tracking ID{' '}
-                <strong className="font-mono">{trackingId}</strong>.
+                {designServiceSuccess ? (
+                  <>
+                    Track progress in <strong>My Account &gt; My Design Orders</strong>. Your tracking ID is{' '}
+                    <strong className="font-mono">{trackingId}</strong>.
+                  </>
+                ) : (
+                  <>
+                    You can track your order in <strong>My Account &gt; Track Order</strong> using Tracking ID{' '}
+                    <strong className="font-mono">{trackingId}</strong>.
+                  </>
+                )}
               </p>
             )}
 
@@ -152,19 +195,24 @@ const PaymentSuccessPage = () => {
                 inbox (and spam).
               </p>
             )}
-            {!receiptEmailSent && receiptNote && (
-              <p className="text-sm text-amber-900 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                {receiptNote}
-              </p>
+            {!receiptEmailSent && receiptHelp && (
+              <div className="text-sm text-gray-800 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
+                <ul className="list-disc pl-5 space-y-1.5 text-gray-700">
+                  {receiptHelp.bullets.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              </div>
             )}
 
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <button
                 type="button"
                 onClick={handleDownloadReceiptPdf}
-                className="flex-1 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm"
+                disabled={downloadingReceipt}
+                className="flex-1 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm disabled:opacity-60"
               >
-                Download receipt (PDF)
+                {downloadingReceipt ? 'Preparing PDF…' : 'Download receipt (PDF)'}
               </button>
               <button
                 type="button"

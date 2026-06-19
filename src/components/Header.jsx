@@ -411,7 +411,7 @@ const Header = () => {
       }}
       className={`relative flex-shrink-0 p-2 rounded-lg transition-colors ${
         basketCount > 0
-          ? 'text-blue-300 bg-blue-500/10 ring-1 ring-blue-400/40 hover:bg-blue-500/20 hover:text-blue-200'
+          ? 'text-blue-200 bg-blue-500/15 ring-1 ring-blue-400/50 hover:bg-blue-500/25 hover:text-white basket-has-items'
           : 'text-gray-300 hover:text-blue-400 hover:bg-gray-700/50'
       }`}
       aria-label={basketCount > 0 ? `Basket has ${basketCount} item${basketCount === 1 ? '' : 's'}` : 'Basket'}
@@ -850,6 +850,19 @@ const Header = () => {
           </div>
         )}
       </nav>
+      <style>{`
+        @keyframes basketGlow {
+          0%, 100% {
+            box-shadow: 0 0 6px rgba(59, 130, 246, 0.25), 0 0 14px rgba(59, 130, 246, 0.12);
+          }
+          50% {
+            box-shadow: 0 0 12px rgba(59, 130, 246, 0.45), 0 0 22px rgba(59, 130, 246, 0.2);
+          }
+        }
+        .basket-has-items {
+          animation: basketGlow 2.4s ease-in-out infinite;
+        }
+      `}</style>
     </header>
   );
 };

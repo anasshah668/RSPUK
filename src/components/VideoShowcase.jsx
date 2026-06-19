@@ -18,6 +18,7 @@ const formatTime = (seconds) => {
 const VideoShowcase = () => {
   const navigate = useNavigate();
   const videoRef = useRef(null);
+  const sectionRef = useRef(null);
   const containerRef = useRef(null);
   const progressRef = useRef(null);
 
@@ -82,26 +83,36 @@ const VideoShowcase = () => {
   }, []);
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    const section = sectionRef.current;
+    if (!section) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => setIsInView(entry.isIntersecting),
-      { threshold: 0.35 }
+      { threshold: 0.4 }
     );
-    observer.observe(container);
+    observer.observe(section);
     return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || loadError) return;
 
-    if (!isInView && isPlaying) {
+    if (isInView) {
+      video
+        .play()
+        .then(() => {
+          setIsPlaying(true);
+          setHasStarted(true);
+        })
+        .catch(() => {
+          setIsPlaying(false);
+        });
+    } else {
       video.pause();
       setIsPlaying(false);
     }
-  }, [isInView, isPlaying]);
+  }, [isInView, loadError]);
 
   useEffect(() => {
     let hideTimer;
@@ -121,6 +132,7 @@ const VideoShowcase = () => {
 
   return (
     <section
+      ref={sectionRef}
       id="showcase"
       className="relative py-12 md:py-16 overflow-hidden bg-gradient-to-br from-gray-50 via-white to-gray-100"
     >

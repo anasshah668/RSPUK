@@ -20,6 +20,14 @@ const updateTopAnnouncement = (payload) => {
   );
 };
 
+const getDesignServicePrice = () => {
+  return httpClient.get(`${apiRoutes.admin.designServicePrice}`);
+};
+
+const updateDesignServicePrice = (payload) => {
+  return httpClient.put(`${apiRoutes.admin.designServicePrice}`, payload);
+};
+
 const listGalleryProjectsAdmin = () => {
   return httpClient.get(`${apiRoutes.admin.galleryProjectsAdmin}`);
 };
@@ -54,6 +62,8 @@ export const adminService = {
   analytics,
   getTopAnnouncement,
   updateTopAnnouncement,
+  getDesignServicePrice,
+  updateDesignServicePrice,
   listGalleryProjectsAdmin,
   createGalleryProject,
   updateGalleryProject,
