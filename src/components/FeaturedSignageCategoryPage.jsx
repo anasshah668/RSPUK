@@ -128,6 +128,9 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
       'one-way-vision': ['Storefront glazing', 'Vehicle windows', 'Public-facing glass', 'Transport ads'],
       'cut-vinyl': ['Opening hours', 'Logos and lettering', 'Directional text', 'Minimal branding'],
       'privacy-films': ['Partition glazing', 'Clinics and treatment rooms', 'Meeting suites', 'Reception areas'],
+      'cnc-router-cutting': ['Routed lettering', 'Display panels', 'Shopfitting components', 'Prototype parts'],
+      'fibre-laser-cutting': ['Metal lettering', 'Brackets and plates', 'Architectural profiles', 'Batch metal parts'],
+      'fibre-laser-welding': ['Signage frames', 'Letter assemblies', 'Metal structures', 'Bespoke metalwork'],
     };
     return byCategory[String(categorySlug || '').toLowerCase()] || [
       'Retail and commercial spaces',

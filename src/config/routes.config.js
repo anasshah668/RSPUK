@@ -66,6 +66,15 @@ const FeaturedCutVinylPage = lazy(
 const FeaturedPrivacyFilmsPage = lazy(
   () => import("../pages/FeaturedPrivacyFilmsPage"),
 );
+const FeaturedCncRouterCuttingPage = lazy(
+  () => import("../pages/FeaturedCncRouterCuttingPage"),
+);
+const FeaturedFibreLaserCuttingPage = lazy(
+  () => import("../pages/FeaturedFibreLaserCuttingPage"),
+);
+const FeaturedFibreLaserWeldingPage = lazy(
+  () => import("../pages/FeaturedFibreLaserWeldingPage"),
+);
 const FeaturedQuoteRequestPage = lazy(
   () => import("../pages/FeaturedQuoteRequestPage"),
 );
@@ -218,6 +227,21 @@ export const routes = [
   {
     path: "/featured/privacy-films",
     component: FeaturedPrivacyFilmsPage,
+    layout: "default",
+  },
+  {
+    path: "/featured/cnc-router-cutting",
+    component: FeaturedCncRouterCuttingPage,
+    layout: "default",
+  },
+  {
+    path: "/featured/fibre-laser-cutting",
+    component: FeaturedFibreLaserCuttingPage,
+    layout: "default",
+  },
+  {
+    path: "/featured/fibre-laser-welding",
+    component: FeaturedFibreLaserWeldingPage,
     layout: "default",
   },
   {

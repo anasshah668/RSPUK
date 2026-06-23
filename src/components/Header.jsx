@@ -44,18 +44,6 @@ const Header = () => {
       ],
     },
     {
-      title: 'Small Print',
-      items: [
-        { label: 'Business Cards', category: 'business-cards' },
-        { label: 'Flyers', category: 'flyers' },
-        { label: 'Leaflets', category: 'leaflets' },
-        { label: 'Brochures', category: 'brochures' },
-        { label: 'Menus', category: 'menus' },
-        { label: 'Calendars', category: 'calendars' },
-        { label: 'Stickers', category: 'stickers' },
-      ],
-    },
-    {
       title: 'Window Graphics',
       items: [
         { label: 'Printed Vinyl', category: 'printed-vinyl' },
@@ -117,6 +105,9 @@ const Header = () => {
       'one-way-vision': '/featured/one-way-vision',
       'cut-vinyl': '/featured/cut-vinyl',
       'privacy-films': '/featured/privacy-films',
+      'cnc-router-cutting': '/featured/cnc-router-cutting',
+      'fibre-laser-cutting': '/featured/fibre-laser-cutting',
+      'fibre-laser-welding': '/featured/fibre-laser-welding',
     };
 
     // Navigate featured categories to their dedicated pages, fallback to generic category route.

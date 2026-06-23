@@ -323,6 +323,69 @@ export const featuredSignageItems = [
       
     ],
   },
+  {
+    id: 'cnc-router-cutting',
+    title: 'CNC Router Cutting',
+    categorySlug: 'cnc-router-cutting',
+    route: '/featured/cnc-router-cutting',
+    folderName: 'CNCRouterCutting',
+    description: 'Precision CNC router cutting for signage, panels, and custom fabrication projects.',
+    heading: 'CNC Router Cutting',
+    blurb:
+      'High-accuracy CNC router cutting for acrylic, aluminium composite, MDF, and other sheet materials used in signage and fabrication.',
+    longDescription:
+      'Our CNC router service delivers clean, repeatable cuts for lettering, panels, shapes, and structural components. It is ideal for businesses that need accurate profiles, routed channels, and consistent production quality across single pieces or batch runs.',
+    details:
+      'From prototype parts to production batches, we machine materials to your drawings with tight tolerances and smooth edges. Suitable for shopfitting, exhibition builds, display systems, and bespoke signage fabrication.',
+    highlights: ['Accurate profile cutting', 'Multiple sheet materials', 'Single pieces or batch runs'],
+    images: [
+      toAssetPath('CNCRouterCutting', '1.jpg'),
+      toAssetPath('CNCRouterCutting', '2.jpg'),
+      toAssetPath('CNCRouterCutting', '3.jpg'),
+    ],
+  },
+  {
+    id: 'fibre-laser-cutting',
+    title: 'Fibre Laser Cutting',
+    categorySlug: 'fibre-laser-cutting',
+    route: '/featured/fibre-laser-cutting',
+    folderName: 'FibreLaserCutting',
+    description: 'Fast, precise fibre laser cutting for metal signage and fabrication components.',
+    heading: 'Fibre Laser Cutting',
+    blurb:
+      'Fibre laser cutting for crisp metal profiles, lettering, brackets, and precision fabrication parts with minimal heat distortion.',
+    longDescription:
+      'Fibre laser cutting is the go-to process when you need fine detail, sharp corners, and efficient throughput on metals such as stainless steel, mild steel, and aluminium. It is widely used for architectural lettering, panels, brackets, and custom metalwork.',
+    details:
+      'We process DXF and production-ready artwork to deliver clean edges and consistent repeatability. This service supports signage manufacturers, contractors, and businesses needing reliable metal cutting for indoor and outdoor applications.',
+    highlights: ['Fine detail on metal', 'Fast production turnaround', 'Clean, repeatable edges'],
+    images: [
+      toAssetPath('FibreLaserCutting', '1.jpg'),
+      toAssetPath('FibreLaserCutting', '2.jpg'),
+      toAssetPath('FibreLaserCutting', '3.jpg'),
+    ],
+  },
+  {
+    id: 'fibre-laser-welding',
+    title: 'Fibre Laser Welding',
+    categorySlug: 'fibre-laser-welding',
+    route: '/featured/fibre-laser-welding',
+    folderName: 'FibreLaserWelding',
+    description: 'Precision fibre laser welding for strong, clean joins in metal signage and fabrication.',
+    heading: 'Fibre Laser Welding',
+    blurb:
+      'Fibre laser welding for strong, neat metal joins with reduced distortion — ideal for signage frames, assemblies, and bespoke metalwork.',
+    longDescription:
+      'Laser welding gives you controlled, high-strength joints with a refined finish compared with traditional methods. It is well suited to signage frameworks, letter returns, brackets, and assemblies where appearance and structural integrity both matter.',
+    details:
+      'Our welding service supports fabrication projects that require accurate alignment, minimal cleanup, and durable joins. We work with production teams and installers who need reliable metal assemblies built to specification.',
+    highlights: ['Strong, precise welds', 'Reduced heat distortion', 'Ideal for frames and assemblies'],
+    images: [
+      toAssetPath('FibreLaserWelding', '1.jpg'),
+      toAssetPath('FibreLaserWelding', '2.jpg'),
+      toAssetPath('FibreLaserWelding', '3.jpg'),
+    ],
+  },
 ];
 
 export const getFeaturedSignageBySlug = (slug) =>

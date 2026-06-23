@@ -12,6 +12,37 @@ import { saveProductDetailDraft } from '../store/designerSessionSlice';
 import { useAuth } from '../context/AuthContext';
 import DesignerAuthModal from '../components/DesignerAuthModal';
 
+const FALLBACK_QUANTITY_OPTIONS = [1, 10, 25, 50, 100, 250, 500, 1000];
+
+const buildAvailableQuantityOptions = (quantitiesOptions, quantity, hasThirdPartyPricing) => {
+  const source =
+    quantitiesOptions.length > 0
+      ? quantitiesOptions
+      : hasThirdPartyPricing
+        ? []
+        : FALLBACK_QUANTITY_OPTIONS;
+  if (source.length === 0) return [];
+
+  const current = Number(quantity);
+  const values = [...source];
+  if (Number.isFinite(current) && current > 0 && !values.includes(current)) {
+    values.push(current);
+  }
+
+  return [...new Set(values.map((value) => Number(value)))]
+    .filter((value) => Number.isFinite(value) && value > 0)
+    .sort((a, b) => a - b);
+};
+
+const resolveQuantity = (quantity, quantitiesOptions, hasThirdPartyPricing) => {
+  const options = buildAvailableQuantityOptions(quantitiesOptions, quantity, hasThirdPartyPricing);
+  if (options.length === 0) return null;
+
+  const current = Number(quantity);
+  if (Number.isFinite(current) && current > 0 && options.includes(current)) return current;
+  return options[0];
+};
+
 const ProductDetail = ({ productType, productId, product: productProp }) => {
   const { category, productName, encryptedId } = useParams();
   const navigate = useNavigate();
@@ -36,7 +67,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const [isUploadingArtwork, setIsUploadingArtwork] = useState(false);
   const [artworkUploadError, setArtworkUploadError] = useState('');
   const [selectedSize, setSelectedSize] = useState('');
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState(null);
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(false);
   
@@ -170,6 +201,15 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const hasDynamicAttributes = Object.keys(dynamicAttributes).length > 0;
   const thirdPartyProductKey = product?.thirdPartyProductKey || productProp?.thirdPartyProductKey || null;
   const hasThirdPartyPricing = Boolean(thirdPartyProductKey);
+  const availableQuantityOptions = buildAvailableQuantityOptions(
+    quantitiesOptions,
+    quantity,
+    hasThirdPartyPricing,
+  );
+  const effectiveQuantity =
+    hasThirdPartyPricing && quantitiesOptions.length === 0
+      ? null
+      : resolveQuantity(quantity, quantitiesOptions, hasThirdPartyPricing) ?? FALLBACK_QUANTITY_OPTIONS[0];
   const STATIC_DELIVERY_OPTIONS = [
     { key: 'saver', label: 'Saver', etaDays: 6, serviceLevel: 'Saver' },
     { key: 'standard', label: 'Standard', etaDays: 4, serviceLevel: 'Standard' },
@@ -210,7 +250,9 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
 
     setDesignOption(savedDraft.designOption || 'upload');
     setSelectedSize(savedDraft.selectedSize || '');
-    setQuantity(Number(savedDraft.quantity) > 0 ? Number(savedDraft.quantity) : 1);
+    setQuantity(
+      Number(savedDraft.quantity) > 0 ? Number(savedDraft.quantity) : null,
+    );
     setMaterial(savedDraft.material || '450gsm-silk-finish');
     setSidesPrinted(savedDraft.sidesPrinted || 'double-sided');
     setLamination(savedDraft.lamination || 'both-sides-matt');
@@ -223,7 +265,22 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
 
   useEffect(() => {
     setSelectedImageIndex(0);
+    setQuantity(null);
+    setQuantitiesOptions([]);
   }, [product?._id, productProp?._id, encryptedId]);
+
+  useEffect(() => {
+    if (hasThirdPartyPricing) return;
+    if (!product && !productProp) return;
+    setQuantity((current) => resolveQuantity(current, [], false) ?? FALLBACK_QUANTITY_OPTIONS[0]);
+  }, [hasThirdPartyPricing, product?._id, productProp?._id]);
+
+  useEffect(() => {
+    const resolved = resolveQuantity(quantity, quantitiesOptions, hasThirdPartyPricing);
+    if (resolved != null && resolved !== quantity) {
+      setQuantity(resolved);
+    }
+  }, [quantity, quantitiesOptions, hasThirdPartyPricing]);
 
   useEffect(() => {
     if (!hasThirdPartyPricing || !thirdPartyProductKey) {
@@ -231,7 +288,6 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       return;
     }
 
-    const qty = Number(quantity) > 0 ? Number(quantity) : 1;
     const productionData = { ...selectedAttributeValues };
 
     if (isBusinessCard()) {
@@ -240,6 +296,17 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     }
 
     if (Object.keys(productionData).length === 0) {
+      setDeliveryPricesByOption({});
+      return;
+    }
+
+    if (hasThirdPartyPricing && quantitiesOptions.length === 0) {
+      setDeliveryPricesByOption({});
+      return;
+    }
+
+    const qty = resolveQuantity(quantity, quantitiesOptions, hasThirdPartyPricing);
+    if (!qty) {
       setDeliveryPricesByOption({});
       return;
     }
@@ -280,7 +347,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [thirdPartyProductKey, hasThirdPartyPricing, quantity, selectedAttributeValues, sidesPrinted, roundCorners]);
+  }, [thirdPartyProductKey, hasThirdPartyPricing, quantity, quantitiesOptions, selectedAttributeValues, sidesPrinted, roundCorners]);
 
   useEffect(() => {
     if (!hasThirdPartyPricing || !thirdPartyProductKey) {
@@ -292,7 +359,6 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       return;
     }
 
-    const qty = Number(quantity) > 0 ? Number(quantity) : 1;
     const productionData = { ...selectedAttributeValues };
 
     if (isBusinessCard()) {
@@ -301,6 +367,17 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     }
 
     if (Object.keys(productionData).length === 0) {
+      setExpectedDeliveryByOption({});
+      return;
+    }
+
+    if (quantitiesOptions.length === 0) {
+      setExpectedDeliveryByOption({});
+      return;
+    }
+
+    const qty = resolveQuantity(quantity, quantitiesOptions, hasThirdPartyPricing);
+    if (!qty) {
       setExpectedDeliveryByOption({});
       return;
     }
@@ -361,7 +438,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [thirdPartyProductKey, hasThirdPartyPricing, quantity, selectedAttributeValues, sidesPrinted, roundCorners, deliveryPostcode]);
+  }, [thirdPartyProductKey, hasThirdPartyPricing, quantity, quantitiesOptions, selectedAttributeValues, sidesPrinted, roundCorners, deliveryPostcode]);
 
   // Fetch available quantities for current product/options/service level
   useEffect(() => {
@@ -390,10 +467,6 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       const nums = (list || []).map((n) => Number(n)).filter((n) => Number.isFinite(n) && n > 0);
       const sorted = [...new Set(nums)].sort((a, b) => a - b);
       setQuantitiesOptions(sorted);
-      // If current quantity not in options, snap to smallest valid tier (stable order, not API array order)
-      if (sorted.length > 0 && !sorted.includes(Number(quantity))) {
-        setQuantity(sorted[0]);
-      }
     }).catch(() => {
       if (active) setQuantitiesOptions([]);
     });
@@ -428,7 +501,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
 
   const getEffectivePricingTable = () => {
     if (hasThirdPartyPricing) {
-      const qty = Number(quantity) > 0 ? Number(quantity) : 1;
+      const qty = effectiveQuantity;
       return {
         enabled: true,
         quantities: [qty],
@@ -446,18 +519,6 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const pricingTable = getEffectivePricingTable();
   const hasDeliveryPricing = !!pricingTable?.enabled;
   const deliveryOptions = Array.isArray(pricingTable?.deliveryOptions) ? pricingTable.deliveryOptions : [];
-  const fallbackQuantityOptions = [1, 10, 25, 50, 100, 250, 500, 1000];
-  const availableQuantityOptions = Array.from(
-    new Set(
-      (quantitiesOptions.length > 0
-        ? quantitiesOptions
-        : [...fallbackQuantityOptions, Number(quantity) > 0 ? Number(quantity) : 1]
-      )
-        .map((value) => Number(value))
-        .filter((value) => Number.isFinite(value) && value > 0)
-        .sort((a, b) => a - b)
-    )
-  );
   const saverOpt = deliveryOptions.find(o => o.key === 'saver');
   const standardOpt = deliveryOptions.find(o => o.key === 'standard');
   const expressOpt = deliveryOptions.find(o => o.key === 'express');
@@ -486,7 +547,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
 
   // Get current price based on quantity and delivery
   const getCurrentPrice = () => {
-    const price = getPriceForQuantity(quantity, deliveryOptionRef.current || deliveryOption);
+    const price = getPriceForQuantity(effectiveQuantity, deliveryOptionRef.current || deliveryOption);
     return price || 0;
   };
 
@@ -660,7 +721,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     queryParams.set('productType', type === 'business-card' ? 'business-card' : type);
     if (category) queryParams.set('productCategory', category);
     if (selectedSize) queryParams.set('size', selectedSize);
-    queryParams.set('quantity', String(Number(quantity) > 0 ? Number(quantity) : 1));
+    queryParams.set('quantity', String(effectiveQuantity));
     if (designOption) queryParams.set('designOption', designOption);
 
     if (material) queryParams.set('material', material);
@@ -697,7 +758,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         returnPath: location.pathname,
         designOption,
         selectedSize,
-        quantity,
+        quantity: effectiveQuantity,
         material,
         sidesPrinted,
         lamination,
@@ -743,7 +804,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       // If both design options are disabled, ignore any existing state value
       const effectiveDesignOption = (showEditor || showUpload) ? designOption : null;
 
-      const qtyToAdd = Math.max(1, Math.floor(Number(quantity)) || 1);
+      const qtyToAdd = Math.max(1, Math.floor(Number(effectiveQuantity)) || 1);
 
       // Calculate price for business cards and products using a delivery pricing table
       const exVatPrice = (isBusinessCard() || hasDeliveryPricing) ? getCurrentPrice() : displayProduct.price;
@@ -1342,8 +1403,8 @@ console.log('fretrhyrtewrfew', source);
                             </p>
                             <p className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                               {(() => {
-                                const saverPrice = getPriceForQuantity(quantity, 'saver') || 0;
-                                const standardPrice = getPriceForQuantity(quantity, 'standard') || 0;
+                                const saverPrice = getPriceForQuantity(effectiveQuantity, 'saver') || 0;
+                                const standardPrice = getPriceForQuantity(effectiveQuantity, 'standard') || 0;
                                 const diff = standardPrice - saverPrice;
                                 return diff > 0 ? `+£${diff.toFixed(2)}` : '£' + standardPrice.toFixed(2);
                               })()}
@@ -1363,8 +1424,8 @@ console.log('fretrhyrtewrfew', source);
                             </p>
                             <p className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                               {(() => {
-                                const saverPrice = getPriceForQuantity(quantity, 'saver') || 0;
-                                const expressPrice = getPriceForQuantity(quantity, 'express') || 0;
+                                const saverPrice = getPriceForQuantity(effectiveQuantity, 'saver') || 0;
+                                const expressPrice = getPriceForQuantity(effectiveQuantity, 'express') || 0;
                                 const diff = expressPrice - saverPrice;
                                 return diff > 0 ? `+£${diff.toFixed(2)}` : '£' + expressPrice.toFixed(2);
                               })()}
@@ -1409,7 +1470,7 @@ console.log('fretrhyrtewrfew', source);
                               </thead>
                               <tbody className="bg-white divide-y divide-gray-200">
                                 {pricingGrid.map((row) => {
-                                  const isSelected = row.qty === quantity && deliveryOption === 'saver';
+                                  const isSelected = row.qty === effectiveQuantity && deliveryOption === 'saver';
                                   return (
                                     <tr key={row.qty} className="hover:bg-gray-50">
                                       <td className="px-4 py-3 text-sm text-gray-600 border-r border-gray-200" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -1417,7 +1478,7 @@ console.log('fretrhyrtewrfew', source);
                                       </td>
                                       <td 
                                         className={`px-4 py-3 text-center text-sm border-r border-gray-200 relative cursor-pointer ${
-                                          deliveryOption === 'saver' && row.qty === quantity
+                                          deliveryOption === 'saver' && row.qty === effectiveQuantity
                                             ? 'bg-green-100 font-semibold'
                                             : 'text-gray-900'
                                         }`}
@@ -1428,7 +1489,7 @@ console.log('fretrhyrtewrfew', source);
                                         style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                                       >
                                         £{row.saver.toFixed(2)}
-                                        {deliveryOption === 'saver' && row.qty === quantity && (
+                                        {deliveryOption === 'saver' && row.qty === effectiveQuantity && (
                                           <svg className="w-4 h-4 text-yellow-500 absolute bottom-1 right-1" fill="currentColor" viewBox="0 0 20 20">
                                             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                                           </svg>
@@ -1436,7 +1497,7 @@ console.log('fretrhyrtewrfew', source);
                                       </td>
                                       <td 
                                         className={`px-4 py-3 text-center text-sm border-r border-gray-200 cursor-pointer ${
-                                          deliveryOption === 'standard' && row.qty === quantity
+                                          deliveryOption === 'standard' && row.qty === effectiveQuantity
                                             ? 'bg-green-100 font-semibold'
                                             : 'text-gray-900'
                                         }`}
@@ -1450,7 +1511,7 @@ console.log('fretrhyrtewrfew', source);
                                       </td>
                                       <td 
                                         className={`px-4 py-3 text-center text-sm cursor-pointer ${
-                                          deliveryOption === 'express' && row.qty === quantity
+                                          deliveryOption === 'express' && row.qty === effectiveQuantity
                                             ? 'bg-green-100 font-semibold'
                                             : 'text-gray-900'
                                         }`}
@@ -1552,7 +1613,7 @@ console.log('fretrhyrtewrfew', source);
                               {saverOpt.label || 'Saver'}
                             </p>
                             <p className="text-base font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                              £{applyVatMode(getPriceForQuantity(quantity, 'saver') || 0).toFixed(2)}
+                              £{applyVatMode(getPriceForQuantity(effectiveQuantity, 'saver') || 0).toFixed(2)}
                             </p>
                             <p className="text-[11px] text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                               {expectedDeliveryByOption.saver ? `ETA: ${new Date(expectedDeliveryByOption.saver).toLocaleDateString()}` : 'ETA: Enter postcode'}
@@ -1573,7 +1634,7 @@ console.log('fretrhyrtewrfew', source);
                               {standardOpt.label || 'Standard'}
                             </p>
                             <p className="text-base font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                              £{applyVatMode(getPriceForQuantity(quantity, 'standard') || 0).toFixed(2)}
+                              £{applyVatMode(getPriceForQuantity(effectiveQuantity, 'standard') || 0).toFixed(2)}
                             </p>
                             <p className="text-[11px] text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                               {expectedDeliveryByOption.standard ? `ETA: ${new Date(expectedDeliveryByOption.standard).toLocaleDateString()}` : 'ETA: Enter postcode'}
@@ -1594,7 +1655,7 @@ console.log('fretrhyrtewrfew', source);
                               {expressOpt.label || 'Express'}
                             </p>
                             <p className="text-base font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                              £{applyVatMode(getPriceForQuantity(quantity, 'express') || 0).toFixed(2)}
+                              £{applyVatMode(getPriceForQuantity(effectiveQuantity, 'express') || 0).toFixed(2)}
                             </p>
                             <p className="text-[11px] text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                               {expectedDeliveryByOption.express ? `ETA: ${new Date(expectedDeliveryByOption.express).toLocaleDateString()}` : 'ETA: Enter postcode'}
@@ -1631,7 +1692,7 @@ console.log('fretrhyrtewrfew', source);
                                   </td>
                                   <td
                                     className={`px-4 py-3 text-center text-sm border-r border-gray-200 cursor-pointer ${
-                                      deliveryOption === 'saver' && row.qty === quantity ? 'bg-green-100 font-semibold' : 'text-gray-900'
+                                      deliveryOption === 'saver' && row.qty === effectiveQuantity ? 'bg-green-100 font-semibold' : 'text-gray-900'
                                     }`}
                                     onClick={() => { handleDeliveryOptionSelect('saver'); setQuantity(row.qty); }}
                                     style={{ fontFamily: 'Lexend Deca, sans-serif' }}
@@ -1640,7 +1701,7 @@ console.log('fretrhyrtewrfew', source);
                                   </td>
                                   <td
                                     className={`px-4 py-3 text-center text-sm border-r border-gray-200 cursor-pointer ${
-                                      deliveryOption === 'standard' && row.qty === quantity ? 'bg-green-100 font-semibold' : 'text-gray-900'
+                                      deliveryOption === 'standard' && row.qty === effectiveQuantity ? 'bg-green-100 font-semibold' : 'text-gray-900'
                                     }`}
                                     onClick={() => { handleDeliveryOptionSelect('standard'); setQuantity(row.qty); }}
                                     style={{ fontFamily: 'Lexend Deca, sans-serif' }}
@@ -1649,7 +1710,7 @@ console.log('fretrhyrtewrfew', source);
                                   </td>
                                   <td
                                     className={`px-4 py-3 text-center text-sm cursor-pointer ${
-                                      deliveryOption === 'express' && row.qty === quantity ? 'bg-green-100 font-semibold' : 'text-gray-900'
+                                      deliveryOption === 'express' && row.qty === effectiveQuantity ? 'bg-green-100 font-semibold' : 'text-gray-900'
                                     }`}
                                     onClick={() => { handleDeliveryOptionSelect('express'); setQuantity(row.qty); }}
                                     style={{ fontFamily: 'Lexend Deca, sans-serif' }}
@@ -1673,11 +1734,15 @@ console.log('fretrhyrtewrfew', source);
                       Quantity
                     </label>
                     <select
-                      value={quantity}
+                      value={effectiveQuantity ?? ''}
                       onChange={(e) => setQuantity(Number(e.target.value))}
-                      className="w-full max-w-xs px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white"
+                      disabled={hasThirdPartyPricing && quantitiesOptions.length === 0}
+                      className="w-full max-w-xs px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white disabled:bg-gray-100 disabled:text-gray-500"
                       style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                     >
+                      {hasThirdPartyPricing && quantitiesOptions.length === 0 ? (
+                        <option value="">Loading quantities...</option>
+                      ) : null}
                       {availableQuantityOptions.map((q) => (
                         <option key={q} value={q}>{q}</option>
                       ))}
