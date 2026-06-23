@@ -482,13 +482,13 @@ const Header = () => {
   };
 
   return (
-    <header className="bg-gray-800 sticky top-0 z-[100] overflow-visible isolate">
+    <header className="bg-gray-800 overflow-visible isolate">
       <nav className="mx-auto max-w-[1440px] px-3 md:px-6 lg:px-8 xl:px-10 overflow-visible">
         <div className="relative min-h-[5rem] h-20 overflow-visible">
-          {/* Desktop: three columns so logo never overlaps nav links */}
-          <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center h-full gap-3 xl:gap-6 overflow-visible">
+          {/* Desktop: left nav | logo | right nav | utilities */}
+          <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] items-center h-full gap-3 xl:gap-6 overflow-visible">
             {/* Left Navigation */}
-            <div className="flex items-center gap-3 xl:gap-5 min-w-0 justify-start">
+            <div className="flex items-center gap-3 xl:gap-5 min-w-0 justify-end">
             <button
               onClick={() => handleNavClick('home')}
               className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
@@ -588,7 +588,7 @@ const Header = () => {
             </div>
 
             {/* Right Navigation */}
-            <div className="flex items-center gap-2 xl:gap-4 min-w-0 justify-end overflow-visible">
+            <div className="flex items-center gap-2 xl:gap-4 min-w-0 justify-start overflow-visible">
             <button
               onClick={() => handleNavClick('quote')}
               className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
@@ -650,17 +650,22 @@ const Header = () => {
                 </button>
               </>
             )}
-            <div className="relative z-[110] flex items-center gap-2 xl:gap-3 pl-2 xl:pl-3 border-l border-gray-600 ml-0.5 shrink-0 overflow-visible" ref={basketDesktopRef}>
+            </div>
+
+            {/* Extreme right: VAT + Basket */}
+            <div
+              className="relative z-[110] flex items-center gap-2 xl:gap-3 pl-2 xl:pl-3 border-l border-gray-600 shrink-0 overflow-visible"
+              ref={basketDesktopRef}
+            >
               <VatToggle />
               <BasketIconButton />
             </div>
-            </div>
           </div>
 
-          {/* Mobile: Menu + Basket (basket rightmost) */}
-          <div className="lg:hidden flex items-center justify-between h-full">
+          {/* Mobile: Logo | Menu | VAT + Basket */}
+          <div className="lg:hidden flex items-center h-full gap-2">
             <div
-              className="flex items-center cursor-pointer shrink-0"
+              className="flex flex-1 items-center cursor-pointer min-w-0"
               onClick={() => handleNavClick('home')}
             >
               <img
@@ -677,9 +682,8 @@ const Header = () => {
                 <span className="text-white">ER</span>
               </div>
             </div>
-            <div className="flex items-center gap-1">
             <button
-              className="text-white p-2 hover:bg-gray-700 rounded-lg transition-colors"
+              className="text-white p-2 hover:bg-gray-700 rounded-lg transition-colors shrink-0"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -690,10 +694,12 @@ const Header = () => {
                 )}
               </svg>
             </button>
-            <div className="relative z-[110] flex items-center gap-2 shrink-0 overflow-visible" ref={basketMobileRef}>
+            <div
+              className="relative z-[110] flex items-center gap-2 shrink-0 overflow-visible pl-2 border-l border-gray-600"
+              ref={basketMobileRef}
+            >
               <VatToggle compact />
               <BasketIconButton />
-            </div>
             </div>
           </div>
         </div>

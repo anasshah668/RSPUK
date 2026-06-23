@@ -512,18 +512,20 @@ const ProductDesigner = () => {
   };
 
   const iconifyCategories = [
-    { id: 'socials', label: 'Socials', defaultQuery: 'social logo' },
-    { id: 'contacts', label: 'Contacts', defaultQuery: 'contact phone email' },
-    { id: 'shapes', label: 'Shapes', defaultQuery: 'shape geometric' },
-    { id: 'arrows', label: 'Arrows', defaultQuery: 'arrow line' },
-    { id: 'safety', label: 'Safety', defaultQuery: 'warning prohibition safety sign' },
-    { id: 'packaging', label: 'Packaging', defaultQuery: 'recycle package symbol' },
-    { id: 'wedding', label: 'Wedding', defaultQuery: 'wedding decoration icon' },
-    { id: 'kids', label: 'Kids', defaultQuery: 'kids school toy icon' },
+    { id: 'socials', label: 'Socials', defaultQuery: 'social media', prefix: 'logos' },
+    { id: 'contacts', label: 'Contacts', defaultQuery: 'contact communication', prefix: 'fluent-color' },
+    { id: 'shapes', label: 'Shapes', defaultQuery: 'shape geometric', prefix: 'fluent-color' },
+    { id: 'arrows', label: 'Arrows', defaultQuery: 'arrow line', prefix: 'fluent-color' },
+    { id: 'safety', label: 'Safety', defaultQuery: 'warning prohibition safety sign', prefix: 'fluent-color' },
+    { id: 'packaging', label: 'Packaging', defaultQuery: 'recycle package symbol', prefix: 'fluent-color' },
+    { id: 'wedding', label: 'Wedding', defaultQuery: 'wedding decoration icon', prefix: 'noto' },
+    { id: 'kids', label: 'Kids', defaultQuery: 'kids school toy icon', prefix: 'noto' },
   ];
 
-  async function searchIcons(query) {
-    const res = await fetch(`https://api.iconify.design/search?query=${encodeURIComponent(query)}`);
+  async function searchIcons(query, prefix = '') {
+    const searchParams = new URLSearchParams({ query, limit: '64' });
+    if (prefix) searchParams.set('prefix', prefix);
+    const res = await fetch(`https://api.iconify.design/search?${searchParams.toString()}`);
     const data = await res.json();
     return data.icons || [];
   }
@@ -549,7 +551,7 @@ const ProductDesigner = () => {
       setIconLoadingByCategory((prev) => ({ ...prev, [category.id]: true }));
       setIconErrorByCategory((prev) => ({ ...prev, [category.id]: '' }));
       try {
-        const icons = await searchIcons(query);
+        const icons = await searchIcons(query, category.prefix || '');
         setIconResultsByCategory((prev) => ({ ...prev, [category.id]: icons }));
       } catch (error) {
         setIconErrorByCategory((prev) => ({ ...prev, [category.id]: 'Failed to load icons' }));
@@ -2148,14 +2150,9 @@ const ProductDesigner = () => {
     }
 
     try {
-      // Ensure SVG has proper dimensions and replace currentColor
+      // Preserve original SVG colours; only ensure dimensions.
       let svg = svgString;
-      
-      // Replace currentColor with black for better visibility (case insensitive)
-      svg = svg.replace(/currentColor/gi, '#000000');
-      
-      // Ensure SVG has width and height if not present
-      if (!svg.includes('width=') && !svg.includes('height=')) {
+      if (!/\bwidth=/.test(svg)) {
         svg = svg.replace('<svg', '<svg width="24" height="24"');
       }
 

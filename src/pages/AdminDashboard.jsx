@@ -13,6 +13,7 @@ import AdminNeonPricingTab from '../components/AdminNeonPricingTab';
 import AdminFeaturedSignagePricingTab from '../components/AdminFeaturedSignagePricingTab';
 import AdminDesignServiceTab from '../components/AdminDesignServiceTab';
 import { FileViewerLink, isHttpUrl, linkLabelForUrl, openFileViewer } from '../components/FileDocViewer';
+import { RevenueColumnChart, NewUsersChart } from '../components/AdminOverviewCharts';
 
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -274,31 +275,22 @@ const OverviewTab = ({ analytics }) => {
         ))}
       </div>
 
-      {/* Revenue Chart */}
-      {analytics.revenueByMonth && analytics.revenueByMonth.length > 0 && (
+      {/* Charts */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-xl font-bold text-gray-900 mb-4">
+          <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
             Revenue by Month
           </h3>
-          <div className="space-y-2">
-            {analytics.revenueByMonth.map((month, index) => (
-              <div key={index} className="flex items-center justify-between">
-                <span className="text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  {month._id}
-                </span>
-                <div className="flex items-center gap-4">
-                  <span className="text-gray-900 font-semibold" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                    £{month.revenue.toLocaleString()}
-                  </span>
-                  <span className="text-sm text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                    {month.orders} orders
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+          <RevenueColumnChart revenueByMonth={analytics.revenueByMonth || []} />
         </div>
-      )}
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            New Users Registered
+          </h3>
+          <NewUsersChart usersByMonth={analytics.usersByMonth || []} />
+        </div>
+      </div>
     </div>
   );
 };
