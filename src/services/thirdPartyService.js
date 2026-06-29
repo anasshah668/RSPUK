@@ -31,7 +31,11 @@ const getQuantities = (payload) => {
 };
 
 const validateOrders = (payload) => {
-  return httpClient.post(apiRoutes.thirdParty.validateOrders, payload);
+  return httpClient.post(apiRoutes.thirdParty.validateOrders, payload, { skipAuth: true });
+};
+
+const placeCheckoutOrder = (payload) => {
+  return httpClient.post(apiRoutes.thirdParty.placeCheckoutOrder, payload, { skipAuth: true });
 };
 
 export const thirdPartyService = {
@@ -43,6 +47,7 @@ export const thirdPartyService = {
   getExpectedDeliveryDate,
   getQuantities,
   validateOrders,
+  placeCheckoutOrder,
 };
 
 export default thirdPartyService;

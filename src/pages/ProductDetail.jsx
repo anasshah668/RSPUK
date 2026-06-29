@@ -23,24 +23,39 @@ const buildAvailableQuantityOptions = (quantitiesOptions, quantity, hasThirdPart
         : FALLBACK_QUANTITY_OPTIONS;
   if (source.length === 0) return [];
 
-  const current = Number(quantity);
-  const values = [...source];
-  if (Number.isFinite(current) && current > 0 && !values.includes(current)) {
-    values.push(current);
-  }
-
-  return [...new Set(values.map((value) => Number(value)))]
+  const normalized = [...new Set(source.map((value) => Number(value)))]
     .filter((value) => Number.isFinite(value) && value > 0)
     .sort((a, b) => a - b);
+
+  // Third-party tiers come only from Tradeprint — never inject a stale invalid qty.
+  if (hasThirdPartyPricing && quantitiesOptions.length > 0) {
+    return normalized;
+  }
+
+  const current = Number(quantity);
+  if (Number.isFinite(current) && current > 0 && !normalized.includes(current)) {
+    normalized.push(current);
+    normalized.sort((a, b) => a - b);
+  }
+
+  return normalized;
 };
 
 const resolveQuantity = (quantity, quantitiesOptions, hasThirdPartyPricing) => {
-  const options = buildAvailableQuantityOptions(quantitiesOptions, quantity, hasThirdPartyPricing);
-  if (options.length === 0) return null;
+  const source =
+    quantitiesOptions.length > 0
+      ? quantitiesOptions
+      : hasThirdPartyPricing
+        ? []
+        : FALLBACK_QUANTITY_OPTIONS;
+  if (source.length === 0) return null;
 
+  const tiers = [...new Set(source.map((value) => Number(value)))]
+    .filter((value) => Number.isFinite(value) && value > 0)
+    .sort((a, b) => a - b);
   const current = Number(quantity);
-  if (Number.isFinite(current) && current > 0 && options.includes(current)) return current;
-  return options[0];
+  if (Number.isFinite(current) && current > 0 && tiers.includes(current)) return current;
+  return tiers[0];
 };
 
 const ProductDetail = ({ productType, productId, product: productProp }) => {
@@ -816,6 +831,14 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       // "attached" when we have a hosted URL we can hand to Tradeprint.
       const hasUploadedArtwork = Boolean(artworkUploadUrl);
       const artworkDesignFlow = effectiveDesignOption === 'upload' && showUpload;
+      if (hasThirdPartyPricing && artworkDesignFlow && hasUploadedArtwork) {
+        const url = String(artworkUploadUrl).split('?')[0].toLowerCase();
+        const isPdf = url.endsWith('.pdf') || url.includes('/raw/upload/');
+        if (!isPdf) {
+          toast.error('Tradeprint requires a print-ready PDF for this product. Please upload a PDF file.');
+          return;
+        }
+      }
       const fileUrls = hasUploadedArtwork ? [artworkUploadUrl] : [];
       const withoutArtwork = artworkDesignFlow ? !hasUploadedArtwork : true;
       const productOptions = [];
@@ -1820,13 +1843,18 @@ console.log('fretrhyrtewrfew', source);
                           </div>
                         <div className="text-xs text-gray-600 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                           I'll upload my own artwork.
+                          {hasThirdPartyPricing && (
+                            <span className="block mt-1 text-amber-800">
+                              Print partner requires a print-ready PDF (not a photo JPG/PNG).
+                            </span>
+                          )}
                         </div>
                           {designOption === 'upload' && (
                             <div className="space-y-2">
                               <input
                                 ref={artworkFileInputRef}
                                 type="file"
-                                accept="image/*,.pdf"
+                                accept={hasThirdPartyPricing ? '.pdf,application/pdf' : 'image/*,.pdf,application/pdf'}
                                 onClick={handleArtworkFileInputClick}
                                 onChange={handleImageUpload}
                                 disabled={isUploadingArtwork}
@@ -1844,7 +1872,9 @@ console.log('fretrhyrtewrfew', source);
                               ) : !artworkUploadUrl ? (
                                 <p className="text-[11px] text-red-600 font-medium" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                                   {artworkUploadError ||
-                                    'Artwork is required. Please upload an image or PDF to enable “Add To Basket”.'}
+                                    (hasThirdPartyPricing
+                                      ? 'Upload a print-ready PDF to enable “Add To Basket”.'
+                                      : 'Artwork is required. Please upload an image or PDF to enable “Add To Basket”.')}
                                 </p>
                               ) : (
                                 <p className="text-[11px] text-green-700 font-medium" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>

@@ -72,7 +72,8 @@
     "productPrices": "third-party/products/prices",
     "expectedDeliveryDate": "third-party/products/expected-delivery-date",
     "quantities": "third-party/products/quantities",
-    "validateOrders": "third-party/validate/orders"
+    "validateOrders": "third-party/validate/orders",
+    "placeCheckoutOrder": "third-party/orders/checkout"
   },
   "payments": {
     "worldpayCheckoutSession": "payments/worldpay/checkout-session",

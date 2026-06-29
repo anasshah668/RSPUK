@@ -47,6 +47,8 @@ const PaymentSuccessPage = () => {
     orderTitle,
     designServiceSuccess,
     receiptEmailSent,
+    tradeprintOrderReference,
+    tradeprintStatus,
   } = s;
 
   const amountLabel =
@@ -166,6 +168,18 @@ const PaymentSuccessPage = () => {
                 <div className="flex justify-between gap-4">
                   <span className="text-gray-500">Tracking ID</span>
                   <span className="font-mono text-xs text-right break-all">{trackingId}</span>
+                </div>
+              )}
+              {tradeprintOrderReference && (
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-500">Print partner reference</span>
+                  <span className="font-mono text-xs text-right break-all">{tradeprintOrderReference}</span>
+                </div>
+              )}
+              {tradeprintStatus && (
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-500">Print order status</span>
+                  <span className="font-semibold text-right">{tradeprintStatus}</span>
                 </div>
               )}
               <div className="flex justify-between gap-4 pt-1 border-t border-gray-200">

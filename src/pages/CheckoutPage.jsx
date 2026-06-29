@@ -44,27 +44,15 @@ const ORDER_REVIEW_SUMMARY_LABELS = new Set([
   'Item',
 ]);
 
-const TRADEPRINT_PARTNER_CONTACT_DETAILS = {
-  firstName: 'John',
-  lastName: 'Doe',
-  email: 'john@doe.com',
-  contactPhone: '07655 568 134',
-  companyName: 'Tradeprint Distribution Ltd.',
-};
 
-const TRADEPRINT_BILLING_ADDRESS = {
-  firstName: 'Steeve',
-  lastName: 'Roucaute',
-  add1: 'Tradeprint Distribution Ltd',
-  add2: '2 FULTON ROAD',
-  postcode: 'DD2 4SW',
-  town: 'DUNDEE',
-  country: 'GB',
-  companyName: 'TRADEPRINT DISTRIBUTION LTD',
-  email: 'steeve@tradeprint.co.uk',
-  contactPhone: '0123456879',
-  mobile: '0751424242',
-};
+function isTradeprintPrintReadyArtworkUrl(url) {
+  const normalized = String(url || '').split('?')[0].toLowerCase();
+  if (!/^https?:\/\//i.test(normalized)) return false;
+  if (normalized.endsWith('.pdf')) return true;
+  // Cloudinary raw uploads for PDFs
+  if (normalized.includes('/raw/upload/')) return true;
+  return false;
+}
 
 function isRecoverableWorldpaySessionConflict(error) {
   const status = Number(error?.status || error?.data?.status || 0);
@@ -159,14 +147,6 @@ function formatSourceLabel(source) {
     .join(' ');
 }
 
-function splitCustomerName(fullName) {
-  const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
-  return {
-    firstName: parts[0] || 'Customer',
-    lastName: parts.slice(1).join(' ') || 'Customer',
-  };
-}
-
 function getTradeprintServiceLevel(item) {
   const value = String(
     item?.serviceLevel ||
@@ -244,48 +224,76 @@ function getTradeprintProductionData(item) {
   return productionData;
 }
 
-function buildTradeprintValidationPayload({ lines, customerInfo, orderReference }) {
-  const customerName = splitCustomerName(customerInfo.name);
-  return {
-    currency: 'GBP',
-    orderReference,
-    orderItems: lines.map((line, index) => {
-      const productId = line.thirdPartyProductKey || line.productId;
-      if (!productId) {
-        throw new Error(`Missing Tradeprint product id for item ${index + 1}.`);
+async function normalizeThirdPartyLinesForValidation(lines) {
+  const normalized = [];
+
+  for (const line of lines) {
+    const productId = line.thirdPartyProductKey || line.productId;
+    if (!productId) {
+      normalized.push(line);
+      continue;
+    }
+
+    const productionData = getTradeprintProductionData(line);
+    const serviceLevel = getTradeprintServiceLevel(line);
+
+    try {
+      const res = await thirdPartyService.getQuantities({
+        productId,
+        serviceLevel,
+        productionData,
+      });
+      const tiers = (Array.isArray(res?.quantities) ? res.quantities : [])
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value) && value > 0)
+        .sort((a, b) => a - b);
+
+      if (tiers.length === 0) {
+        normalized.push(line);
+        continue;
       }
 
-      const fileUrls = getTradeprintFileUrls(line);
-      return {
-        productId,
-        fileUrls,
-        withoutArtwork: fileUrls.length === 0,
-        quantity: Math.max(1, Number(line.quantity) || 1),
-        serviceLevel: getTradeprintServiceLevel(line),
-        productionData: getTradeprintProductionData(line),
-        partnerContactDetails: TRADEPRINT_PARTNER_CONTACT_DETAILS,
-        deliveryAddress: {
-          companyName: customerInfo.name || 'Customer',
-          firstName: customerName.firstName,
-          lastName: customerName.lastName,
-          add1: customerInfo.address,
-          add2: '',
-          town: customerInfo.city,
-          postcode: customerInfo.postalCode,
-          country: 'GB',
-        },
-        extraData: {
-          description: line.description || line.title || line.name || 'Order description',
-          comments: 'Please ensure not to trim into text',
-          partnerItemId: line.lineId || line.id || `${orderReference}-${index + 1}`,
-          merchandisingProductName: line.title || line.name || 'Product',
-          referenceLabel: line.title || line.name || orderReference,
-          purchaseOrder: orderReference,
-        },
-      };
-    }),
-    billingAddress: TRADEPRINT_BILLING_ADDRESS,
-  };
+      const requestedQty = Number(line.quantity);
+      if (tiers.includes(requestedQty)) {
+        normalized.push(line);
+        continue;
+      }
+
+      normalized.push({ ...line, quantity: tiers[0] });
+    } catch {
+      normalized.push(line);
+    }
+  }
+
+  return normalized;
+}
+
+async function submitTradeprintOrderAfterPayment({ lineItems, customerInfo, orderReference }) {
+  const thirdPartyLines = lineItems.filter(
+    (item) => String(item?.source || '').trim() === 'third-party',
+  );
+  if (thirdPartyLines.length === 0) {
+    return { skipped: true };
+  }
+
+  const linesReady = await normalizeThirdPartyLinesForValidation(thirdPartyLines);
+
+  try {
+    return await thirdPartyService.placeCheckoutOrder({
+      lineItems: linesReady,
+      customerInfo,
+      orderReference,
+    });
+  } catch (error) {
+    const data = error?.data || {};
+    return {
+      success: false,
+      stage: data.stage || 'place',
+      errorMessage:
+        data.errorMessage || error?.message || 'Tradeprint order placement failed',
+      errorDetails: data.errorDetails || [],
+    };
+  }
 }
 
 const CheckoutPage = () => {
@@ -366,6 +374,7 @@ const CheckoutPage = () => {
     address: '',
     city: '',
     postalCode: '',
+    orderComments: '',
   });
 
   useEffect(() => {
@@ -433,6 +442,7 @@ const CheckoutPage = () => {
     address: String(customerInfo.address || '').trim(),
     city: String(customerInfo.city || '').trim(),
     postalCode: String(customerInfo.postalCode || '').trim(),
+    orderComments: String(customerInfo.orderComments || '').trim(),
   };
 
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sanitizedCustomerInfo.email);
@@ -526,22 +536,50 @@ const CheckoutPage = () => {
     );
     if (thirdPartyLines.length === 0) return true;
 
-    let validationPayload;
-    try {
-      validationPayload = buildTradeprintValidationPayload({
-        lines: thirdPartyLines,
-        customerInfo: sanitizedCustomerInfo,
-        orderReference: `CHECKOUT-${Date.now()}`,
-      });
-    } catch (e) {
-      const message = e?.message || 'Could not prepare validation request.';
-      setValidationSummary(message);
-      toast.error(message);
+    const linesReadyForValidation = await normalizeThirdPartyLinesForValidation(thirdPartyLines);
+
+    const artworkIssues = linesReadyForValidation
+      .map((line, index) => {
+        const urls = getTradeprintFileUrls(line);
+        if (urls.length === 0) return null;
+        const bad = urls.filter((url) => !isTradeprintPrintReadyArtworkUrl(url));
+        if (bad.length === 0) return null;
+        return {
+          index,
+          title: line.title || line.name || `Item ${index + 1}`,
+          urls: bad,
+        };
+      })
+      .filter(Boolean);
+
+    if (artworkIssues.length > 0) {
+      const summary =
+        'Tradeprint requires print-ready PDF artwork for this product. Please upload a PDF (not a JPG/PNG photo) on the product page or re-upload below.';
+      setValidationSummary(summary);
+      setValidationErrors(
+        artworkIssues.map((issue) => ({
+          message: `${issue.title}: artwork must be a PDF file.`,
+          property: `instance.orderItems[${issue.index}]`,
+          argument: 'fileUrls',
+        })),
+      );
+      setNeedsArtworkReupload(true);
+      setFailingArtworkLineKeys(
+        linesWithOverrides
+          .map((item, idx) => ({ item, key: getCheckoutLineKey(item, idx) }))
+          .filter((entry) => String(entry.item?.source || '').trim() === 'third-party')
+          .map((entry) => entry.key),
+      );
+      toast.error(summary);
       return false;
     }
 
     try {
-      const result = await thirdPartyService.validateOrders(validationPayload);
+      const result = await thirdPartyService.validateOrders({
+        lineItems: linesReadyForValidation,
+        customerInfo: sanitizedCustomerInfo,
+        orderReference: `CHECKOUT-${Date.now()}`,
+      });
       if (result?.success) {
         // Validation cleared — drop the re-upload panel state.
         setNeedsArtworkReupload(false);
@@ -671,6 +709,24 @@ const CheckoutPage = () => {
         });
         paymentId = paymentResult?.paymentId || null;
 
+        let tradeprintResult = null;
+        const hasThirdPartyLines = lineItemsForAdmin.some(
+          (item) => String(item?.source || '').trim() === 'third-party',
+        );
+        if (hasThirdPartyLines) {
+          tradeprintResult = await submitTradeprintOrderAfterPayment({
+            lineItems: lineItemsForAdmin,
+            customerInfo: sanitizedCustomerInfo,
+            orderReference: paymentResult?.orderReference || orderReference,
+          });
+        }
+        if (tradeprintResult?.success === false && !tradeprintResult?.skipped) {
+          console.warn('[checkout] payment succeeded but Tradeprint placement failed', tradeprintResult);
+          toast.warn(
+            'Payment received. Our team will complete your print order submission shortly.',
+          );
+        }
+
         const ref = paymentResult?.orderReference || paymentId || '—';
         const trackingId = paymentResult?.trackingId || null;
         const receiptEmailSent = Boolean(paymentResult?.receiptEmailSent);
@@ -705,6 +761,13 @@ const CheckoutPage = () => {
               : checkoutData?.title,
             receiptEmailSent,
             receiptEmailReason,
+            tradeprintOrderReference:
+              tradeprintResult?.orderReference ||
+              tradeprintResult?.tradeprintOrder?.orderReference ||
+              null,
+            tradeprintStatus:
+              tradeprintResult?.tradeprintOrder?.status ||
+              (tradeprintResult?.success ? 'Processing' : null),
           },
         });
         return;

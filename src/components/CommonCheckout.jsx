@@ -11,12 +11,6 @@ const paymentOptions = [
       'Visa, Mastercard, American Express, Maestro, Apple Pay, Google Pay, and more — processed securely by Worldpay.',
     badge: 'Recommended',
   },
-  {
-    key: 'klarna-3',
-    title: 'Klarna - 3 Interest-Free Installments',
-    description: 'Split your purchase into 3 equal payments with Klarna.',
-    badge: 'Pay in 3',
-  },
 ];
 
 const trustBadges = [
@@ -434,12 +428,8 @@ const CommonCheckout = ({
         return;
       }
 
-      const okToProceed = await runPreValidate();
-      if (!okToProceed) return;
-
-      await onSubmit({
-        provider: paymentMethod === 'klarna-3' ? 'klarna' : 'manual',
-      });
+      toast.error('Card payment is required to complete this order.');
+      return;
     } catch (error) {
       toast.error(formatWorldpayClientError(error));
     }
@@ -530,6 +520,28 @@ const CommonCheckout = ({
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 autoComplete="postal-code"
               />
+              <div className="md:col-span-2">
+                <label
+                  htmlFor="checkout-order-comments"
+                  className="block text-sm font-medium text-gray-700 mb-1.5"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  Order comments <span className="font-normal text-gray-500">(optional)</span>
+                </label>
+                <textarea
+                  id="checkout-order-comments"
+                  placeholder="e.g. trimming instructions, delivery notes, or special print requirements"
+                  value={customerInfo.orderComments || ''}
+                  onChange={(e) => onCustomerInfoChange({ ...customerInfo, orderComments: e.target.value })}
+                  rows="3"
+                  maxLength={500}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y min-h-[5rem]"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                />
+                <p className="mt-1 text-xs text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  Sent with your order as production notes.
+                </p>
+              </div>
             </div>
           </div>
 
@@ -562,7 +574,7 @@ const CommonCheckout = ({
               })}
             </div>
 
-            {paymentMethod === 'worldpay-card' ? (
+            {paymentMethod === 'worldpay-card' && (
               <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-semibold text-blue-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -617,15 +629,6 @@ const CommonCheckout = ({
                     </div>
                   )}
                 </div>
-              </div>
-            ) : (
-              <div className="mt-3 rounded-lg border border-purple-200 bg-purple-50 p-3">
-                <p className="text-xs font-semibold text-purple-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  Klarna Pay in 3
-                </p>
-                <p className="text-xs text-purple-800 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  {totalAmount > 0 ? `Estimated installment: GBP ${(totalAmount / 3).toFixed(2)} x 3` : 'Installment amount appears once quote is finalized.'}
-                </p>
               </div>
             )}
           </div>

@@ -1,23 +1,163 @@
 import React from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/authService';
 import { quoteService } from '../services/quoteService';
 import { orderService } from '../services/orderService';
 import { designService } from '../services/designService';
 
-const Section = ({ title, children }) => (
-  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-    <h2 className="text-lg font-semibold text-gray-900 mb-4" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>{title}</h2>
-    {children}
+const font = { fontFamily: 'Lexend Deca, sans-serif' };
+
+const NAV_ITEMS = [
+  { key: 'profile', label: 'Profile', description: 'Personal details & address' },
+  { key: 'quotes', label: 'Quotes', description: 'Requests & conversations' },
+  { key: 'design-orders', label: 'Design Orders', description: 'Paid design projects' },
+  { key: 'track-order', label: 'Track Order', description: 'Order status lookup' },
+  { key: 'change-password', label: 'Security', description: 'Update your password' },
+];
+
+const IconUser = ({ className = 'w-5 h-5' }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+  </svg>
+);
+
+const IconDocument = ({ className = 'w-5 h-5' }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+  </svg>
+);
+
+const IconPalette = ({ className = 'w-5 h-5' }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+  </svg>
+);
+
+const IconPackage = ({ className = 'w-5 h-5' }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+  </svg>
+);
+
+const IconLock = ({ className = 'w-5 h-5' }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+  </svg>
+);
+
+const NAV_ICONS = {
+  profile: IconUser,
+  quotes: IconDocument,
+  'design-orders': IconPalette,
+  'track-order': IconPackage,
+  'change-password': IconLock,
+};
+
+const inputClass =
+  'w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100';
+
+const labelClass = 'mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500';
+
+const Spinner = () => (
+  <div className="flex items-center justify-center py-16">
+    <div className="h-9 w-9 animate-spin rounded-full border-[3px] border-blue-100 border-t-blue-600" />
   </div>
+);
+
+const Alert = ({ type = 'info', children }) => {
+  const styles = {
+    success: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+    error: 'border-red-200 bg-red-50 text-red-800',
+    info: 'border-blue-200 bg-blue-50 text-blue-800',
+  };
+  return (
+    <div className={`rounded-xl border px-4 py-3 text-sm font-medium ${styles[type] || styles.info}`} style={font}>
+      {children}
+    </div>
+  );
+};
+
+const EmptyState = ({ icon: Icon, title, description, action }) => (
+  <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-gradient-to-b from-gray-50 to-white px-6 py-14 text-center">
+    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+      <Icon className="h-7 w-7" />
+    </div>
+    <h3 className="text-lg font-semibold text-gray-900" style={font}>{title}</h3>
+    <p className="mt-2 max-w-sm text-sm text-gray-500" style={font}>{description}</p>
+    {action ? <div className="mt-6">{action}</div> : null}
+  </div>
+);
+
+const StatusBadge = ({ status, className = '' }) => {
+  const value = String(status || 'new').toLowerCase();
+  const map = {
+    quoted: 'bg-blue-50 text-blue-700 ring-blue-600/20',
+    converted: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+    closed: 'bg-gray-100 text-gray-600 ring-gray-500/20',
+    contacted: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+    delivered: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+    in_progress: 'bg-blue-50 text-blue-700 ring-blue-600/20',
+    paid: 'bg-violet-50 text-violet-700 ring-violet-600/20',
+    completed: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+    inprocess: 'bg-blue-50 text-blue-700 ring-blue-600/20',
+    processing: 'bg-blue-50 text-blue-700 ring-blue-600/20',
+    shipped: 'bg-sky-50 text-sky-700 ring-sky-600/20',
+    waiting: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+    pending: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+    cancelled: 'bg-red-50 text-red-700 ring-red-600/20',
+  };
+  const tone = map[value] || 'bg-violet-50 text-violet-700 ring-violet-600/20';
+  const label = value.replace(/_/g, ' ');
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ring-1 ring-inset ${tone} ${className}`}>
+      {label}
+    </span>
+  );
+};
+
+const ContentPanel = ({ title, subtitle, children }) => (
+  <div className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm shadow-gray-200/50">
+    <div className="border-b border-gray-100 bg-gradient-to-r from-slate-50 via-white to-blue-50/40 px-6 py-5 sm:px-8">
+      <h2 className="text-xl font-bold text-gray-900" style={font}>{title}</h2>
+      {subtitle ? <p className="mt-1 text-sm text-gray-500" style={font}>{subtitle}</p> : null}
+    </div>
+    <div className="p-6 sm:p-8">{children}</div>
+  </div>
+);
+
+const PasswordToggle = ({ show, onToggle, label }) => (
+  <button
+    type="button"
+    onClick={onToggle}
+    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-gray-400 transition hover:text-gray-600"
+    title={show ? 'Hide password' : 'Show password'}
+    aria-label={show ? `Hide ${label}` : `Show ${label}`}
+  >
+    {show ? (
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.956 9.956 0 012.042-3.368M6.223 6.223A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a9.969 9.969 0 01-4.125 5.168M15 12a3 3 0 11-6 0 3 3 0 016 0zM3 3l18 18" />
+      </svg>
+    ) : (
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+      </svg>
+    )}
+  </button>
 );
 
 const ViewProfile = () => {
   const [profile, setProfile] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
-  const [form, setForm] = React.useState({ name: '', phone: '', address: { street: '', city: '', state: '', zipCode: '', country: '' } });
+  const [form, setForm] = React.useState({
+    name: '',
+    phone: '',
+    address: { street: '', city: '', state: '', zipCode: '', country: '' },
+  });
   const [message, setMessage] = React.useState('');
+  const [messageType, setMessageType] = React.useState('info');
 
   React.useEffect(() => {
     let mounted = true;
@@ -54,55 +194,83 @@ const ViewProfile = () => {
     setMessage('');
     try {
       const data = await authService.updateProfile(form);
-      setMessage('Profile updated');
+      setMessage('Your profile has been updated successfully.');
+      setMessageType('success');
       setProfile(data);
     } catch (err) {
       setMessage(err?.message || 'Failed to update profile');
+      setMessageType('error');
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) return <div className="text-gray-600">Loading profile...</div>;
+  if (loading) return <Spinner />;
 
   return (
-    <form onSubmit={handleSave} className="space-y-4">
-      {message && <div className="text-sm text-blue-600">{message}</div>}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm text-gray-600 mb-1">Name</label>
-          <input name="name" value={form.name} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
-        </div>
-        <div>
-          <label className="block text-sm text-gray-600 mb-1">Phone</label>
-          <input name="phone" value={form.phone} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
-        </div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm text-gray-600 mb-1">Street</label>
-          <input name="address.street" value={form.address?.street || ''} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
-        </div>
-        <div>
-          <label className="block text-sm text-gray-600 mb-1">City</label>
-          <input name="address.city" value={form.address?.city || ''} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
-        </div>
-        <div>
-          <label className="block text-sm text-gray-600 mb-1">State</label>
-          <input name="address.state" value={form.address?.state || ''} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
-        </div>
-        <div>
-          <label className="block text-sm text-gray-600 mb-1">Zip Code</label>
-          <input name="address.zipCode" value={form.address?.zipCode || ''} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
-        </div>
-        <div>
-          <label className="block text-sm text-gray-600 mb-1">Country</label>
-          <input name="address.country" value={form.address?.country || ''} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
+    <form onSubmit={handleSave} className="space-y-8">
+      {message ? <Alert type={messageType}>{message}</Alert> : null}
+
+      <div>
+        <h3 className="mb-4 text-sm font-bold text-gray-900" style={font}>Personal information</h3>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div>
+            <label className={labelClass} style={font}>Full name</label>
+            <input name="name" value={form.name} onChange={handleChange} className={inputClass} style={font} />
+          </div>
+          <div>
+            <label className={labelClass} style={font}>Phone</label>
+            <input name="phone" value={form.phone} onChange={handleChange} className={inputClass} style={font} />
+          </div>
+          <div className="md:col-span-2">
+            <label className={labelClass} style={font}>Email</label>
+            <input
+              value={profile?.email || ''}
+              disabled
+              className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+              style={font}
+            />
+            <p className="mt-1.5 text-xs text-gray-400" style={font}>Email cannot be changed here.</p>
+          </div>
         </div>
       </div>
-      <button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg">
-        {saving ? 'Saving...' : 'Save Changes'}
-      </button>
+
+      <div className="border-t border-gray-100 pt-8">
+        <h3 className="mb-4 text-sm font-bold text-gray-900" style={font}>Delivery address</h3>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <label className={labelClass} style={font}>Street</label>
+            <input name="address.street" value={form.address?.street || ''} onChange={handleChange} className={inputClass} style={font} />
+          </div>
+          <div>
+            <label className={labelClass} style={font}>City</label>
+            <input name="address.city" value={form.address?.city || ''} onChange={handleChange} className={inputClass} style={font} />
+          </div>
+          <div>
+            <label className={labelClass} style={font}>County / State</label>
+            <input name="address.state" value={form.address?.state || ''} onChange={handleChange} className={inputClass} style={font} />
+          </div>
+          <div>
+            <label className={labelClass} style={font}>Postcode</label>
+            <input name="address.zipCode" value={form.address?.zipCode || ''} onChange={handleChange} className={inputClass} style={font} />
+          </div>
+          <div>
+            <label className={labelClass} style={font}>Country</label>
+            <input name="address.country" value={form.address?.country || ''} onChange={handleChange} className={inputClass} style={font} />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-end border-t border-gray-100 pt-6">
+        <button
+          type="submit"
+          disabled={saving}
+          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-600/25 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          style={font}
+        >
+          {saving ? 'Saving…' : 'Save changes'}
+        </button>
+      </div>
     </form>
   );
 };
@@ -113,6 +281,7 @@ const ViewQuotes = () => {
   const [replyDrafts, setReplyDrafts] = React.useState({});
   const [replySavingId, setReplySavingId] = React.useState('');
   const [replyMessage, setReplyMessage] = React.useState('');
+  const [replyMessageType, setReplyMessageType] = React.useState('info');
 
   React.useEffect(() => {
     let mounted = true;
@@ -126,15 +295,6 @@ const ViewQuotes = () => {
     })();
     return () => { mounted = false; };
   }, []);
-
-  const getStatusClass = (status) => {
-    const value = String(status || 'new').toLowerCase();
-    if (value === 'quoted') return 'bg-blue-50 text-blue-700 border-blue-100';
-    if (value === 'converted') return 'bg-emerald-50 text-emerald-700 border-emerald-100';
-    if (value === 'closed') return 'bg-gray-100 text-gray-700 border-gray-200';
-    if (value === 'contacted') return 'bg-amber-50 text-amber-700 border-amber-100';
-    return 'bg-purple-50 text-purple-700 border-purple-100';
-  };
 
   const getConversation = (quote) => {
     const thread = Array.isArray(quote?.conversation)
@@ -151,7 +311,6 @@ const ViewQuotes = () => {
       return [...thread].sort((a, b) => new Date(a.sentAt) - new Date(b.sentAt));
     }
 
-    // Backward compatibility for older quotes created before conversation support
     const fallback = [];
     if (quote?.message) {
       fallback.push({ sender: 'customer', message: quote.message, sentAt: quote.createdAt });
@@ -184,116 +343,140 @@ const ViewQuotes = () => {
       setQuotes((prev) => prev.map((q) => (q._id === quoteId ? updated : q)));
       setReplyDrafts((prev) => ({ ...prev, [quoteId]: '' }));
       setReplyMessage('Reply sent successfully.');
+      setReplyMessageType('success');
     } catch (err) {
       setReplyMessage(err?.message || 'Failed to send reply');
+      setReplyMessageType('error');
     } finally {
       setReplySavingId('');
     }
   };
 
-  if (loading) return <div className="text-gray-600">Loading quotes...</div>;
-  if (!quotes?.length) return <div className="text-gray-600">No quotes yet.</div>;
+  if (loading) return <Spinner />;
+  if (!quotes?.length) {
+    return (
+      <EmptyState
+        icon={IconDocument}
+        title="No quotes yet"
+        description="When you request a quote from our team, it will appear here with pricing and conversation history."
+        action={(
+          <Link
+            to="/get-free-quote"
+            className="inline-flex rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+            style={font}
+          >
+            Request a quote
+          </Link>
+        )}
+      />
+    );
+  }
 
   return (
-    <div className="space-y-4">
-      {replyMessage && <div className="text-sm text-blue-600">{replyMessage}</div>}
+    <div className="space-y-5">
+      {replyMessage ? <Alert type={replyMessageType}>{replyMessage}</Alert> : null}
       {quotes.map((q) => (
-        <div key={q._id} className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-            <div className="flex flex-wrap justify-between items-start gap-3">
-              <div>
-                <div className="text-base font-semibold text-gray-900">{q.projectType || q.productType || 'Quote'}</div>
-                <div className="text-xs text-gray-500 mt-1">Created: {new Date(q.createdAt).toLocaleString()}</div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`text-[11px] px-2.5 py-1 rounded-full border font-semibold uppercase tracking-wide ${getStatusClass(q.status)}`}>
-                  {q.status || 'new'}
+        <article key={q._id} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4 sm:px-6">
+            <div>
+              <h3 className="text-base font-bold text-gray-900" style={font}>
+                {q.projectType || q.productType || 'Quote request'}
+              </h3>
+              <p className="mt-1 text-xs text-gray-500" style={font}>
+                Submitted {new Date(q.createdAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge status={q.status || 'new'} />
+              {q.quotedPrice !== undefined && q.quotedPrice !== null && (
+                <span className="rounded-xl bg-blue-600 px-3 py-1 text-sm font-bold text-white">
+                  £{Number(q.quotedPrice).toFixed(2)}
                 </span>
-                {q.quotedPrice !== undefined && q.quotedPrice !== null && (
-                  <span className="text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-1">
-                    £{Number(q.quotedPrice).toFixed(2)}
-                  </span>
-                )}
-              </div>
+              )}
             </div>
           </div>
 
-          <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2 space-y-3">
+          <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[1fr_220px]">
+            <div className="space-y-5">
               <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Conversation Thread</div>
-                <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-2 max-h-72 overflow-y-auto">
+                <p className={labelClass} style={font}>Conversation</p>
+                <div className="max-h-72 space-y-3 overflow-y-auto rounded-xl border border-gray-100 bg-gray-50/80 p-4">
                   {getConversation(q).length ? (
                     getConversation(q).map((item, idx) => (
                       <div
                         key={`${item.sentAt || 'na'}-${idx}`}
-                        className={`rounded-lg border p-3 ${
+                        className={`rounded-xl border p-3.5 ${
                           item.sender === 'admin'
-                            ? 'bg-white border-blue-100'
-                            : 'bg-blue-50 border-blue-200'
+                            ? 'border-blue-100 bg-white'
+                            : 'ml-4 border-blue-200 bg-blue-50'
                         }`}
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className={`text-[11px] font-semibold uppercase tracking-wide ${
+                        <div className="mb-1.5 flex items-center justify-between gap-2">
+                          <span className={`text-[11px] font-bold uppercase tracking-wide ${
                             item.sender === 'admin' ? 'text-blue-700' : 'text-indigo-700'
                           }`}>
-                            {item.sender === 'admin' ? 'Team' : 'You'}
+                            {item.sender === 'admin' ? 'RSP Team' : 'You'}
                           </span>
-                          <span className="text-[11px] text-gray-500">
-                            {item.sentAt ? new Date(item.sentAt).toLocaleString() : '—'}
+                          <span className="text-[11px] text-gray-400">
+                            {item.sentAt ? new Date(item.sentAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : '—'}
                           </span>
                         </div>
-                        <div className="text-sm text-gray-800 whitespace-pre-wrap mt-1">
-                          {item.message}
-                        </div>
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800">{item.message}</p>
                       </div>
                     ))
                   ) : (
-                    <div className="text-sm text-gray-600">
-                      Awaiting response from our team.
-                    </div>
+                    <p className="text-sm text-gray-500" style={font}>Awaiting response from our team.</p>
                   )}
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 block">Reply to this quote</label>
+                <label className={labelClass} style={font}>Your reply</label>
                 <textarea
                   rows={3}
                   value={replyDrafts[q._id] || ''}
                   onChange={(e) => setReplyDrafts((prev) => ({ ...prev, [q._id]: e.target.value }))}
-                  placeholder="Type your reply, requested changes, or approval..."
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  placeholder="Type your reply, requested changes, or approval…"
+                  className={`${inputClass} resize-y`}
+                  style={font}
                 />
-                <div className="mt-2 flex justify-end">
+                <div className="mt-3 flex justify-end">
                   <button
+                    type="button"
                     onClick={() => handleReplySubmit(q._id)}
                     disabled={replySavingId === q._id || !String(replyDrafts[q._id] || '').trim()}
-                    className="px-4 py-2 text-sm font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    style={font}
                   >
-                    {replySavingId === q._id ? 'Sending...' : 'Send Reply'}
+                    {replySavingId === q._id ? 'Sending…' : 'Send reply'}
                   </button>
                 </div>
               </div>
             </div>
 
             <div>
-              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Artwork</div>
+              <p className={labelClass} style={font}>Artwork</p>
               {q.artworkUrl ? (
-                <a href={q.artworkUrl} target="_blank" rel="noreferrer" className="block group">
-                  <div className="w-full h-44 rounded-lg border border-gray-200 bg-white overflow-hidden">
-                    <img src={q.artworkUrl} alt="Artwork" className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform" />
+                <a href={q.artworkUrl} target="_blank" rel="noreferrer" className="group block">
+                  <div className="aspect-[4/3] overflow-hidden rounded-xl border border-gray-200 bg-gray-100">
+                    <img
+                      src={q.artworkUrl}
+                      alt="Quote artwork"
+                      className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                    />
                   </div>
-                  <div className="mt-2 text-xs text-blue-600 font-medium">Open full image</div>
+                  <span className="mt-2 inline-flex text-xs font-semibold text-blue-600 group-hover:text-blue-700" style={font}>
+                    View full image →
+                  </span>
                 </a>
               ) : (
-                <div className="w-full h-44 rounded-lg border border-dashed border-gray-300 bg-gray-50 text-gray-500 text-sm flex items-center justify-center">
-                  No artwork attached
+                <div className="flex aspect-[4/3] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 text-sm text-gray-400" style={font}>
+                  No artwork
                 </div>
               )}
             </div>
           </div>
-        </div>
+        </article>
       ))}
     </div>
   );
@@ -316,76 +499,83 @@ const ViewDesignOrders = () => {
     return () => { mounted = false; };
   }, []);
 
-  const statusClass = (status) => {
-    const v = String(status || '').toLowerCase();
-    if (v === 'delivered') return 'bg-emerald-50 text-emerald-700 border-emerald-100';
-    if (v === 'in_progress') return 'bg-blue-50 text-blue-700 border-blue-100';
-    if (v === 'paid') return 'bg-purple-50 text-purple-700 border-purple-100';
-    return 'bg-gray-100 text-gray-700 border-gray-200';
-  };
-
   const paidRequests = requests.filter((row) => row.paymentStatus === 'paid');
 
-  if (loading) return <div className="text-gray-600">Loading design orders...</div>;
+  if (loading) return <Spinner />;
   if (!paidRequests.length) {
     return (
-      <div className="text-gray-600">
-        No paid design orders yet.{' '}
-        <a href="/design-service" className="text-blue-600 underline font-medium">
-          Request a design
-        </a>
-      </div>
+      <EmptyState
+        icon={IconPalette}
+        title="No design orders yet"
+        description="Paid design service requests will show here with your brief, uploads, and downloadable deliverables."
+        action={(
+          <Link
+            to="/design-service"
+            className="inline-flex rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+            style={font}
+          >
+            Request a design
+          </Link>
+        )}
+      />
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {paidRequests.map((row) => (
-        <div key={row._id} className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-            <div className="flex flex-wrap justify-between gap-3 items-start">
-              <div>
-                <div className="text-base font-semibold text-gray-900">{row.title}</div>
-                <div className="text-xs text-gray-500 mt-1">
-                  Submitted: {new Date(row.createdAt).toLocaleString()}
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <span className={`text-[11px] px-2.5 py-1 rounded-full border font-semibold uppercase ${statusClass(row.status)}`}>
-                  {String(row.status || 'paid').replace(/_/g, ' ')}
-                </span>
-                <span className="text-[11px] px-2.5 py-1 rounded-full border font-semibold uppercase bg-emerald-50 text-emerald-700 border-emerald-100">
-                  Paid
-                </span>
-              </div>
+        <article key={row._id} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-100 bg-gradient-to-r from-violet-50/60 to-white px-5 py-4 sm:px-6">
+            <div>
+              <h3 className="text-base font-bold text-gray-900" style={font}>{row.title}</h3>
+              <p className="mt-1 text-xs text-gray-500" style={font}>
+                Submitted {new Date(row.createdAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <StatusBadge status={row.status || 'paid'} />
+              <StatusBadge status="paid" />
             </div>
           </div>
 
-          <div className="p-4 grid md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Your brief</p>
-              <p className="text-sm text-gray-800 whitespace-pre-wrap">{row.brief}</p>
-              {row.productType && (
-                <p className="text-xs text-gray-500 mt-2">Format: {row.productType}</p>
-              )}
-              <p className="text-sm font-semibold text-gray-900 mt-3">
-                £{Number(row.priceAmount || 0).toFixed(2)}
+          <div className="grid gap-6 p-5 sm:p-6 md:grid-cols-2">
+            <div className="space-y-4">
+              <div>
+                <p className={labelClass} style={font}>Your brief</p>
+                <p className="whitespace-pre-wrap rounded-xl border border-gray-100 bg-gray-50/80 p-4 text-sm leading-relaxed text-gray-800">
+                  {row.brief}
+                </p>
+              </div>
+              {row.productType ? (
+                <p className="text-xs text-gray-500" style={font}>
+                  Format: <span className="font-medium text-gray-700">{row.productType}</span>
+                </p>
+              ) : null}
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-gray-900" style={font}>
+                  £{Number(row.priceAmount || 0).toFixed(2)}
+                </span>
                 {row.trackingId ? (
-                  <span className="block text-xs font-normal text-gray-500 mt-1">
-                    Ref: {row.trackingId}
-                  </span>
+                  <span className="text-xs text-gray-500" style={font}>Ref: {row.trackingId}</span>
                 ) : null}
-              </p>
+              </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
               {row.referenceFiles?.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Your uploads</p>
-                  <ul className="space-y-1">
+                  <p className={labelClass} style={font}>Your uploads</p>
+                  <ul className="space-y-2">
                     {row.referenceFiles.map((file) => (
                       <li key={file.url}>
-                        <a href={file.url} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline">
+                        <a
+                          href={file.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-2 rounded-lg border border-gray-100 bg-white px-3 py-2 text-sm font-medium text-blue-600 transition hover:border-blue-200 hover:bg-blue-50"
+                          style={font}
+                        >
+                          <IconDocument className="h-4 w-4 shrink-0" />
                           {file.originalName || 'Reference file'}
                         </a>
                       </li>
@@ -396,16 +586,20 @@ const ViewDesignOrders = () => {
 
               {row.deliverables?.length > 0 ? (
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Your finished design</p>
-                  <ul className="space-y-1">
+                  <p className={labelClass} style={font}>Finished design</p>
+                  <ul className="space-y-2">
                     {row.deliverables.map((d) => (
                       <li key={d.url}>
                         <a
                           href={d.url}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 underline"
+                          className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                          style={font}
                         >
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
                           Download {d.originalName || 'design file'}
                         </a>
                       </li>
@@ -413,13 +607,13 @@ const ViewDesignOrders = () => {
                   </ul>
                 </div>
               ) : (
-                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3 text-sm text-gray-600">
-                  Our team is working on your design. You will be able to download it here when ready.
+                <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50/60 p-4 text-sm text-amber-900" style={font}>
+                  Our team is working on your design. Downloads will appear here when ready.
                 </div>
               )}
             </div>
           </div>
-        </div>
+        </article>
       ))}
     </div>
   );
@@ -429,6 +623,7 @@ const ChangePassword = () => {
   const [form, setForm] = React.useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [saving, setSaving] = React.useState(false);
   const [message, setMessage] = React.useState('');
+  const [messageType, setMessageType] = React.useState('info');
   const [showPassword, setShowPassword] = React.useState({
     currentPassword: false,
     newPassword: false,
@@ -442,119 +637,104 @@ const ChangePassword = () => {
     setMessage('');
     if (!form.newPassword || form.newPassword.length < 6) {
       setMessage('New password must be at least 6 characters');
+      setMessageType('error');
       return;
     }
     if (form.newPassword !== form.confirmPassword) {
       setMessage('Passwords do not match');
+      setMessageType('error');
       return;
     }
     setSaving(true);
     try {
       await authService.changePassword({ currentPassword: form.currentPassword, newPassword: form.newPassword });
       setMessage('Password updated successfully');
+      setMessageType('success');
       setForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
     } catch (err) {
       setMessage(err.message || 'Failed to change password');
+      setMessageType('error');
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {message && <div className="text-sm text-blue-600">{message}</div>}
+    <form onSubmit={handleSubmit} className="mx-auto max-w-lg space-y-6">
+      <div className="rounded-xl border border-amber-100 bg-amber-50/80 px-4 py-3 text-sm text-amber-900" style={font}>
+        Use a strong password with at least 6 characters. You will stay signed in after updating.
+      </div>
+
+      {message ? <Alert type={messageType}>{message}</Alert> : null}
+
       <div>
-        <label className="block text-sm text-gray-600 mb-1">Current Password</label>
+        <label className={labelClass} style={font}>Current password</label>
         <div className="relative">
           <input
             type={showPassword.currentPassword ? 'text' : 'password'}
             name="currentPassword"
             value={form.currentPassword}
             onChange={handleChange}
-            className="w-full border rounded-lg px-3 py-2 pr-10"
+            className={`${inputClass} pr-10`}
+            style={font}
           />
-          <button
-            type="button"
-            onClick={() => setShowPassword((prev) => ({ ...prev, currentPassword: !prev.currentPassword }))}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-            title={showPassword.currentPassword ? 'Hide password' : 'Show password'}
-          >
-            {showPassword.currentPassword ? (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.956 9.956 0 012.042-3.368M6.223 6.223A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a9.969 9.969 0 01-4.125 5.168M15 12a3 3 0 11-6 0 3 3 0 016 0zM3 3l18 18" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-            )}
-          </button>
+          <PasswordToggle
+            show={showPassword.currentPassword}
+            onToggle={() => setShowPassword((prev) => ({ ...prev, currentPassword: !prev.currentPassword }))}
+            label="current password"
+          />
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
-          <label className="block text-sm text-gray-600 mb-1">New Password</label>
+          <label className={labelClass} style={font}>New password</label>
           <div className="relative">
             <input
               type={showPassword.newPassword ? 'text' : 'password'}
               name="newPassword"
               value={form.newPassword}
               onChange={handleChange}
-              className="w-full border rounded-lg px-3 py-2 pr-10"
+              className={`${inputClass} pr-10`}
+              style={font}
             />
-            <button
-              type="button"
-              onClick={() => setShowPassword((prev) => ({ ...prev, newPassword: !prev.newPassword }))}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-              title={showPassword.newPassword ? 'Hide password' : 'Show password'}
-            >
-              {showPassword.newPassword ? (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.956 9.956 0 012.042-3.368M6.223 6.223A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a9.969 9.969 0 01-4.125 5.168M15 12a3 3 0 11-6 0 3 3 0 016 0zM3 3l18 18" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-              )}
-            </button>
+            <PasswordToggle
+              show={showPassword.newPassword}
+              onToggle={() => setShowPassword((prev) => ({ ...prev, newPassword: !prev.newPassword }))}
+              label="new password"
+            />
           </div>
         </div>
         <div>
-          <label className="block text-sm text-gray-600 mb-1">Confirm New Password</label>
+          <label className={labelClass} style={font}>Confirm password</label>
           <div className="relative">
             <input
               type={showPassword.confirmPassword ? 'text' : 'password'}
               name="confirmPassword"
               value={form.confirmPassword}
               onChange={handleChange}
-              className="w-full border rounded-lg px-3 py-2 pr-10"
+              className={`${inputClass} pr-10`}
+              style={font}
             />
-            <button
-              type="button"
-              onClick={() => setShowPassword((prev) => ({ ...prev, confirmPassword: !prev.confirmPassword }))}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-              title={showPassword.confirmPassword ? 'Hide password' : 'Show password'}
-            >
-              {showPassword.confirmPassword ? (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.956 9.956 0 012.042-3.368M6.223 6.223A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a9.969 9.969 0 01-4.125 5.168M15 12a3 3 0 11-6 0 3 3 0 016 0zM3 3l18 18" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-              )}
-            </button>
+            <PasswordToggle
+              show={showPassword.confirmPassword}
+              onToggle={() => setShowPassword((prev) => ({ ...prev, confirmPassword: !prev.confirmPassword }))}
+              label="confirm password"
+            />
           </div>
         </div>
       </div>
-      <button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg">
-        {saving ? 'Updating...' : 'Update Password'}
-      </button>
+
+      <div className="flex justify-end pt-2">
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60"
+          style={font}
+        >
+          {saving ? 'Updating…' : 'Update password'}
+        </button>
+      </div>
     </form>
   );
 };
@@ -564,21 +744,6 @@ const TrackOrder = () => {
   const [result, setResult] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
-  const prettyStatus = (s) => {
-    const v = String(s || '').toLowerCase();
-    if (v === 'inprocess') return 'In Process';
-    if (v === 'completed') return 'Completed';
-    if (v === 'waiting') return 'Waiting';
-    return v ? `${v.charAt(0).toUpperCase()}${v.slice(1)}` : '—';
-  };
-  const statusBadgeClass = (s) => {
-    const v = String(s || '').toLowerCase();
-    if (v === 'completed' || v === 'delivered') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-    if (v === 'inprocess' || v === 'processing' || v === 'shipped') return 'bg-blue-100 text-blue-800 border-blue-200';
-    if (v === 'waiting' || v === 'pending') return 'bg-amber-100 text-amber-800 border-amber-200';
-    if (v === 'cancelled') return 'bg-red-100 text-red-800 border-red-200';
-    return 'bg-gray-100 text-gray-700 border-gray-200';
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -589,69 +754,105 @@ const TrackOrder = () => {
       const data = await orderService.trackByTrackingNumber(trackingNumber);
       setResult(data);
     } catch (err) {
-      setError(err.message || 'Not found');
+      setError(err.message || 'Order not found. Check your tracking ID and try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div>
-      <form onSubmit={handleSubmit} className="flex gap-3 mb-4">
-        <input value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)} placeholder="Enter tracking ID (e.g. RSP-2026-AB12CD34)" className="flex-1 border rounded-lg px-3 py-2" />
-        <button type="submit" disabled={loading || !trackingNumber} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg">
-          {loading ? 'Tracking...' : 'Track'}
-        </button>
-      </form>
-      {error && <div className="text-sm text-red-600 mb-2">{error}</div>}
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50/50 p-6 sm:p-8">
+        <div className="mx-auto max-w-xl text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-600/30">
+            <IconPackage className="h-6 w-6" />
+          </div>
+          <h3 className="text-lg font-bold text-gray-900" style={font}>Track your order</h3>
+          <p className="mt-2 text-sm text-gray-600" style={font}>
+            Enter the tracking ID from your confirmation email (e.g. RSP-2026-AB12CD34).
+          </p>
+          <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <input
+              value={trackingNumber}
+              onChange={(e) => setTrackingNumber(e.target.value)}
+              placeholder="Tracking ID"
+              className={`${inputClass} sm:flex-1`}
+              style={font}
+            />
+            <button
+              type="submit"
+              disabled={loading || !trackingNumber.trim()}
+              className="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              style={font}
+            >
+              {loading ? 'Searching…' : 'Track order'}
+            </button>
+          </form>
+          {error ? <p className="mt-3 text-sm font-medium text-red-600" style={font}>{error}</p> : null}
+        </div>
+      </div>
+
       {result && (
-        <div className="border rounded-lg p-4 bg-white">
-          <div className="flex flex-wrap justify-between gap-2">
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 bg-gray-50/80 px-6 py-4">
             <div>
-              <div className="text-sm text-gray-500">Tracking</div>
-              <div className="font-semibold">{result.trackingNumber}</div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500" style={font}>Tracking ID</p>
+              <p className="font-mono text-lg font-bold text-gray-900">{result.trackingNumber}</p>
             </div>
-            <div>
-              <div className="text-sm text-gray-500">Status</div>
-              <div className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border ${statusBadgeClass(result.status)}`}>
-                {prettyStatus(result.status)}
-              </div>
+            <div className="text-right">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500" style={font}>Status</p>
+              <StatusBadge status={result.status} />
             </div>
           </div>
-          <div className="mt-3 grid sm:grid-cols-2 gap-3 text-sm">
-            <div className="rounded-md border border-gray-200 p-3 bg-gray-50">
-              <div className="text-gray-500">Order title</div>
-              <div className="font-semibold text-gray-900">{result.orderTitle || 'Order'}</div>
+
+          <div className="grid gap-4 p-6 sm:grid-cols-2">
+            <div className="rounded-xl border border-gray-100 bg-gray-50/80 p-4">
+              <p className="text-xs text-gray-500" style={font}>Order</p>
+              <p className="mt-1 font-semibold text-gray-900" style={font}>{result.orderTitle || 'Order'}</p>
             </div>
-            <div className="rounded-md border border-gray-200 p-3 bg-gray-50">
-              <div className="text-gray-500">Total bill</div>
-              <div className="font-semibold text-gray-900">
+            <div className="rounded-xl border border-gray-100 bg-gray-50/80 p-4">
+              <p className="text-xs text-gray-500" style={font}>Total</p>
+              <p className="mt-1 text-xl font-bold text-gray-900" style={font}>
                 {(result.currency || 'GBP') === 'GBP' ? '£' : `${result.currency || ''} `}
                 {Number(result.total || 0).toFixed(2)}
-              </div>
+              </p>
             </div>
           </div>
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+
+          <div className="border-t border-gray-100 px-6 py-5">
+            <p className={labelClass} style={font}>Items</p>
             {(result.items || []).length === 0 ? (
-              <div className="md:col-span-2 text-sm text-gray-500 border rounded-md p-3 bg-gray-50">
+              <p className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500" style={font}>
                 Item details are not available yet for this order.
-              </div>
-            ) : (result.items || []).map((it, idx) => (
-              <div key={idx} className="flex items-center gap-3 border rounded-md p-3 bg-white">
-                {it.imageUrl ? <img src={it.imageUrl} alt="" className="w-12 h-12 object-cover rounded-md" /> : <div className="w-12 h-12 bg-gray-100 rounded-md" />}
-                <div className="min-w-0">
-                  <div className="font-medium">{it.productName}</div>
-                  <div className="text-sm text-gray-600">Qty: {it.quantity || 1}</div>
-                  {it.note ? <div className="text-xs text-gray-500 truncate" title={it.note}>{it.note}</div> : null}
-                  {it.price != null ? (
-                    <div className="text-xs font-semibold text-gray-800 mt-0.5">
-                      {(result.currency || 'GBP') === 'GBP' ? '£' : `${result.currency || ''} `}
-                      {Number(it.price || 0).toFixed(2)}
+              </p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {(result.items || []).map((it, idx) => (
+                  <div key={idx} className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
+                    {it.imageUrl ? (
+                      <img src={it.imageUrl} alt="" className="h-14 w-14 shrink-0 rounded-lg object-cover" />
+                    ) : (
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-400">
+                        <IconPackage className="h-6 w-6" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-gray-900" style={font}>{it.productName}</p>
+                      <p className="text-sm text-gray-500" style={font}>Qty {it.quantity || 1}</p>
+                      {it.note ? (
+                        <p className="truncate text-xs text-gray-400" title={it.note}>{it.note}</p>
+                      ) : null}
+                      {it.price != null ? (
+                        <p className="mt-0.5 text-sm font-bold text-blue-700" style={font}>
+                          {(result.currency || 'GBP') === 'GBP' ? '£' : `${result.currency || ''} `}
+                          {Number(it.price || 0).toFixed(2)}
+                        </p>
+                      ) : null}
                     </div>
-                  ) : null}
-                </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         </div>
       )}
@@ -659,48 +860,165 @@ const TrackOrder = () => {
   );
 };
 
+const TAB_META = {
+  profile: { title: 'Your profile', subtitle: 'Manage your personal details and delivery address' },
+  quotes: { title: 'Your quotes', subtitle: 'View pricing, artwork, and chat with our team' },
+  'design-orders': { title: 'Design orders', subtitle: 'Track paid design projects and download deliverables' },
+  'change-password': { title: 'Security', subtitle: 'Keep your account safe with a strong password' },
+  'track-order': { title: 'Track order', subtitle: 'Look up production and delivery status' },
+};
+
 const Account = () => {
-  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const { isAuthenticated, user, getUserInitial, logout, authReady } = useAuth();
   const [tab, setTab] = React.useState('profile');
 
-  if (!isAuthenticated()) {
-    return <div className="max-w-5xl mx-auto px-4 py-10 text-gray-700">Please log in to access your account.</div>;
+  if (!authReady) {
+    return (
+      <div className="min-h-[60vh] bg-gradient-to-b from-slate-50 to-white">
+        <Spinner />
+      </div>
+    );
   }
 
-  return (
-    <div className="max-w-5xl mx-auto px-4 py-10">
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 mb-6 overflow-x-auto">
-        <div className="flex gap-2 md:gap-3">
-          {['profile','quotes','design-orders','change-password','track-order'].map((key) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+  if (!isAuthenticated()) {
+    return (
+      <div className="min-h-[70vh] bg-gradient-to-b from-slate-50 via-blue-50/30 to-white px-4 py-16">
+        <div className="mx-auto max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-xl shadow-gray-200/60">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 text-2xl font-bold text-white shadow-lg shadow-blue-600/30">
+            <IconUser className="h-8 w-8" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900" style={font}>My Account</h1>
+          <p className="mt-3 text-sm leading-relaxed text-gray-500" style={font}>
+            Sign in to manage your profile, track orders, view quotes, and download design files.
+          </p>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <Link
+              to="/login"
+              className="inline-flex justify-center rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+              style={font}
             >
-              {key === 'profile' && 'View Profile'}
-              {key === 'quotes' && 'View Quotes'}
-              {key === 'design-orders' && 'My Design Orders'}
-              {key === 'change-password' && 'Change Password'}
-              {key === 'track-order' && 'Track Order'}
+              Sign in
+            </Link>
+            <Link
+              to="/register"
+              className="inline-flex justify-center rounded-xl border border-gray-200 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+              style={font}
+            >
+              Create account
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const activeMeta = TAB_META[tab] || TAB_META.profile;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-blue-50/20">
+      {/* Hero */}
+      <div className="border-b border-gray-200/80 bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950">
+        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-2xl font-bold text-white ring-2 ring-white/20 backdrop-blur-sm">
+                {user?.avatar ? (
+                  <img src={user.avatar} alt="" className="h-full w-full rounded-2xl object-cover" />
+                ) : (
+                  getUserInitial()
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-blue-200" style={font}>Welcome back</p>
+                <h1 className="text-2xl font-bold text-white sm:text-3xl" style={font}>
+                  {user?.name || 'My Account'}
+                </h1>
+                <p className="mt-1 text-sm text-blue-100/80" style={font}>{user?.email}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => { logout(); navigate('/'); }}
+              className="self-start rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20 sm:self-center"
+              style={font}
+            >
+              Sign out
             </button>
-          ))}
+          </div>
         </div>
       </div>
 
-      <Section title={
-        tab === 'profile' ? 'Your Profile'
-          : tab === 'quotes' ? 'Your Quotes'
-            : tab === 'design-orders' ? 'My Design Orders'
-              : tab === 'change-password' ? 'Change Password'
-                : 'Track Order'
-      }>
-        {tab === 'profile' && <ViewProfile />}
-        {tab === 'quotes' && <ViewQuotes />}
-        {tab === 'design-orders' && <ViewDesignOrders />}
-        {tab === 'change-password' && <ChangePassword />}
-        {tab === 'track-order' && <TrackOrder />}
-      </Section>
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+        <div className="grid gap-8 lg:grid-cols-[260px_1fr]">
+          {/* Sidebar — desktop */}
+          <aside className="hidden lg:block">
+            <nav className="sticky top-24 space-y-1 rounded-2xl border border-gray-200/80 bg-white p-2 shadow-sm">
+              {NAV_ITEMS.map((item) => {
+                const Icon = NAV_ICONS[item.key];
+                const active = tab === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setTab(item.key)}
+                    className={`flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition ${
+                      active
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
+                        : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className={`mt-0.5 shrink-0 ${active ? 'text-white' : 'text-blue-600'}`}>
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <span>
+                      <span className="block text-sm font-semibold" style={font}>{item.label}</span>
+                      <span className={`mt-0.5 block text-xs ${active ? 'text-blue-100' : 'text-gray-400'}`} style={font}>
+                        {item.description}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
+
+          {/* Mobile nav */}
+          <div className="flex gap-2 overflow-x-auto pb-1 lg:hidden">
+            {NAV_ITEMS.map((item) => {
+              const Icon = NAV_ICONS[item.key];
+              const active = tab === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setTab(item.key)}
+                  className={`inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    active
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'border border-gray-200 bg-white text-gray-700'
+                  }`}
+                  style={font}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Main content */}
+          <main className="min-w-0 lg:col-start-2">
+            <ContentPanel title={activeMeta.title} subtitle={activeMeta.subtitle}>
+              {tab === 'profile' && <ViewProfile />}
+              {tab === 'quotes' && <ViewQuotes />}
+              {tab === 'design-orders' && <ViewDesignOrders />}
+              {tab === 'change-password' && <ChangePassword />}
+              {tab === 'track-order' && <TrackOrder />}
+            </ContentPanel>
+          </main>
+        </div>
+      </div>
     </div>
   );
 };

@@ -1,7 +1,16 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/authService';
+import AuthLayout, {
+  AuthAlert,
+  AuthFieldError,
+  AuthSubmitButton,
+  PasswordToggle,
+  font,
+  inputClass,
+  labelClass,
+} from '../components/AuthLayout';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -71,13 +80,13 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
 
     setIsLoading(true);
-    
+
     try {
       const response = await authService.registerSendOtp({
         name: `${formData.firstName} ${formData.lastName}`,
@@ -87,6 +96,7 @@ const Register = () => {
       setOtpStep(true);
       setOtp('');
       setOtpExpiresIn(Number(response?.expiresInSeconds || 600));
+      setErrors({});
     } catch (error) {
       setErrors({ submit: error.message });
     } finally {
@@ -145,51 +155,52 @@ const Register = () => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
-    // Clear error when user starts typing
     if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: '',
-      }));
+      setErrors((prev) => ({ ...prev, [name]: '' }));
+    }
+    if (errors.submit) {
+      setErrors((prev) => ({ ...prev, submit: '' }));
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center py-3 px-3 sm:px-4">
-      <div className="max-w-lg w-full space-y-4">
-        {/* Header */}
-        <div className="text-center">
-          {errors.submit && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-              {errors.submit}
-            </div>
-          )}
-          <h2 className="text-2xl font-bold text-gray-900">
-            Create Account
-          </h2>
-          <p className="mt-1 text-sm text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-            Sign up to get started with your account
-          </p>
-        </div>
+  const otpMinutes = Math.floor(otpExpiresIn / 60).toString().padStart(2, '0');
+  const otpSeconds = (otpExpiresIn % 60).toString().padStart(2, '0');
 
-        {/* Register Form */}
-        <div className="bg-white rounded-2xl shadow-xl p-5 md:p-6">
-          {!otpStep ? (
-          <form className="space-y-3.5" onSubmit={handleSubmit}>
-            {/* Name Fields */}
-            <div className="grid grid-cols-2 gap-3">
+  return (
+    <AuthLayout
+      title="Create your account"
+      subtitle="Join RSP UK for free — save designs, checkout faster, and keep everything in one place."
+      benefits={[
+        'Free account with secure artwork storage',
+        'Faster checkout with saved delivery details',
+        'Access quotes, design deliverables, and order tracking',
+      ]}
+      footer={(
+        <>
+          Already have an account?{' '}
+          <Link to="/login" className="font-semibold text-blue-600 hover:text-blue-700">
+            Sign in
+          </Link>
+        </>
+      )}
+    >
+      {!otpStep ? (
+        <>
+          <div className="mb-6 hidden lg:block">
+            <h2 className="text-2xl font-bold text-gray-900" style={font}>Sign up</h2>
+            <p className="mt-1 text-sm text-gray-500" style={font}>Fill in your details to get started</p>
+          </div>
+
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            {errors.submit ? <AuthAlert type="error">{errors.submit}</AuthAlert> : null}
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label 
-                  htmlFor="firstName" 
-                  className="block text-xs font-medium text-gray-700 mb-1"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  First Name
-                </label>
+                <label htmlFor="firstName" className={labelClass} style={font}>First name</label>
                 <input
                   id="firstName"
                   name="firstName"
@@ -197,27 +208,15 @@ const Register = () => {
                   autoComplete="given-name"
                   value={formData.firstName}
                   onChange={handleChange}
-                  className={`w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm ${
-                    errors.firstName ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="First Name"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  className={`${inputClass} ${errors.firstName ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : ''}`}
+                  placeholder="Jane"
+                  style={font}
                 />
-                {errors.firstName && (
-                  <p className="mt-1 text-sm text-red-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                    {errors.firstName}
-                  </p>
-                )}
+                <AuthFieldError message={errors.firstName} />
               </div>
 
               <div>
-                <label 
-                  htmlFor="lastName" 
-                  className="block text-xs font-medium text-gray-700 mb-1"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  Last Name
-                </label>
+                <label htmlFor="lastName" className={labelClass} style={font}>Last name</label>
                 <input
                   id="lastName"
                   name="lastName"
@@ -225,29 +224,16 @@ const Register = () => {
                   autoComplete="family-name"
                   value={formData.lastName}
                   onChange={handleChange}
-                  className={`w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm ${
-                    errors.lastName ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="Last Name"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  className={`${inputClass} ${errors.lastName ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : ''}`}
+                  placeholder="Smith"
+                  style={font}
                 />
-                {errors.lastName && (
-                  <p className="mt-1 text-sm text-red-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                    {errors.lastName}
-                  </p>
-                )}
+                <AuthFieldError message={errors.lastName} />
               </div>
             </div>
 
-            {/* Email Field */}
             <div>
-              <label 
-                htmlFor="email" 
-                className="block text-xs font-medium text-gray-700 mb-1"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-              >
-                Email Address
-              </label>
+              <label htmlFor="email" className={labelClass} style={font}>Email address</label>
               <input
                 id="email"
                 name="email"
@@ -255,28 +241,15 @@ const Register = () => {
                 autoComplete="email"
                 value={formData.email}
                 onChange={handleChange}
-                className={`w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm ${
-                  errors.email ? 'border-red-500' : 'border-gray-300'
-                }`}
+                className={`${inputClass} ${errors.email ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : ''}`}
                 placeholder="you@example.com"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                style={font}
               />
-              {errors.email && (
-                <p className="mt-1 text-sm text-red-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  {errors.email}
-                </p>
-              )}
+              <AuthFieldError message={errors.email} />
             </div>
 
-            {/* Password Field */}
             <div>
-              <label 
-                htmlFor="password" 
-                className="block text-xs font-medium text-gray-700 mb-1"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-              >
-                Password
-              </label>
+              <label htmlFor="password" className={labelClass} style={font}>Password</label>
               <div className="relative">
                 <input
                   id="password"
@@ -285,50 +258,24 @@ const Register = () => {
                   autoComplete="new-password"
                   value={formData.password}
                   onChange={handleChange}
-                  className={`w-full px-3 pr-10 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm ${
-                    errors.password ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="Create a password"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  className={`${inputClass} pr-10 ${errors.password ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : ''}`}
+                  placeholder="Create a strong password"
+                  style={font}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  className="absolute inset-y-0 right-0 px-3 text-gray-500 hover:text-gray-700"
-                  title={showPassword ? 'Hide password' : 'Show password'}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-5 0-9-3-11-7 1.02-2.04 2.568-3.63 4.413-4.8M9.88 9.88a3 3 0 104.24 4.24M6.1 6.1L3 3m0 0l18 18" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  )}
-                </button>
+                <PasswordToggle
+                  show={showPassword}
+                  onToggle={() => setShowPassword((prev) => !prev)}
+                  label="password"
+                />
               </div>
-              {errors.password && (
-                <p className="mt-1 text-sm text-red-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  {errors.password}
-                </p>
-              )}
-              <p className="mt-1 text-[11px] text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                Must be at least 8 characters with uppercase, lowercase, and number
+              <AuthFieldError message={errors.password} />
+              <p className="mt-1.5 text-xs text-gray-400" style={font}>
+                At least 8 characters with uppercase, lowercase, and a number
               </p>
             </div>
 
-            {/* Confirm Password Field */}
             <div>
-              <label 
-                htmlFor="confirmPassword" 
-                className="block text-xs font-medium text-gray-700 mb-1"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-              >
-                Confirm Password
-              </label>
+              <label htmlFor="confirmPassword" className={labelClass} style={font}>Confirm password</label>
               <div className="relative">
                 <input
                   id="confirmPassword"
@@ -337,188 +284,119 @@ const Register = () => {
                   autoComplete="new-password"
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  className={`w-full px-3 pr-10 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm ${
-                    errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="Confirm your password"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  className={`${inputClass} pr-10 ${errors.confirmPassword ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : ''}`}
+                  placeholder="Repeat your password"
+                  style={font}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword((prev) => !prev)}
-                  className="absolute inset-y-0 right-0 px-3 text-gray-500 hover:text-gray-700"
-                  title={showConfirmPassword ? 'Hide password' : 'Show password'}
-                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showConfirmPassword ? (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-5 0-9-3-11-7 1.02-2.04 2.568-3.63 4.413-4.8M9.88 9.88a3 3 0 104.24 4.24M6.1 6.1L3 3m0 0l18 18" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  )}
-                </button>
+                <PasswordToggle
+                  show={showConfirmPassword}
+                  onToggle={() => setShowConfirmPassword((prev) => !prev)}
+                  label="confirm password"
+                />
               </div>
-              {errors.confirmPassword && (
-                <p className="mt-1 text-sm text-red-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  {errors.confirmPassword}
-                </p>
-              )}
+              <AuthFieldError message={errors.confirmPassword} />
             </div>
 
-            {/* Terms and Conditions */}
             <div>
-              <div className="flex items-start">
+              <label className="flex cursor-pointer items-start gap-2.5">
                 <input
                   id="agreeToTerms"
                   name="agreeToTerms"
                   type="checkbox"
                   checked={formData.agreeToTerms}
                   onChange={handleChange}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1"
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <label 
-                  htmlFor="agreeToTerms" 
-                  className="ml-2 block text-xs text-gray-700 leading-5"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
+                <span className="text-sm leading-relaxed text-gray-600" style={font}>
                   I agree to the{' '}
-                  <button
-                    type="button"
-                    onClick={() => navigate('/')}
-                    className="text-blue-600 hover:text-blue-700 font-medium"
-                  >
+                  <button type="button" onClick={() => navigate('/')} className="font-semibold text-blue-600 hover:text-blue-700">
                     Terms and Conditions
                   </button>
                   {' '}and{' '}
-                  <button
-                    type="button"
-                    onClick={() => navigate('/')}
-                    className="text-blue-600 hover:text-blue-700 font-medium"
-                  >
+                  <button type="button" onClick={() => navigate('/')} className="font-semibold text-blue-600 hover:text-blue-700">
                     Privacy Policy
                   </button>
-                </label>
-              </div>
-              {errors.agreeToTerms && (
-                <p className="mt-1 text-sm text-red-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  {errors.agreeToTerms}
-                </p>
-              )}
+                </span>
+              </label>
+              <AuthFieldError message={errors.agreeToTerms} />
             </div>
 
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              {isLoading ? (
-                <span className="flex items-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Creating account...
-                </span>
-              ) : (
-                'Send OTP'
-              )}
-            </button>
+            <AuthSubmitButton loading={isLoading} loadingLabel="Sending code…">
+              Continue with email verification
+            </AuthSubmitButton>
           </form>
-          ) : (
-            <form className="space-y-4" onSubmit={handleVerifyOtp}>
-              <div className="text-center">
-                <p className="text-sm text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  Enter the OTP sent to <span className="font-semibold">{formData.email}</span>
-                </p>
-                <p className="mt-1 text-sm text-blue-600 font-medium" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  Expires in: {Math.floor(otpExpiresIn / 60).toString().padStart(2, '0')}:{(otpExpiresIn % 60).toString().padStart(2, '0')}
-                </p>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  OTP
-                </label>
-                <input
-                  type="text"
-                  value={otp}
-                  onChange={(e) => {
-                    setOtp(e.target.value.replace(/\D/g, '').slice(0, 6));
-                    setErrors((prev) => ({ ...prev, otp: '' }));
-                  }}
-                  className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent tracking-[0.3em] text-center ${
-                    errors.otp ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="000000"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                />
-                {errors.otp && (
-                  <p className="mt-1 text-sm text-red-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                    {errors.otp}
-                  </p>
-                )}
-              </div>
-              <button
-                type="submit"
-                disabled={isLoading || otpExpiresIn <= 0}
-                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-              >
-                {isLoading ? 'Verifying...' : 'Verify OTP & Create Account'}
-              </button>
-              <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setOtpStep(false)}
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  Edit details
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResendOtp}
-                  disabled={isLoading}
-                  className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  Resend OTP
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* Sign In Link */}
-          <div className="mt-4 text-center">
-            <p className="text-sm text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-              Already have an account?{' '}
-              <button
-                onClick={() => navigate('/login')}
-                className="font-medium text-blue-600 hover:text-blue-700"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-              >
-                Sign in
-              </button>
+        </>
+      ) : (
+        <>
+          <div className="mb-6 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+              <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-bold text-gray-900" style={font}>Check your email</h2>
+            <p className="mt-2 text-sm text-gray-500" style={font}>
+              We sent a 6-digit code to{' '}
+              <span className="font-semibold text-gray-800">{formData.email}</span>
+            </p>
+            <p className={`mt-2 text-sm font-semibold ${otpExpiresIn > 0 ? 'text-blue-600' : 'text-red-600'}`} style={font}>
+              {otpExpiresIn > 0 ? `Expires in ${otpMinutes}:${otpSeconds}` : 'Code expired — resend to continue'}
             </p>
           </div>
-        </div>
 
-        <div className="text-center">
-          <button
-            onClick={() => navigate('/')}
-            className="text-xs text-gray-600 hover:text-gray-900 font-medium"
-            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-          >
-            ← Back to home
-          </button>
-        </div>
-      </div>
-    </div>
+          <form className="space-y-5" onSubmit={handleVerifyOtp}>
+            <div>
+              <label htmlFor="otp" className={labelClass} style={font}>Verification code</label>
+              <input
+                id="otp"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={otp}
+                onChange={(e) => {
+                  setOtp(e.target.value.replace(/\D/g, '').slice(0, 6));
+                  setErrors((prev) => ({ ...prev, otp: '' }));
+                }}
+                className={`${inputClass} text-center text-2xl font-bold tracking-[0.4em] ${
+                  errors.otp ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : ''
+                }`}
+                placeholder="000000"
+                style={font}
+              />
+              <AuthFieldError message={errors.otp} />
+            </div>
+
+            <AuthSubmitButton
+              loading={isLoading}
+              loadingLabel="Verifying…"
+              disabled={otpExpiresIn <= 0}
+            >
+              Verify & create account
+            </AuthSubmitButton>
+
+            <div className="flex items-center justify-between border-t border-gray-100 pt-4">
+              <button
+                type="button"
+                onClick={() => setOtpStep(false)}
+                className="text-sm font-medium text-gray-500 transition hover:text-gray-900"
+                style={font}
+              >
+                ← Edit details
+              </button>
+              <button
+                type="button"
+                onClick={handleResendOtp}
+                disabled={isLoading}
+                className="text-sm font-semibold text-blue-600 transition hover:text-blue-700 disabled:opacity-50"
+                style={font}
+              >
+                Resend code
+              </button>
+            </div>
+          </form>
+        </>
+      )}
+    </AuthLayout>
   );
 };
 
