@@ -1,74 +1,155 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import WavyUnderline from './WavyUnderline';
 
+const publicLogo = (filename) => `/${encodeURI(filename)}`;
+
+const businesses = [
+  {
+    name: 'Apex Properties',
+    logo: publicLogo('apex properties.jpeg'),
+    logoClassName: 'h-10 w-auto max-w-[88px]',
+  },
+  {
+    name: 'BrewCo Coffee',
+    logo: '/BrewCo.jpg',
+    logoClassName: 'h-10 w-auto max-w-[88px] rounded',
+  },
+  {
+    name: 'Urban Eats',
+    logo: '/urbanEats.svg',
+    logoClassName: 'h-9 w-auto max-w-[88px]',
+  },
+  {
+    name: 'Metro Retail',
+    logo: '/metro-logo.png',
+    logoClassName: 'h-10 w-auto max-w-[88px]',
+  },
+  {
+    name: 'Luxe Boutique',
+    logo: '/luxe.jpg',
+    logoClassName: 'h-10 w-auto max-w-[88px] rounded',
+  },
+  {
+    name: 'City Council',
+    logo: '/city_council.png',
+    logoClassName: 'h-10 w-auto max-w-[88px]',
+  },
+  {
+    name: 'Grand Hotel',
+    logo: '/grandhotel.png',
+    logoClassName: 'h-10 w-auto max-w-[88px]',
+  },
+  {
+    name: 'Creative Studio',
+    logo: '/creativelogo.png',
+    logoClassName: 'h-10 w-auto max-w-[88px]',
+  },
+  {
+    name: 'Hashtag Indian Restaurant',
+    logo: '/hashtag.png',
+    logoClassName: 'h-10 w-auto max-w-[88px]',
+  },
+  {
+    name: 'M&M Tyres',
+    logo: publicLogo('m&m tyre.png'),
+    logoClassName: 'h-10 w-auto max-w-[88px]',
+  },
+  {
+    name: 'Slice Burg',
+    logo: '/sliceburg.png',
+    logoClassName: 'h-10 w-auto max-w-[88px]',
+  },
+];
+
+const getItemsPerView = (width) => {
+  if (width >= 1024) return 6;
+  if (width >= 768) return 4;
+  if (width >= 640) return 3;
+  return 2;
+};
+
+const chunkBusinesses = (items, size) => {
+  const pages = [];
+  for (let i = 0; i < items.length; i += size) {
+    pages.push(items.slice(i, i + size));
+  }
+  return pages;
+};
+
+const BrandCard = ({ business }) => (
+  <div className="flex flex-col items-center justify-center gap-2 p-4 bg-gray-700 hover:bg-gray-600 rounded-lg transition-all duration-200 group min-h-[108px] h-full">
+    <div className="flex h-12 w-full items-center justify-center rounded-md bg-white/95 px-2 py-1.5 shadow-sm">
+      <img
+        src={business.logo}
+        alt={`${business.name} logo`}
+        className={`${business.logoClassName} object-contain`}
+        loading="lazy"
+        decoding="async"
+      />
+    </div>
+    <span
+      className="text-white text-xs text-center font-medium group-hover:text-blue-400 transition-colors leading-tight"
+      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+    >
+      {business.name}
+    </span>
+  </div>
+);
+
 const TrustedBy = () => {
-  const businesses = [
-    {
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-        </svg>
-      ),
-      name: 'BrewCo Coffee',
+  const [itemsPerView, setItemsPerView] = useState(() =>
+    typeof window !== 'undefined' ? getItemsPerView(window.innerWidth) : 6
+  );
+  const [slide, setSlide] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+
+  const pages = useMemo(
+    () => chunkBusinesses(businesses, itemsPerView),
+    [itemsPerView]
+  );
+
+  const totalSlides = pages.length;
+
+  useEffect(() => {
+    const onResize = () => {
+      setItemsPerView(getItemsPerView(window.innerWidth));
+    };
+
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    setSlide((current) => (totalSlides === 0 ? 0 : current % totalSlides));
+  }, [totalSlides]);
+
+  useEffect(() => {
+    if (isPaused || totalSlides <= 1) return undefined;
+
+    const timer = window.setInterval(() => {
+      setSlide((current) => (current + 1) % totalSlides);
+    }, 4500);
+
+    return () => window.clearInterval(timer);
+  }, [isPaused, totalSlides]);
+
+  const goToSlide = useCallback(
+    (index) => {
+      if (totalSlides === 0) return;
+      setSlide(((index % totalSlides) + totalSlides) % totalSlides);
     },
-    {
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-        </svg>
-      ),
-      name: 'Urban Eats',
-    },
-    {
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-        </svg>
-      ),
-      name: 'Metro Retail',
-    },
-    {
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-        </svg>
-      ),
-      name: 'Apex Properties',
-    },
-    {
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-        </svg>
-      ),
-      name: 'Luxe Boutique',
-    },
-    {
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-        </svg>
-      ),
-      name: 'City Council',
-    },
-    {
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-        </svg>
-      ),
-      name: 'Grand Hotel',
-    },
-    {
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      ),
-      name: 'Creative Studio',
-    },
-  ];
+    [totalSlides]
+  );
+
+  const gridColsClass =
+    itemsPerView === 6
+      ? 'grid-cols-6'
+      : itemsPerView === 4
+        ? 'grid-cols-4'
+        : itemsPerView === 3
+          ? 'grid-cols-3'
+          : 'grid-cols-2';
 
   return (
     <section className="py-16 bg-gray-800">
@@ -81,7 +162,7 @@ const TrustedBy = () => {
             </WavyUnderline>
             , Retailers & Creators
           </h2>
-          <p 
+          <p
             className="text-white text-base md:text-lg max-w-3xl mx-auto mt-6"
             style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >
@@ -89,29 +170,73 @@ const TrustedBy = () => {
           </p>
         </div>
 
-        {/* Business Type Buttons */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-10">
-          {businesses.map((business, index) => (
-            <button
-              key={index}
-              className="flex flex-col items-center justify-center p-4 bg-gray-700 hover:bg-gray-600 rounded-lg transition-all duration-200 group"
-            >
-              <div className="text-white mb-2 group-hover:text-blue-400 transition-colors">
-                {business.icon}
-              </div>
-              <span 
-                className="text-white text-xs text-center font-medium group-hover:text-blue-400 transition-colors"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+        <div
+          className="relative mb-10"
+          onMouseEnter={() => setIsPaused(true)}
+          onMouseLeave={() => setIsPaused(false)}
+          onFocus={() => setIsPaused(true)}
+          onBlur={() => setIsPaused(false)}
+        >
+          {totalSlides > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={() => goToSlide(slide - 1)}
+                className="absolute left-0 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 hidden md:flex h-10 w-10 items-center justify-center rounded-full bg-gray-700 text-white shadow-lg hover:bg-gray-600 transition-colors"
+                aria-label="Previous brands"
               >
-                {business.name}
-              </span>
-            </button>
-          ))}
+                <FiChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => goToSlide(slide + 1)}
+                className="absolute right-0 top-1/2 z-10 translate-x-1/2 -translate-y-1/2 hidden md:flex h-10 w-10 items-center justify-center rounded-full bg-gray-700 text-white shadow-lg hover:bg-gray-600 transition-colors"
+                aria-label="Next brands"
+              >
+                <FiChevronRight className="h-5 w-5" />
+              </button>
+            </>
+          )}
+
+          <div className="overflow-hidden">
+            <div
+              className="flex transition-transform duration-500 ease-in-out"
+              style={{ transform: `translateX(-${slide * 100}%)` }}
+            >
+              {pages.map((page, pageIndex) => (
+                <div
+                  key={`page-${pageIndex}`}
+                  className={`min-w-full grid ${gridColsClass} gap-4`}
+                >
+                  {page.map((business) => (
+                    <BrandCard key={business.name} business={business} />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {totalSlides > 1 && (
+            <div className="mt-6 flex items-center justify-center gap-2">
+              {pages.map((_, index) => (
+                <button
+                  key={`dot-${index}`}
+                  type="button"
+                  onClick={() => goToSlide(index)}
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    index === slide ? 'w-6 bg-yellow-400' : 'w-2 bg-gray-600 hover:bg-gray-500'
+                  }`}
+                  aria-label={`Go to brand slide ${index + 1}`}
+                  aria-current={index === slide ? 'true' : undefined}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* CTA Button */}
         <div className="text-center">
           <button
+            type="button"
             className="bg-yellow-400 hover:bg-yellow-500 text-gray-900 px-8 py-2.5 rounded-full font-bold text-sm md:text-base transition-all duration-300 shadow-lg hover:shadow-xl"
             style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >
