@@ -47,14 +47,29 @@ import {
   searchIconifyIcons,
 } from '../utils/designerIconify';
 
-const SIZE_PRESETS = [
-  { id: 'a4-portrait', label: 'A4 Portrait (794 x 1123)', width: 794, height: 1123 },
-  { id: 'a4-landscape', label: 'A4 Landscape (1123 x 794)', width: 1123, height: 794 },
-  { id: 'instagram-post', label: 'Instagram Post (1080 x 1080)', width: 1080, height: 1080 },
-  { id: 'story', label: 'Story (1080 x 1920)', width: 1080, height: 1920 },
-  { id: 'youtube-thumb', label: 'YouTube Thumbnail (1280 x 720)', width: 1280, height: 720 },
-  { id: 'presentation', label: 'Presentation (1920 x 1080)', width: 1920, height: 1080 }
-];
+const DESIGN_CANVAS_DPI = 96;
+const CANVAS_SIZE_UNITS = ['mm', 'cm', 'in'];
+
+const pixelsToCanvasUnit = (pixels, unit) => {
+  const inches = Number(pixels || 0) / DESIGN_CANVAS_DPI;
+  if (unit === 'in') return inches;
+  if (unit === 'cm') return inches * 2.54;
+  return inches * 25.4;
+};
+
+const canvasUnitToPixels = (value, unit) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return 0;
+  const inches = unit === 'in' ? numeric : unit === 'cm' ? numeric / 2.54 : numeric / 25.4;
+  return Math.max(1, Math.round(inches * DESIGN_CANVAS_DPI));
+};
+
+const formatCanvasUnitValue = (value, unit) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return '';
+  if (unit === 'in') return String(Math.round(numeric * 100) / 100);
+  return String(Math.round(numeric * 10) / 10);
+};
 
 const emptyPage = (index, size = { width: 800, height: 400 }) => ({
   id: Date.now() + index,
@@ -263,8 +278,6 @@ const GenericProductDesigner = () => {
   const [webAssets, setWebAssets] = useState([]);
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
-  const [customWidth, setCustomWidth] = useState(800);
-  const [customHeight, setCustomHeight] = useState(400);
   const [pages, setPages] = useState([emptyPage(0)]);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [showAllIcons, setShowAllIcons] = useState(false);
@@ -274,6 +287,13 @@ const GenericProductDesigner = () => {
   const [fontSearch, setFontSearch] = useState('');
   const [showFontPicker, setShowFontPicker] = useState(false);
   const [showAllByCategory, setShowAllByCategory] = useState({});
+  const [canvasSizeUnit, setCanvasSizeUnit] = useState('mm');
+  const [canvasWidthInput, setCanvasWidthInput] = useState(() =>
+    formatCanvasUnitValue(pixelsToCanvasUnit(800, 'mm'), 'mm'),
+  );
+  const [canvasHeightInput, setCanvasHeightInput] = useState(() =>
+    formatCanvasUnitValue(pixelsToCanvasUnit(400, 'mm'), 'mm'),
+  );
   const [iconResultsByCategory, setIconResultsByCategory] = useState({});
   const [iconLoadingByCategory, setIconLoadingByCategory] = useState({});
   const [iconErrorByCategory, setIconErrorByCategory] = useState({});
@@ -413,6 +433,38 @@ const GenericProductDesigner = () => {
     }
   };
 
+  const syncCanvasSizeInputs = (widthPx, heightPx, unit = canvasSizeUnit) => {
+    setCanvasWidthInput(formatCanvasUnitValue(pixelsToCanvasUnit(widthPx, unit), unit));
+    setCanvasHeightInput(formatCanvasUnitValue(pixelsToCanvasUnit(heightPx, unit), unit));
+  };
+
+  const applyCanvasSize = () => {
+    if (!canvas) return;
+    const width = canvasUnitToPixels(canvasWidthInput, canvasSizeUnit);
+    const height = canvasUnitToPixels(canvasHeightInput, canvasSizeUnit);
+    if (!width || !height) {
+      toast.error('Enter valid width and height.');
+      return;
+    }
+
+    canvas.setDimensions({ width, height });
+    canvas.calcOffset();
+    canvas.renderAll();
+    setPages((prev) =>
+      prev.map((page, idx) =>
+        idx === currentPageIndex ? { ...page, width, height } : page,
+      ),
+    );
+    syncCanvasSizeInputs(width, height);
+    scheduleCanvasOffsetSync(canvas);
+    refreshCanvas();
+  };
+
+  const handleCanvasSizeUnitChange = (nextUnit) => {
+    if (!CANVAS_SIZE_UNITS.includes(nextUnit)) return;
+    setCanvasSizeUnit(nextUnit);
+  };
+
   const finalizeNewObject = (obj) => {
     if (!canvas || !obj) return;
     obj.set({ objectCaching: false });
@@ -475,18 +527,6 @@ const GenericProductDesigner = () => {
       historyIndexRef.current = next;
       return next;
     });
-  };
-
-  const applyCanvasSize = (width, height) => {
-    if (!canvas) return;
-    canvas.setDimensions({ width, height });
-    canvas.calcOffset();
-    canvas.renderAll();
-    setPages((prev) =>
-      prev.map((page, idx) =>
-        idx === currentPageIndex ? { ...page, width, height } : page
-      )
-    );
   };
 
   const saveCurrentPageSnapshot = () => {
@@ -913,6 +953,20 @@ const GenericProductDesigner = () => {
       cancelled = true;
     };
   }, [canvas, currentPageIndex]);
+
+  useEffect(() => {
+    if (!canvas) return;
+    const page = pages[currentPageIndex];
+    const widthPx = canvas.getWidth() || page?.width || 800;
+    const heightPx = canvas.getHeight() || page?.height || 400;
+    syncCanvasSizeInputs(widthPx, heightPx, canvasSizeUnit);
+  }, [
+    canvas,
+    currentPageIndex,
+    canvasSizeUnit,
+    pages[currentPageIndex]?.width,
+    pages[currentPageIndex]?.height,
+  ]);
 
   const switchToPage = (index) => {
     if (index === currentPageIndex) return;
@@ -1763,8 +1817,6 @@ const GenericProductDesigner = () => {
 
       setPages(newPages);
       setCurrentPageIndex(0);
-      setCustomWidth(first.width);
-      setCustomHeight(first.height);
       setBackgroundStyle(pageBackgroundStyle);
       setBackgroundColor(pageBackgroundStyle.color || '#ffffff');
 
@@ -2148,14 +2200,6 @@ const GenericProductDesigner = () => {
       }
     };
     reader.readAsText(file);
-  };
-
-  const onPresetSizeChange = (presetId) => {
-    const preset = SIZE_PRESETS.find((item) => item.id === presetId);
-    if (!preset) return;
-    setCustomWidth(preset.width);
-    setCustomHeight(preset.height);
-    applyCanvasSize(preset.width, preset.height);
   };
 
   const updateSelectedObject = (property, value) => {
@@ -3615,31 +3659,44 @@ const GenericProductDesigner = () => {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap justify-end">
-            <select onChange={(e) => onPresetSizeChange(e.target.value)} className="p-2 border border-gray-300 rounded-lg text-sm">
-              <option value="">Canvas Size Presets</option>
-              {SIZE_PRESETS.map((preset) => (
-                <option key={preset.id} value={preset.id}>{preset.label}</option>
-              ))}
+            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Size</span>
+            <select
+              value={canvasSizeUnit}
+              onChange={(e) => handleCanvasSizeUnitChange(e.target.value)}
+              className="rounded-lg border border-gray-300 p-2 text-sm"
+              title="Measurement unit"
+            >
+              <option value="mm">mm</option>
+              <option value="cm">cm</option>
+              <option value="in">in</option>
             </select>
             <input
               type="number"
-              value={customWidth}
-              onChange={(e) => setCustomWidth(Number(e.target.value))}
-              className="w-24 p-2 border border-gray-300 rounded-lg text-sm"
+              min={canvasSizeUnit === 'in' ? '0.1' : '1'}
+              step={canvasSizeUnit === 'in' ? '0.01' : '0.1'}
+              value={canvasWidthInput}
+              onChange={(e) => setCanvasWidthInput(e.target.value)}
+              className="w-20 rounded-lg border border-gray-300 p-2 text-sm"
               title="Width"
+              aria-label="Canvas width"
             />
+            <span className="text-sm text-gray-400">×</span>
             <input
               type="number"
-              value={customHeight}
-              onChange={(e) => setCustomHeight(Number(e.target.value))}
-              className="w-24 p-2 border border-gray-300 rounded-lg text-sm"
+              min={canvasSizeUnit === 'in' ? '0.1' : '1'}
+              step={canvasSizeUnit === 'in' ? '0.01' : '0.1'}
+              value={canvasHeightInput}
+              onChange={(e) => setCanvasHeightInput(e.target.value)}
+              className="w-20 rounded-lg border border-gray-300 p-2 text-sm"
               title="Height"
+              aria-label="Canvas height"
             />
             <button
-              onClick={() => applyCanvasSize(customWidth, customHeight)}
-              className="px-3 py-2 text-sm rounded-lg bg-blue-600 text-white"
+              type="button"
+              onClick={applyCanvasSize}
+              className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
             >
-              Apply Size
+              Apply
             </button>
           </div>
         </div>

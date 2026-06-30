@@ -47,6 +47,14 @@ const trackByTrackingNumber = (trackingNumber) => {
   );
 };
 
+const cancelOrderItem = (trackingNumber, itemReference) => {
+  return httpClient.post(
+    `${apiRoutes.orders.cancelItem}`,
+    { trackingNumber, itemReference },
+    { skipAuth: true },
+  );
+};
+
 export const orderService = {
   create,
   getUserOrders,
@@ -54,6 +62,7 @@ export const orderService = {
   list,
   updateStatus,
   trackByTrackingNumber,
+  cancelOrderItem,
 };
 
 export default orderService;

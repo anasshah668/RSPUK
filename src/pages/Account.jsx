@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { key: 'quotes', label: 'Quotes', description: 'Requests & conversations' },
   { key: 'design-orders', label: 'Design Orders', description: 'Paid design projects' },
   { key: 'track-order', label: 'Track Order', description: 'Order status lookup' },
+  { key: 'cancel-order', label: 'Cancel Order', description: 'Cancel items before production' },
   { key: 'change-password', label: 'Security', description: 'Update your password' },
 ];
 
@@ -46,11 +47,18 @@ const IconLock = ({ className = 'w-5 h-5' }) => (
   </svg>
 );
 
+const IconXCircle = ({ className = 'w-5 h-5' }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+
 const NAV_ICONS = {
   profile: IconUser,
   quotes: IconDocument,
   'design-orders': IconPalette,
   'track-order': IconPackage,
+  'cancel-order': IconXCircle,
   'change-password': IconLock,
 };
 
@@ -105,6 +113,9 @@ const StatusBadge = ({ status, className = '' }) => {
     shipped: 'bg-sky-50 text-sky-700 ring-sky-600/20',
     waiting: 'bg-amber-50 text-amber-700 ring-amber-600/20',
     pending: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+    placed: 'bg-blue-50 text-blue-700 ring-blue-600/20',
+    waitingfordocreview: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+    printinginprogress: 'bg-violet-50 text-violet-700 ring-violet-600/20',
     cancelled: 'bg-red-50 text-red-700 ring-red-600/20',
   };
   const tone = map[value] || 'bg-violet-50 text-violet-700 ring-violet-600/20';
@@ -739,6 +750,12 @@ const ChangePassword = () => {
   );
 };
 
+const formatTrackItemNote = (note) => {
+  const text = String(note || '').trim();
+  if (!text || /tradeprint/i.test(text)) return null;
+  return text;
+};
+
 const TrackOrder = () => {
   const [trackingNumber, setTrackingNumber] = React.useState('');
   const [result, setResult] = React.useState(null);
@@ -819,6 +836,76 @@ const TrackOrder = () => {
             </div>
           </div>
 
+          {result.isTradeprintOrder ? (
+            <div className="border-t border-gray-100 px-6 py-5">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className={labelClass} style={font}>Print fulfilment</p>
+                  <p className="text-sm text-gray-500" style={font}>
+                    Live production status from our print partner.
+                  </p>
+                </div>
+                {result.tradeprint?.status ? (
+                  <StatusBadge status={result.tradeprint.status} />
+                ) : null}
+              </div>
+
+              {result.tradeprintError ? (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800" style={font}>
+                  {String(result.tradeprintError).replace(/tradeprint/gi, 'print partner')}
+                </p>
+              ) : result.tradeprint ? (
+                <div className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {result.tradeprint.orderNumber ? (
+                      <div className="rounded-xl border border-gray-100 bg-gray-50/80 p-4">
+                        <p className="text-xs text-gray-500" style={font}>Print order</p>
+                        <p className="mt-1 font-mono text-sm font-semibold text-gray-900">{result.tradeprint.orderNumber}</p>
+                      </div>
+                    ) : null}
+                    {result.tradeprint.orderReference ? (
+                      <div className="rounded-xl border border-gray-100 bg-gray-50/80 p-4">
+                        <p className="text-xs text-gray-500" style={font}>Partner reference</p>
+                        <p className="mt-1 font-mono text-sm font-semibold text-gray-900 break-all">{result.tradeprint.orderReference}</p>
+                      </div>
+                    ) : null}
+                    {result.tradeprint.dateCreated ? (
+                      <div className="rounded-xl border border-gray-100 bg-gray-50/80 p-4">
+                        <p className="text-xs text-gray-500" style={font}>Submitted</p>
+                        <p className="mt-1 text-sm font-semibold text-gray-900">{result.tradeprint.dateCreated}</p>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {(result.tradeprint.items || []).length > 0 ? (
+                    <div className="grid gap-3">
+                      {(result.tradeprint.items || []).map((item, idx) => (
+                        <div key={idx} className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="font-semibold text-gray-900" style={font}>{item.description}</p>
+                              <p className="mt-1 text-sm text-gray-500" style={font}>
+                                {item.quantity != null ? `Qty ${item.quantity}` : null}
+                                {item.serviceLevel ? `${item.quantity != null ? ' · ' : ''}${item.serviceLevel}` : null}
+                              </p>
+                              {item.trackingNumber ? (
+                                <p className="mt-2 text-sm text-gray-700" style={font}>
+                                  Tracking: <span className="font-mono font-semibold">{item.trackingNumber}</span>
+                                  {item.carrier ? ` (${item.carrier})` : ''}
+                                </p>
+                              ) : null}
+                            </div>
+                            {item.status ? <StatusBadge status={item.status} /> : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="border-t border-gray-100 px-6 py-5">
             <p className={labelClass} style={font}>Items</p>
             {(result.items || []).length === 0 ? (
@@ -827,7 +914,9 @@ const TrackOrder = () => {
               </p>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2">
-                {(result.items || []).map((it, idx) => (
+                {(result.items || []).map((it, idx) => {
+                  const itemNote = formatTrackItemNote(it.note);
+                  return (
                   <div key={idx} className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
                     {it.imageUrl ? (
                       <img src={it.imageUrl} alt="" className="h-14 w-14 shrink-0 rounded-lg object-cover" />
@@ -839,8 +928,8 @@ const TrackOrder = () => {
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-gray-900" style={font}>{it.productName}</p>
                       <p className="text-sm text-gray-500" style={font}>Qty {it.quantity || 1}</p>
-                      {it.note ? (
-                        <p className="truncate text-xs text-gray-400" title={it.note}>{it.note}</p>
+                      {itemNote ? (
+                        <p className="truncate text-xs text-gray-400" title={itemNote}>{itemNote}</p>
                       ) : null}
                       {it.price != null ? (
                         <p className="mt-0.5 text-sm font-bold text-blue-700" style={font}>
@@ -850,12 +939,288 @@ const TrackOrder = () => {
                       ) : null}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+const CancelItemConfirmModal = ({ open, item, trackingNumber, loading, onClose, onConfirm }) => {
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape' && !loading) onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open, loading, onClose]);
+
+  if (!open || !item) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm sm:p-6"
+      onClick={() => {
+        if (!loading) onClose();
+      }}
+    >
+      <div
+        className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl shadow-gray-900/10"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cancel-item-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="border-b border-red-100 bg-gradient-to-r from-red-50 via-white to-amber-50/40 px-6 py-5">
+          <div className="flex items-start gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-600">
+              <IconXCircle className="h-6 w-6" />
+            </div>
+            <div className="min-w-0">
+              <h3 id="cancel-item-title" className="text-lg font-bold text-gray-900" style={font}>
+                Cancel this item?
+              </h3>
+              <p className="mt-1 text-sm text-gray-600" style={font}>
+                This action cannot be undone. The item will be removed from production.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4 px-6 py-5">
+          <div className="rounded-xl border border-gray-100 bg-gray-50/80 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500" style={font}>Item</p>
+            <p className="mt-1 font-semibold text-gray-900" style={font}>{item.description || 'Print item'}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-500" style={font}>
+              {item.quantity != null ? <span>Qty {item.quantity}</span> : null}
+              {item.serviceLevel ? <span>{item.quantity != null ? '·' : ''} {item.serviceLevel}</span> : null}
+              {item.status ? <StatusBadge status={item.status} /> : null}
+            </div>
+          </div>
+
+          {trackingNumber ? (
+            <div className="rounded-xl border border-gray-100 bg-white px-4 py-3">
+              <p className="text-xs text-gray-500" style={font}>Tracking ID</p>
+              <p className="mt-0.5 font-mono text-sm font-semibold text-gray-900">{trackingNumber}</p>
+            </div>
+          ) : null}
+
+          <p className="text-sm leading-relaxed text-gray-600" style={font}>
+            Only continue if you are sure you want to cancel this item before manufacturing begins.
+          </p>
+        </div>
+
+        <div className="flex flex-col-reverse gap-3 border-t border-gray-100 bg-gray-50/80 px-6 py-4 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            style={font}
+          >
+            Keep item
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+            style={font}
+          >
+            {loading ? 'Cancelling…' : 'Yes, cancel item'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const CancelOrder = () => {
+  const [trackingNumber, setTrackingNumber] = React.useState('');
+  const [result, setResult] = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
+  const [cancelingId, setCancelingId] = React.useState(null);
+  const [pendingCancelItem, setPendingCancelItem] = React.useState(null);
+  const [error, setError] = React.useState('');
+  const [successMessage, setSuccessMessage] = React.useState('');
+
+  const handleLookup = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccessMessage('');
+    setResult(null);
+    try {
+      const data = await orderService.trackByTrackingNumber(trackingNumber);
+      setResult(data);
+    } catch (err) {
+      setError(err.message || 'Order not found. Check your tracking ID and try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshOrder = async () => {
+    const data = await orderService.trackByTrackingNumber(trackingNumber);
+    setResult(data);
+    return data;
+  };
+
+  const handleCancelItem = async (item) => {
+    if (!item?.itemReference) return;
+
+    setCancelingId(item.itemReference);
+    setError('');
+    setSuccessMessage('');
+    try {
+      const data = await orderService.cancelOrderItem(trackingNumber, item.itemReference);
+      if (data?.success) {
+        setSuccessMessage('Order item cancelled successfully.');
+        setPendingCancelItem(null);
+        await refreshOrder();
+      } else {
+        setError(data?.errorMessage || 'Cancellation failed.');
+      }
+    } catch (err) {
+      setError(err.data?.errorMessage || err.message || 'Cancellation failed.');
+    } finally {
+      setCancelingId(null);
+    }
+  };
+
+  const printItems = result?.tradeprint?.items || [];
+
+  return (
+    <div className="space-y-6">
+      <CancelItemConfirmModal
+        open={Boolean(pendingCancelItem)}
+        item={pendingCancelItem}
+        trackingNumber={result?.trackingNumber || trackingNumber}
+        loading={Boolean(cancelingId)}
+        onClose={() => {
+          if (!cancelingId) setPendingCancelItem(null);
+        }}
+        onConfirm={() => {
+          if (pendingCancelItem) handleCancelItem(pendingCancelItem);
+        }}
+      />
+      <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-orange-50/50 p-6 sm:p-8">
+        <div className="mx-auto max-w-2xl">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-600 text-white shadow-lg shadow-amber-600/30">
+            <IconXCircle className="h-6 w-6" />
+          </div>
+          <h3 className="text-lg font-bold text-gray-900" style={font}>Cancel order item</h3>
+          <p className="mt-2 text-sm leading-relaxed text-gray-600" style={font}>
+            Cancel a specific order item before it is being manufactured.
+          </p>
+          <p className="mt-3 text-sm leading-relaxed text-gray-600" style={font}>
+            Please note that you cannot cancel it when it is in any of the following states:
+            {' '}
+            <span className="font-semibold text-gray-800">PrintingInProgress</span>,
+            {' '}
+            <span className="font-semibold text-gray-800">Shipped</span>,
+            {' '}
+            or
+            {' '}
+            <span className="font-semibold text-gray-800">Cancelled</span>.
+          </p>
+
+          <form onSubmit={handleLookup} className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <input
+              value={trackingNumber}
+              onChange={(e) => setTrackingNumber(e.target.value)}
+              placeholder="Tracking ID"
+              className={`${inputClass} sm:flex-1`}
+              style={font}
+            />
+            <button
+              type="submit"
+              disabled={loading || !trackingNumber.trim()}
+              className="rounded-xl bg-amber-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+              style={font}
+            >
+              {loading ? 'Loading…' : 'Find order'}
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {error ? <Alert type="error">{error}</Alert> : null}
+      {successMessage ? <Alert type="success">{successMessage}</Alert> : null}
+
+      {result && !result.isTradeprintOrder ? (
+        <Alert type="info">
+          Cancellation is only available for print partner orders. This tracking ID does not include cancellable print items.
+        </Alert>
+      ) : null}
+
+      {result?.tradeprintError ? (
+        <Alert type="error">{String(result.tradeprintError).replace(/tradeprint/gi, 'print partner')}</Alert>
+      ) : null}
+
+      {result?.isTradeprintOrder && !result.tradeprintError ? (
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <div className="border-b border-gray-100 bg-gray-50/80 px-6 py-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500" style={font}>Tracking ID</p>
+            <p className="font-mono text-lg font-bold text-gray-900">{result.trackingNumber}</p>
+            {result.orderTitle ? (
+              <p className="mt-1 text-sm text-gray-600" style={font}>{result.orderTitle}</p>
+            ) : null}
+          </div>
+
+          <div className="space-y-3 p-6">
+            {printItems.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500" style={font}>
+                No print items are available for this order yet.
+              </p>
+            ) : (
+              printItems.map((item) => {
+                const isCancelled = String(item.status || '').toLowerCase() === 'cancelled';
+                const canCancel = item.cancellable && item.itemReference && !isCancelled;
+                return (
+                  <div key={item.itemReference || item.description} className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900" style={font}>{item.description}</p>
+                        <p className="mt-1 text-sm text-gray-500" style={font}>
+                          {item.quantity != null ? `Qty ${item.quantity}` : null}
+                          {item.serviceLevel ? `${item.quantity != null ? ' · ' : ''}${item.serviceLevel}` : null}
+                        </p>
+                        {!canCancel && item.status ? (
+                          <p className="mt-2 text-xs text-gray-500" style={font}>
+                            {isCancelled
+                              ? 'This item has already been cancelled.'
+                              : 'This item can no longer be cancelled because production or dispatch has started.'}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        {item.status ? <StatusBadge status={item.status} /> : null}
+                        {canCancel ? (
+                          <button
+                            type="button"
+                            onClick={() => setPendingCancelItem(item)}
+                            disabled={Boolean(cancelingId)}
+                            className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            style={font}
+                          >
+                            Cancel item
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };
@@ -866,6 +1231,7 @@ const TAB_META = {
   'design-orders': { title: 'Design orders', subtitle: 'Track paid design projects and download deliverables' },
   'change-password': { title: 'Security', subtitle: 'Keep your account safe with a strong password' },
   'track-order': { title: 'Track order', subtitle: 'Look up production and delivery status' },
+  'cancel-order': { title: 'Cancel order', subtitle: 'Cancel print items before manufacturing starts' },
 };
 
 const Account = () => {
@@ -1015,6 +1381,7 @@ const Account = () => {
               {tab === 'design-orders' && <ViewDesignOrders />}
               {tab === 'change-password' && <ChangePassword />}
               {tab === 'track-order' && <TrackOrder />}
+              {tab === 'cancel-order' && <CancelOrder />}
             </ContentPanel>
           </main>
         </div>

@@ -30,6 +30,7 @@
     "getUserOrders": "orders",
     "getById": "orders",
     "track": "orders/track",
+    "cancelItem": "orders/cancel-item",
     "list": "admin/orders",
     "updateStatus": "admin/orders"
   },
