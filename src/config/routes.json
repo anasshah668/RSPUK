@@ -1,11 +1,13 @@
 {
   "authentication": {
     "login": "auth/login",
+    "adminLogin": "auth/admin/login",
     "register": "auth/register",
     "registerSendOtp": "auth/register/send-otp",
     "registerVerifyOtp": "auth/register/verify-otp",
     "me": "auth/me",
     "forgotPassword": "auth/forgot-password",
+    "resetPassword": "auth/reset-password",
     "changePassword": "auth/change-password"
   },
   "products": {

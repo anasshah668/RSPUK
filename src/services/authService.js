@@ -19,7 +19,16 @@ const getGoogleAuthUrl = async () => {
 const login = (payload) => {
   return httpClient.post(
     `${apiRoutes.authentication.login}`,
-    payload
+    payload,
+    { skipAuth: true },
+  );
+};
+
+const adminLogin = (payload) => {
+  return httpClient.post(
+    `${apiRoutes.authentication.adminLogin}`,
+    payload,
+    { skipAuth: true },
   );
 };
 
@@ -57,10 +66,19 @@ const updateProfile = (payload) => {
   );
 };
 
-const forgotPassword = (email) => {
+const forgotPassword = (email, options = {}) => {
   return httpClient.post(
     `${apiRoutes.authentication.forgotPassword}`,
-    { email }
+    { email, ...options },
+    { skipAuth: true },
+  );
+};
+
+const resetPassword = (payload) => {
+  return httpClient.post(
+    `${apiRoutes.authentication.resetPassword}`,
+    payload,
+    { skipAuth: true },
   );
 };
 
@@ -73,12 +91,14 @@ const changePassword = (payload) => {
 
 export const authService = {
   login,
+  adminLogin,
   register,
   registerSendOtp,
   registerVerifyOtp,
   getProfile,
   updateProfile,
   forgotPassword,
+  resetPassword,
   getGoogleAuthUrl,
   changePassword,
 };

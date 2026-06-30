@@ -20,6 +20,7 @@ const CheckoutPage = lazy(() => import("../pages/CheckoutPage"));
 const PaymentSuccessPage = lazy(() => import("../pages/PaymentSuccessPage"));
 const FileViewerPage = lazy(() => import("../pages/FileViewerPage"));
 const AdminLogin = lazy(() => import("../pages/AdminLogin"));
+const ResetPassword = lazy(() => import("../pages/ResetPassword"));
 const AdminDashboard = lazy(() => import("../pages/AdminDashboard"));
 const CategoryProducts = lazy(() => import("../pages/CategoryProducts"));
 const Account = lazy(() => import("../pages/Account"));
@@ -117,6 +118,11 @@ export const routes = [
     path: "/register",
     component: Register,
     layout: "default",
+  },
+  {
+    path: "/reset-password",
+    component: ResetPassword,
+    layout: "minimal",
   },
   {
     path: "/oauth-callback",
@@ -284,6 +290,11 @@ export const routes = [
     layout: "minimal", // No header/footer
   },
   {
+    path: "/admin/reset-password",
+    component: ResetPassword,
+    layout: "minimal",
+  },
+  {
     path: "/admin",
     component: AdminDashboard,
     layout: "minimal",
@@ -312,6 +323,8 @@ export const getRoutePath = (routeName, params = {}) => {
     productDetail: (category, productName, encryptedId) =>
       `/${category}/${productName}/${encryptedId}`,
     adminLogin: "/admin/login",
+    adminResetPassword: "/admin/reset-password",
+    resetPassword: "/reset-password",
     admin: "/admin",
   };
 

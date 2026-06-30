@@ -12,8 +12,20 @@ import { neonPricingService } from '../services/neonPricingService';
 import AdminNeonPricingTab from '../components/AdminNeonPricingTab';
 import AdminFeaturedSignagePricingTab from '../components/AdminFeaturedSignagePricingTab';
 import AdminDesignServiceTab from '../components/AdminDesignServiceTab';
+import AdminActivityFeed from '../components/AdminActivityFeed';
 import { FileViewerLink, isHttpUrl, linkLabelForUrl, openFileViewer } from '../components/FileDocViewer';
 import { RevenueColumnChart, NewUsersChart } from '../components/AdminOverviewCharts';
+import { isThirdPartyOrder, thirdPartyOrderStatusLabel } from '../utils/orderThirdParty';
+import { designService } from '../services/designService';
+import {
+  ensureAdminSeenInitialized,
+  markAdminTabSeen,
+  buildAdminTabBadges,
+  buildAdminActivityLog,
+  getAdminTabBadgeCount,
+  markActivityItemSeen,
+  markAllActivitySeen,
+} from '../utils/adminTabNotifications';
 
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -29,6 +41,35 @@ const AdminDashboard = () => {
   const [categories, setCategories] = useState([]);
   const [neonPricingSettings, setNeonPricingSettings] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [tabBadges, setTabBadges] = useState({ orders: 0, quotes: 0, designService: 0 });
+  const [activityLog, setActivityLog] = useState([]);
+  const [notificationSnapshot, setNotificationSnapshot] = useState({
+    orders: [],
+    quotes: [],
+    designRequests: [],
+  });
+  const [dashboardRefreshing, setDashboardRefreshing] = useState(false);
+
+  const refreshTabBadges = async () => {
+    if (user?.role !== 'admin' || !user?._id) return;
+    try {
+      const [ordersData, quotesData, designData] = await Promise.all([
+        orderService.list({ limit: 100 }),
+        quoteService.list({ limit: 100 }),
+        designService.adminList(),
+      ]);
+      const snapshot = {
+        orders: ordersData?.orders || [],
+        quotes: quotesData?.quotes || [],
+        designRequests: designData?.requests || [],
+      };
+      setNotificationSnapshot(snapshot);
+      setTabBadges(buildAdminTabBadges(snapshot, user._id));
+      setActivityLog(buildAdminActivityLog(snapshot, user._id));
+    } catch (error) {
+      console.warn('Could not refresh admin tab badges', error);
+    }
+  };
 
   useEffect(() => {
     if (!authReady) return;
@@ -36,15 +77,20 @@ const AdminDashboard = () => {
       navigate('/admin/login');
       return;
     }
+    ensureAdminSeenInitialized(user._id);
+    refreshTabBadges();
     fetchData();
   }, [activeTab, user, authReady]);
 
   useEffect(() => {
-    if (activeTab !== 'quotes' || user?.role !== 'admin') return undefined;
+    if (user?.role !== 'admin') return undefined;
 
     const intervalId = setInterval(() => {
-      fetchData();
-    }, 20000);
+      refreshTabBadges();
+      if (activeTab === 'quotes') {
+        fetchData();
+      }
+    }, 30000);
 
     return () => clearInterval(intervalId);
   }, [activeTab, user]);
@@ -78,11 +124,66 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleDashboardRefresh = async () => {
+    if (dashboardRefreshing || user?.role !== 'admin') return;
+    setDashboardRefreshing(true);
+    try {
+      const [analyticsData] = await Promise.all([
+        adminService.analytics(),
+        refreshTabBadges(),
+      ]);
+      setAnalytics(analyticsData);
+    } catch (error) {
+      console.error('Error refreshing dashboard:', error);
+      toast.error(error.message || 'Failed to refresh dashboard');
+    } finally {
+      setDashboardRefreshing(false);
+    }
+  };
+
+  const handleTabSelect = (tab) => {
+    if (user?._id && (tab === 'orders' || tab === 'quotes' || tab === 'design-service')) {
+      const tabItems =
+        tab === 'orders'
+          ? notificationSnapshot.orders
+          : tab === 'quotes'
+            ? notificationSnapshot.quotes
+            : notificationSnapshot.designRequests;
+      markAdminTabSeen(user._id, tab, tabItems);
+      setTabBadges(buildAdminTabBadges(notificationSnapshot, user._id));
+      setActivityLog(buildAdminActivityLog(notificationSnapshot, user._id));
+    }
+    setActiveTab(tab);
+  };
+
+  const handleActivityOpen = (entry) => {
+    if (!user?._id || !entry) return;
+    markActivityItemSeen(user._id, entry.storageType, entry.itemId);
+    setActivityLog(buildAdminActivityLog(notificationSnapshot, user._id));
+    setTabBadges(buildAdminTabBadges(notificationSnapshot, user._id));
+    setActiveTab(entry.tab);
+  };
+
+  const handleActivityDismiss = (entry) => {
+    if (!user?._id || !entry) return;
+    markActivityItemSeen(user._id, entry.storageType, entry.itemId);
+    setActivityLog(buildAdminActivityLog(notificationSnapshot, user._id));
+    setTabBadges(buildAdminTabBadges(notificationSnapshot, user._id));
+  };
+
+  const handleActivityDismissAll = () => {
+    if (!user?._id) return;
+    markAllActivitySeen(user._id, activityLog);
+    setActivityLog([]);
+    setTabBadges(buildAdminTabBadges(notificationSnapshot, user._id));
+  };
+
   const handleOrderStatusUpdate = async (orderId, newStatus) => {
     try {
       await orderService.updateStatus(String(orderId), newStatus);
       toast.success('Order status updated');
       fetchData();
+      refreshTabBadges();
     } catch (error) {
       console.error('Error updating order:', error);
       toast.error(error.message || 'Failed to update order');
@@ -94,6 +195,7 @@ const AdminDashboard = () => {
       await quoteService.update(quoteId, response);
       toast.success('Quote updated');
       fetchData();
+      refreshTabBadges();
     } catch (error) {
       console.error('Error responding to quote:', error);
       toast.error(error.message || 'Failed to update quote');
@@ -167,26 +269,42 @@ const AdminDashboard = () => {
       <div className="bg-white border-b">
         <div className="container mx-auto px-4">
           <div className="flex gap-1">
-            {['overview', 'products', 'categories', 'orders', 'quotes', 'design-service', 'neon-pricing', 'featured-pricing', 'settings'].map((tab) => (
+            {['overview', 'products', 'categories', 'orders', 'quotes', 'design-service', 'neon-pricing', 'featured-pricing', 'settings'].map((tab) => {
+              const badgeCount = getAdminTabBadgeCount(tab, tabBadges);
+              const tabLabel =
+                tab === 'neon-pricing'
+                  ? 'Neon pricing'
+                  : tab === 'featured-pricing'
+                    ? 'Featured pricing'
+                    : tab === 'design-service'
+                      ? 'Design service'
+                      : tab;
+
+              return (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-6 py-4 font-semibold text-sm transition-colors capitalize ${
+                onClick={() => handleTabSelect(tab)}
+                className={`relative px-6 py-4 font-semibold text-sm transition-colors capitalize ${
                   activeTab === tab
                     ? 'text-blue-600 border-b-2 border-blue-600'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
-                {tab === 'neon-pricing'
-                  ? 'Neon pricing'
-                  : tab === 'featured-pricing'
-                    ? 'Featured pricing'
-                    : tab === 'design-service'
-                      ? 'Design service'
-                      : tab}
+                <span className="inline-flex items-center gap-2">
+                  {tabLabel}
+                  {badgeCount > 0 ? (
+                    <span
+                      className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-[10px] font-bold leading-none rounded-full bg-red-500 text-white animate-pulse"
+                      title={`${badgeCount} new`}
+                    >
+                      {badgeCount > 99 ? '99+' : badgeCount}
+                    </span>
+                  ) : null}
+                </span>
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -199,7 +317,17 @@ const AdminDashboard = () => {
           </div>
         ) : (
           <>
-            {activeTab === 'overview' && <OverviewTab analytics={analytics} />}
+            {activeTab === 'overview' && (
+              <OverviewTab
+                analytics={analytics}
+                activities={activityLog}
+                onActivityOpen={handleActivityOpen}
+                onActivityDismiss={handleActivityDismiss}
+                onActivityDismissAll={handleActivityDismissAll}
+                onRefresh={handleDashboardRefresh}
+                refreshing={dashboardRefreshing}
+              />
+            )}
             {activeTab === 'products' && <ProductsTab products={products} onRefresh={fetchData} />}
             {activeTab === 'categories' && (
               <CategoriesTab categories={categories} onRefresh={fetchData} />
@@ -233,7 +361,15 @@ const AdminDashboard = () => {
 };
 
 // Overview Tab Component
-const OverviewTab = ({ analytics }) => {
+const OverviewTab = ({
+  analytics,
+  activities,
+  onActivityOpen,
+  onActivityDismiss,
+  onActivityDismissAll,
+  onRefresh,
+  refreshing = false,
+}) => {
   if (!analytics) return null;
 
   const stats = [
@@ -246,20 +382,41 @@ const OverviewTab = ({ analytics }) => {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">
-        Dashboard Overview
-      </h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-2xl font-bold text-gray-900">
+          Dashboard Overview
+        </h2>
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={refreshing}
+          className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          title="Refresh dashboard"
+          aria-label="Refresh dashboard"
+        >
+          <svg
+            className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+        </button>
+      </div>
 
-      {Number(analytics?.overview?.pendingQuotes || 0) > 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-          <p className="text-sm font-semibold text-amber-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-            Pending Quotes Alert
-          </p>
-          <p className="text-sm text-amber-800 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-            You have {Number(analytics?.overview?.pendingQuotes || 0)} pending quote(s) to review.
-          </p>
-        </div>
-      )}
+      <AdminActivityFeed
+        activities={activities}
+        onOpen={onActivityOpen}
+        onDismiss={onActivityDismiss}
+        onDismissAll={onActivityDismissAll}
+      />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -1518,6 +1675,7 @@ const OrdersTab = ({ orders, onStatusUpdate }) => {
       </h2>
       <p className="text-sm text-gray-600 max-w-3xl">
         Includes shop orders and successful Worldpay checkouts. Open <strong>View</strong> for full customer, payment reference, and line details.
+        Third-party print orders show partner status as read-only (not editable here).
       </p>
 
       <div className="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
@@ -1597,20 +1755,29 @@ const OrdersTab = ({ orders, onStatusUpdate }) => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <select
-                        value={order.status || 'waiting'}
-                        onChange={(e) => onStatusUpdate(order._id, e.target.value)}
-                        className={`px-3 py-1 text-xs rounded-full border-0 ${statusColors[order.status] || statusColors.waiting}`}
-                      >
-                        <option value="waiting">Waiting</option>
-                        <option value="inprocess">In Process</option>
-                        <option value="completed">Completed</option>
-                        <option value="pending">Pending</option>
-                        <option value="processing">Processing</option>
-                        <option value="shipped">Shipped</option>
-                        <option value="delivered">Delivered</option>
-                        <option value="cancelled">Cancelled</option>
-                      </select>
+                      {isThirdPartyOrder(order) ? (
+                        <span
+                          className={`inline-flex items-center px-3 py-1 text-xs rounded-full font-medium capitalize ${statusColors[order.status] || 'bg-sky-100 text-sky-800'}`}
+                          title="Status is synced from the print partner API"
+                        >
+                          {thirdPartyOrderStatusLabel(order)}
+                        </span>
+                      ) : (
+                        <select
+                          value={order.status || 'waiting'}
+                          onChange={(e) => onStatusUpdate(order._id, e.target.value)}
+                          className={`px-3 py-1 text-xs rounded-full border-0 ${statusColors[order.status] || statusColors.waiting}`}
+                        >
+                          <option value="waiting">Waiting</option>
+                          <option value="inprocess">In Process</option>
+                          <option value="completed">Completed</option>
+                          <option value="pending">Pending</option>
+                          <option value="processing">Processing</option>
+                          <option value="shipped">Shipped</option>
+                          <option value="delivered">Delivered</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-500">
