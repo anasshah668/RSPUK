@@ -24,11 +24,22 @@ const login = (payload) => {
   );
 };
 
-const adminLogin = (payload) => {
+const adminGateHeaders = (gateToken) =>
+  gateToken ? { 'X-Admin-Gate-Token': gateToken } : {};
+
+const verifyAdminGate = (code) => {
+  return httpClient.post(
+    `${apiRoutes.authentication.adminVerifyGate}`,
+    { code },
+    { skipAuth: true },
+  );
+};
+
+const adminLogin = (payload, gateToken) => {
   return httpClient.post(
     `${apiRoutes.authentication.adminLogin}`,
-    payload,
-    { skipAuth: true },
+    { ...payload, gateToken },
+    { skipAuth: true, headers: adminGateHeaders(gateToken) },
   );
 };
 
@@ -67,10 +78,11 @@ const updateProfile = (payload) => {
 };
 
 const forgotPassword = (email, options = {}) => {
+  const { gateToken, ...rest } = options;
   return httpClient.post(
     `${apiRoutes.authentication.forgotPassword}`,
-    { email, ...options },
-    { skipAuth: true },
+    { email, ...rest, ...(gateToken ? { gateToken } : {}) },
+    { skipAuth: true, headers: adminGateHeaders(gateToken) },
   );
 };
 
@@ -91,6 +103,7 @@ const changePassword = (payload) => {
 
 export const authService = {
   login,
+  verifyAdminGate,
   adminLogin,
   register,
   registerSendOtp,

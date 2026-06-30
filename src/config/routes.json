@@ -2,6 +2,7 @@
   "authentication": {
     "login": "auth/login",
     "adminLogin": "auth/admin/login",
+    "adminVerifyGate": "auth/admin/verify-gate",
     "register": "auth/register",
     "registerSendOtp": "auth/register/send-otp",
     "registerVerifyOtp": "auth/register/verify-otp",
