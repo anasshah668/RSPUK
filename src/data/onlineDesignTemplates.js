@@ -1,4 +1,6 @@
 import { DEFAULT_BACKGROUND_STYLE } from '../utils/designerBackground';
+import { GENERATED_PRINT_TEMPLATES } from './generatedPrintTemplates';
+import { PICTURE_BASED_TEMPLATES } from './pictureBasedTemplates';
 
 const page = (index, width, height, backgroundStyle, json = null, pageName = null) => ({
   id: Date.now() + index + Math.random(),
@@ -257,7 +259,7 @@ export const ONLINE_DESIGN_TEMPLATES = [
   {
     id: 'flyer-event',
     name: 'Event Flyer',
-    category: 'Flyers & Posters',
+    category: 'Flyers',
     description: 'A4 794×1123 — bold event poster',
     pages: [
       page(0, 794, 1123, { kind: 'solid', color: '#1e1b4b' }, scene([
@@ -280,7 +282,7 @@ export const ONLINE_DESIGN_TEMPLATES = [
   {
     id: 'flyer-restaurant',
     name: 'Menu Flyer',
-    category: 'Flyers & Posters',
+    category: 'Flyers',
     description: 'A4 794×1123 — restaurant / menu',
     pages: [
       page(0, 794, 1123, { kind: 'solid', color: '#fffbeb' }, scene([
@@ -861,7 +863,7 @@ export const ONLINE_DESIGN_TEMPLATES = [
   {
     id: 'flyer-yoga',
     name: 'Yoga Class',
-    category: 'Flyers & Posters',
+    category: 'Flyers',
     description: 'A4 794×1123 — yoga studio flyer',
     pages: [
       page(0, 794, 1123, { kind: 'solid', color: '#f0fdf4' }, scene([
@@ -886,7 +888,7 @@ export const ONLINE_DESIGN_TEMPLATES = [
   {
     id: 'flyer-open-house',
     name: 'Open House',
-    category: 'Flyers & Posters',
+    category: 'Flyers',
     description: 'A4 794×1123 — property open house',
     pages: [
       page(0, 794, 1123, { kind: 'solid', color: '#ffffff' }, scene([
@@ -907,7 +909,7 @@ export const ONLINE_DESIGN_TEMPLATES = [
   {
     id: 'flyer-conference',
     name: 'Conference Poster',
-    category: 'Flyers & Posters',
+    category: 'Posters',
     description: 'A4 794×1123 — business conference',
     pages: [
       page(0, 794, 1123, { kind: 'solid', color: '#0f172a' }, scene([
@@ -1621,9 +1623,22 @@ export const ONLINE_DESIGN_TEMPLATES = [
       ]), 'Back'),
     ],
   },
+  ...GENERATED_PRINT_TEMPLATES,
+  ...PICTURE_BASED_TEMPLATES,
 ];
 
 export const TEMPLATE_CATEGORIES = [
   'All',
-  ...Array.from(new Set(ONLINE_DESIGN_TEMPLATES.map((t) => t.category))),
+  'Picture Templates',
+  'Business Cards',
+  'Leaflets & Brochures',
+  'Flyers',
+  'Posters',
+  ...Array.from(
+    new Set(
+      ONLINE_DESIGN_TEMPLATES.map((t) => t.category).filter(
+        (c) => !['Business Cards', 'Leaflets & Brochures', 'Flyers', 'Posters'].includes(c),
+      ),
+    ),
+  ),
 ];
