@@ -54,22 +54,87 @@ export function resetCanvasViewport(canvas) {
   }
 }
 
-export function fitCanvasToWorkspace(canvas, workspaceEl) {
-  if (!canvas || !workspaceEl) return 100;
+/**
+ * Overhead (in px) consumed by the dimension guides + card padding that wrap
+ * the canvas inside the measured stage element. Horizontal: left guide column
+ * (~40) + card padding (~16). Vertical: bottom guide bar (~34) + card padding
+ * (~16). A safety margin is added on top so the artboard never touches an edge.
+ */
+const STAGE_OVERHEAD_X = 56;
+const STAGE_OVERHEAD_Y = 50;
+const STAGE_SAFETY = 24;
 
-  const padding = 48;
-  const availW = Math.max(workspaceEl.clientWidth - padding, 160);
-  const availH = Math.max(workspaceEl.clientHeight - padding, 160);
-  const cw = Math.max(canvas.getWidth(), 1);
-  const ch = Math.max(canvas.getHeight(), 1);
-  const scale = Math.min(availW / cw, availH / ch, 1);
-  const zoom = Math.max(25, Math.min(100, Math.floor(scale * 100)));
+export function applyCanvasDisplayZoom(canvas, zoomPercent) {
+  if (!canvas) return;
+
+  const scale = Math.max(0.05, Math.min(3, zoomPercent / 100));
+  const logicalW = Math.max(canvas.getWidth(), 1);
+  const logicalH = Math.max(canvas.getHeight(), 1);
 
   resetCanvasViewport(canvas);
-  canvas.setZoom(zoom / 100);
+  canvas.setZoom(1);
+  canvas.setDimensions(
+    {
+      width: Math.max(1, Math.round(logicalW * scale)),
+      height: Math.max(1, Math.round(logicalH * scale)),
+    },
+    { cssOnly: true },
+  );
   canvas.calcOffset();
   canvas.requestRenderAll();
+}
+
+export function getCanvasStageAvailSize(stageEl) {
+  if (!stageEl) return { width: 320, height: 240 };
+
+  // Height is derived purely from viewport geometry (stage top -> bottom of the
+  // window minus the bottom action bar). This is immune to any flex ancestor
+  // reporting an inflated layout height: we only ever fit to pixels that are
+  // genuinely visible on screen, so the canvas can never exceed the screen.
+  const rect = stageEl.getBoundingClientRect();
+  const viewportH = typeof window !== 'undefined' ? window.innerHeight : rect.height;
+  const viewportW = typeof window !== 'undefined' ? window.innerWidth : rect.width;
+
+  const BOTTOM_BAR = 56; // page/save action bar beneath the workspace
+
+  const visibleH = Math.max(viewportH - rect.top - BOTTOM_BAR, 80);
+  // Width: prefer the stage's own box (never grows past the pages panel), but
+  // never exceed what's visible from the stage's left edge to the window edge.
+  const visibleW = Math.min(
+    stageEl.clientWidth || rect.width,
+    Math.max(viewportW - rect.left, 80),
+  );
+
+  return {
+    width: Math.max(visibleW - STAGE_OVERHEAD_X - STAGE_SAFETY, 80),
+    height: Math.max(visibleH - STAGE_OVERHEAD_Y - STAGE_SAFETY, 80),
+  };
+}
+
+// Backwards-compatible alias: callers may still pass the stage element here.
+export const getCanvasWorkspaceAvailSize = getCanvasStageAvailSize;
+
+export function fitCanvasToWorkspace(canvas, stageEl) {
+  if (!canvas || !stageEl) return 100;
+
+  const { width: availW, height: availH } = getCanvasStageAvailSize(stageEl);
+  const cw = Math.max(canvas.getWidth(), 1);
+  const ch = Math.max(canvas.getHeight(), 1);
+  const scale = Math.min(availW / cw, availH / ch);
+  const zoom = Math.max(5, Math.min(300, Math.floor(scale * 100)));
+
+  applyCanvasDisplayZoom(canvas, zoom);
   return zoom;
+}
+
+export function getCanvasDisplaySize(canvas, zoomPercent = 100) {
+  if (!canvas) return { width: 0, height: 0 };
+
+  const scale = zoomPercent / 100;
+  return {
+    width: Math.max(1, Math.round(canvas.getWidth() * scale)),
+    height: Math.max(1, Math.round(canvas.getHeight() * scale)),
+  };
 }
 
 export const isFullCanvasBackground = (obj, canvas) => {

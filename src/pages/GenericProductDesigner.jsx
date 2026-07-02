@@ -1,14 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { fabric } from 'fabric';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import QRCode from 'qrcode';
 import { toast } from 'react-toastify';
 import { ONLINE_DESIGN_TEMPLATES, TEMPLATE_CATEGORIES } from '../data/onlineDesignTemplates';
 import { getRoutePath } from '../config/routes.config';
+import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
+import DesignerAuthModal from '../components/DesignerAuthModal';
+import DesignReviewScreen from '../components/DesignReviewScreen';
+import RefreshGuardModal, { useRefreshGuard } from '../components/RefreshGuardModal';
+import { uploadService } from '../services/uploadService';
+import { getProductPrintAreas } from '../config/productPrintAreas';
 import { generateTemplateThumbnail } from '../utils/templateThumbnail';
 import {
+  applyCanvasDisplayZoom,
   extractFillColor,
   fitCanvasToWorkspace,
+  getCanvasDisplaySize,
+  getCanvasStageAvailSize,
   getTemplateBackgroundObject,
   isTemplateBackgroundObject,
   loadPageOntoCanvas,
@@ -124,6 +135,68 @@ const EXPORT_QUALITY_PRESETS = {
   high: { jpegQuality: 0.95, multiplier: 2, label: 'High (best detail)' },
 };
 
+const DimensionArrow = ({ direction }) => {
+  const paths = {
+    up: 'M6 2 L2 6 h8 z',
+    down: 'M6 10 L2 6 h8 z',
+    left: 'M2 6 L6 2 v8 z',
+    right: 'M10 6 L6 2 v8 z',
+  };
+
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" className="shrink-0 text-emerald-500" aria-hidden="true">
+      <path fill="currentColor" d={paths[direction]} />
+    </svg>
+  );
+};
+
+const CanvasSizeGuides = ({ widthLabel, heightLabel, displayWidth, displayHeight, children }) => {
+  const width = Math.max(Math.round(displayWidth), 1);
+  const height = Math.max(Math.round(displayHeight), 1);
+  const guideOffset = 44;
+
+  return (
+    <div className="inline-flex flex-col items-start select-none">
+      <div className="flex items-start">
+        <div
+          className="relative mr-3 flex shrink-0 flex-col items-center justify-between"
+          style={{ width: 28, height }}
+          aria-hidden="true"
+        >
+          <DimensionArrow direction="up" />
+          <div className="relative my-1 flex flex-1 items-center justify-center">
+            <div className="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-emerald-500" />
+            <span
+              className="relative z-10 rounded-md bg-emerald-50 px-1.5 py-1 text-[10px] font-bold tracking-wide text-emerald-700 ring-1 ring-emerald-200"
+              style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
+            >
+              {heightLabel}
+            </span>
+          </div>
+          <DimensionArrow direction="down" />
+        </div>
+
+        {children}
+      </div>
+
+      <div
+        className="relative mt-3 flex items-center justify-between"
+        style={{ width, marginLeft: guideOffset }}
+        aria-hidden="true"
+      >
+        <DimensionArrow direction="left" />
+        <div className="relative mx-1 flex flex-1 items-center justify-center">
+          <div className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2 rounded-full bg-emerald-500" />
+          <span className="relative z-10 rounded-md bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold tracking-wide text-emerald-700 ring-1 ring-emerald-200">
+            {widthLabel}
+          </span>
+        </div>
+        <DimensionArrow direction="right" />
+      </div>
+    </div>
+  );
+};
+
 const ToolbarTooltip = ({ title, description, children }) => {
   const child = React.Children.only(children);
   const isDisabled = Boolean(child?.props?.disabled);
@@ -152,10 +225,36 @@ const SIDEBAR_TAB_META = {
   layers: { label: 'Layers', panelTitle: 'Layers' },
   qr: { label: 'QR Code', panelTitle: 'QR Code' },
   pages: { label: 'Pages', panelTitle: 'Page settings' },
-  web: { label: 'Photos', panelTitle: 'Stock photos' },
+  web: { label: 'Photos', panelTitle: 'Stock photos library' },
 };
 
 const isTextObject = (obj) => ['text', 'i-text', 'textbox'].includes(obj?.type);
+
+// Quick-pick photo categories shown as chips in the Photos panel.
+const PHOTO_CATEGORIES = [
+  'Business',
+  'Nature',
+  'Food',
+  'Technology',
+  'People',
+  'Abstract',
+  'Travel',
+  'Fashion',
+  'Sports',
+  'Architecture',
+  'Background',
+  'Texture',
+];
+
+// Openverse aspect_ratio values keyed by our friendly orientation labels.
+const PHOTO_ORIENTATIONS = [
+  { id: 'all', label: 'All' },
+  { id: 'square', label: 'Square' },
+  { id: 'tall', label: 'Portrait' },
+  { id: 'wide', label: 'Landscape' },
+];
+
+const PHOTO_PAGE_SIZE = 30;
 
 const FILLABLE_SHAPE_TYPES = ['rect', 'circle', 'triangle', 'ellipse', 'polygon', 'path'];
 
@@ -284,10 +383,73 @@ const FONT_OPTIONS = [
   'Oswald'
 ];
 
+const resolveProductDoubleSided = (rawValue) => {
+  const normalized = String(rawValue || '').trim().toLowerCase();
+  if (!normalized) return false;
+  if (
+    normalized.includes('double') ||
+    normalized.includes('both') ||
+    normalized === '2' ||
+    normalized === 'two'
+  ) {
+    return true;
+  }
+  return false;
+};
+
+const humanizeProductOptionKey = (key) =>
+  String(key || '')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
 const GenericProductDesigner = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { isAuthenticated } = useAuth();
+  const { addToCart } = useCart();
+  const savedDraft = useSelector((state) => state.designerSession?.productDetailDraft);
+
+  // Product mode: the same engine powers /product-designer, where the design is
+  // tied to a specific product and ends in an order (preview + add to cart),
+  // while /generic-product-designer stays a free-form Canva-like tool.
+  const isProductMode = location.pathname.startsWith('/product-designer');
+  const productSearchParams = new URLSearchParams(location.search);
+  const productType =
+    productSearchParams.get('productType') || location.state?.productType || 'pen';
+  const productCategory =
+    productSearchParams.get('productCategory') || location.state?.productCategory || null;
+  const productOptionParams = (() => {
+    const options = {};
+    productSearchParams.forEach((value, key) => {
+      if (!key.startsWith('option_')) return;
+      options[key.slice(7).toLowerCase().replace(/[^a-z0-9]+/g, '_')] = value;
+    });
+    return options;
+  })();
+  const sidePrintedParam =
+    productSearchParams.get('sidePrinted') ||
+    productSearchParams.get('sidesPrinted') ||
+    productOptionParams.sides_printed ||
+    productOptionParams.side_printed ||
+    location.state?.sidesPrinted ||
+    '';
+  const selectedSizeParam =
+    productSearchParams.get('size') || productOptionParams.size || '';
+  const isProductDoubleSided = resolveProductDoubleSided(sidePrintedParam);
+  const productQuantity = Math.max(
+    1,
+    Number(productSearchParams.get('quantity') || savedDraft?.quantity || 1),
+  );
+
   const canvasElRef = useRef(null);
   const canvasWorkspaceRef = useRef(null);
+  const canvasStageRef = useRef(null);
+  const canvasCardWrapperRef = useRef(null);
+  // Screen-space pan offset (px) applied on top of the centered artboard.
+  // Mutated imperatively (outside React state) so drag/zoom stay silky smooth
+  // like a professional design tool (Figma/Canva-style transform panning).
+  const panRef = useRef({ x: 0, y: 0 });
+  const panSyncRafRef = useRef(null);
   const uploadRef = useRef(null);
   const projectLoadRef = useRef(null);
   const clipboardRef = useRef(null);
@@ -321,7 +483,7 @@ const GenericProductDesigner = () => {
 
   const [canvas, setCanvas] = useState(null);
   const [zoom, setZoom] = useState(100);
-  const [activeTab, setActiveTab] = useState('templates');
+  const [activeTab, setActiveTab] = useState(isProductMode ? 'insert' : 'templates');
   const [selectedObject, setSelectedObject] = useState(null);
   const [transformDraft, setTransformDraft] = useState({
     x: '0',
@@ -359,6 +521,13 @@ const GenericProductDesigner = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [webAssets, setWebAssets] = useState([]);
+  const [webPage, setWebPage] = useState(1);
+  const [webHasMore, setWebHasMore] = useState(false);
+  const [webLoadingMore, setWebLoadingMore] = useState(false);
+  const [webError, setWebError] = useState('');
+  const [webOrientation, setWebOrientation] = useState('all');
+  const [webActiveCategory, setWebActiveCategory] = useState('');
+  const webSearchTokenRef = useRef(0);
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [pages, setPages] = useState([emptyPage(0)]);
@@ -408,10 +577,35 @@ const GenericProductDesigner = () => {
     pageScope: 'all',
     transparentBackground: false,
   });
+  const [showReviewScreen, setShowReviewScreen] = useState(false);
+  const [designArtworkUrl, setDesignArtworkUrl] = useState('');
+  const [designPdfFileName, setDesignPdfFileName] = useState('');
+  const [isPreparingOrder, setIsPreparingOrder] = useState(false);
+  const [isDownloadingArtwork, setIsDownloadingArtwork] = useState(false);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
+  const [designerAuthOpen, setDesignerAuthOpen] = useState(false);
+  const [reviewAuthOpen, setReviewAuthOpen] = useState(false);
+  const pendingReviewActionRef = useRef(null);
+  const productInitDoneRef = useRef(false);
+  const [show3DPreviewModal, setShow3DPreviewModal] = useState(false);
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+  const [previewRotationY, setPreviewRotationY] = useState(-22);
+  const previewRotationTargetRef = useRef(-22);
+  const [sidePreviewUrls, setSidePreviewUrls] = useState({ front: '', back: '' });
+
   const fontPickerRef = useRef(null);
   const pagesRef = useRef(pages);
   const currentPageIndexRef = useRef(currentPageIndex);
   const backgroundStyleRef = useRef(backgroundStyle);
+  const zoomRef = useRef(zoom);
+  // True when the user has manually zoomed in/out (so auto-fit shouldn't snap
+  // the view back on layout changes). Reset whenever we fit-to-screen.
+  const userZoomedRef = useRef(false);
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
 
   const commitPagesState = (nextPages) => {
     pagesRef.current = nextPages;
@@ -444,6 +638,13 @@ const GenericProductDesigner = () => {
   useEffect(() => {
     activeToolRef.current = activeTool;
   }, [activeTool]);
+
+  // Guard against accidental page reloads while there is work on the canvas.
+  const refreshGuard = useRefreshGuard({
+    enabled: () =>
+      (canvas?.getObjects().length || 0) > 0 ||
+      pagesRef.current.some((page) => page.json?.objects?.length),
+  });
 
   const refreshCanvas = (targetCanvas = canvas) => {
     if (!targetCanvas) return;
@@ -726,6 +927,84 @@ const GenericProductDesigner = () => {
     setCanvasHeightInput(formatCanvasUnitValue(pixelsToCanvasUnit(heightPx, unit), unit));
   };
 
+  // Applies the current pan offset to the canvas card via CSS transform. Kept
+  // outside React render so drag/zoom stay perfectly smooth (no re-render per
+  // frame) — the same technique professional editors like Figma/Canva use.
+  const applyPanTransform = () => {
+    const el = canvasCardWrapperRef.current;
+    if (!el) return;
+    const { x, y } = panRef.current;
+    el.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
+  };
+
+  const resetPan = () => {
+    panRef.current = { x: 0, y: 0 };
+    applyPanTransform();
+  };
+
+  // Fabric needs to know the on-screen position of its <canvas> element for hit
+  // testing; re-sync it (throttled to one per frame) after every pan/zoom step.
+  const requestOffsetSync = () => {
+    if (panSyncRafRef.current) return;
+    panSyncRafRef.current = requestAnimationFrame(() => {
+      panSyncRafRef.current = null;
+      if (canvas) syncCanvasPointer(canvas);
+    });
+  };
+
+  // Zoom while keeping a specific screen point fixed in place (the classic
+  // "zoom toward cursor" behaviour). When no anchor point is given, zooms
+  // toward the center of the visible stage, so the whole canvas scales in
+  // place instead of drifting toward a corner.
+  const zoomAnchored = (nextZoomRaw, anchorClientPoint) => {
+    if (!canvas) return;
+    const nextZoom = Math.max(10, Math.min(300, Math.round(nextZoomRaw)));
+    const prevZoom = zoomRef.current || 100;
+    if (nextZoom === prevZoom) return;
+
+    const stage = canvasStageRef.current;
+    const ratio = nextZoom / prevZoom;
+
+    if (stage) {
+      const rect = stage.getBoundingClientRect();
+      const stageCenterX = rect.left + rect.width / 2;
+      const stageCenterY = rect.top + rect.height / 2;
+      const anchor = anchorClientPoint || { x: stageCenterX, y: stageCenterY };
+      const offsetX = anchor.x - stageCenterX;
+      const offsetY = anchor.y - stageCenterY;
+      panRef.current = {
+        x: panRef.current.x * ratio + offsetX * (1 - ratio),
+        y: panRef.current.y * ratio + offsetY * (1 - ratio),
+      };
+    }
+
+    userZoomedRef.current = true;
+    setZoom(nextZoom);
+    applyCanvasDisplayZoom(canvas, nextZoom);
+    applyPanTransform();
+    scheduleCanvasOffsetSync(canvas);
+  };
+
+  // Single source of truth for fitting the artboard fully inside the visible
+  // stage. Always measures the real stage element so oversized canvases never
+  // require scrolling. Runs across a few animation frames so late layout
+  // changes (restore banner, sidebar, fonts) can't leave the canvas oversized.
+  const fitCanvasNow = () => {
+    const stageEl = canvasStageRef.current || canvasWorkspaceRef.current;
+    if (!canvas || !stageEl) return;
+    const fittedZoom = fitCanvasToWorkspace(canvas, stageEl);
+    userZoomedRef.current = false;
+    resetPan();
+    setZoom(fittedZoom);
+    scheduleCanvasOffsetSync(canvas);
+  };
+
+  const fitCanvasStable = () => {
+    fitCanvasNow();
+    requestAnimationFrame(fitCanvasNow);
+    setTimeout(fitCanvasNow, 120);
+  };
+
   const applyCanvasSize = () => {
     if (!canvas) return;
     const width = canvasUnitToPixels(canvasWidthInput, canvasSizeUnit);
@@ -744,7 +1023,7 @@ const GenericProductDesigner = () => {
       ),
     );
     syncCanvasSizeInputs(width, height);
-    scheduleCanvasOffsetSync(canvas);
+    fitCanvasStable();
     refreshCanvas();
   };
 
@@ -1336,7 +1615,8 @@ const GenericProductDesigner = () => {
           : pageBackgroundStyle.patternConfig?.background || '#ffffff',
       );
 
-      const fittedZoom = fitCanvasToWorkspace(canvas, canvasWorkspaceRef.current);
+      const fittedZoom = fitCanvasToWorkspace(canvas, canvasStageRef.current || canvasWorkspaceRef.current);
+      resetPan();
       setZoom(fittedZoom);
       await waitForCanvasLayout();
       if (token !== loadTokenRef.current) return;
@@ -1565,6 +1845,63 @@ const GenericProductDesigner = () => {
     return undefined;
   }, [canvas]);
 
+  // In product mode, seed the pages from the product's print-area size and set
+  // up Front/Back sides so the design maps cleanly onto the ordered product.
+  useEffect(() => {
+    if (!isProductMode || !canvas || productInitDoneRef.current) return;
+    productInitDoneRef.current = true;
+
+    const config = getProductPrintAreas(productCategory, productType);
+    const dims = config?.dimensions || { width: 800, height: 400 };
+    const sideNames = isProductDoubleSided ? ['Front', 'Back'] : ['Front'];
+    const productPages = sideNames.map((name, index) => ({
+      ...emptyPage(index, { width: dims.width, height: dims.height }),
+      name,
+    }));
+
+    commitPagesState(productPages);
+    setActivePageIndex(0);
+    loadPage(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isProductMode, canvas]);
+
+  // Smoothly ease the 3D preview toward the cursor-driven target rotation.
+  useEffect(() => {
+    if (!show3DPreviewModal) return undefined;
+    let rafId = null;
+    const tick = () => {
+      setPreviewRotationY((prev) => {
+        const target = previewRotationTargetRef.current;
+        const next = prev + (target - prev) * 0.1;
+        return Math.abs(target - next) < 0.05 ? target : next;
+      });
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [show3DPreviewModal]);
+
+  useEffect(() => {
+    if (!show3DPreviewModal) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setShow3DPreviewModal(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [show3DPreviewModal]);
+
+  const handlePreviewPointerMove = (event) => {
+    const previewContainer = event.currentTarget.querySelector('[data-3d-preview-container]');
+    if (!previewContainer) return;
+    const rect = previewContainer.getBoundingClientRect();
+    const clientX = event.touches?.[0]?.clientX ?? event.clientX;
+    const relativeX = clientX - rect.left;
+    const ratio = (relativeX / Math.max(1, rect.width)) * 2 - 1;
+    previewRotationTargetRef.current = Math.max(-165, Math.min(165, ratio * 125));
+  };
+
   useEffect(() => {
     if (!canvas) return;
     const page = pages[currentPageIndex];
@@ -1663,23 +2000,37 @@ const GenericProductDesigner = () => {
   }, [isLeftDrawerOpen, canvas]);
 
   useEffect(() => {
-    if (!canvas || !canvasWorkspaceRef.current) return undefined;
+    const stage = canvasStageRef.current || canvasWorkspaceRef.current;
+    if (!canvas || !stage) return undefined;
 
-    const workspace = canvasWorkspaceRef.current;
-    const onLayoutChange = () => {
-      if (canvasHydratingRef.current || isCanvasDraggingRef.current) return;
-      syncCanvasPointer(canvas);
+    const onStageResize = () => {
+      // Keep the artboard on screen when the available area changes (window
+      // resize, sidebar/banner toggle) — but never override an intentional
+      // manual zoom-in; in that case the user pans with the hand tool.
+      if (!userZoomedRef.current) {
+        const { width: availW, height: availH } = getCanvasStageAvailSize(stage);
+        const displayW = canvas.lowerCanvasEl?.clientWidth || getCanvasDisplaySize(canvas, zoomRef.current).width;
+        const displayH = canvas.lowerCanvasEl?.clientHeight || getCanvasDisplaySize(canvas, zoomRef.current).height;
+
+        if (displayW > availW + 1 || displayH > availH + 1) {
+          const fittedZoom = fitCanvasToWorkspace(canvas, stage);
+          resetPan();
+          setZoom(fittedZoom);
+        }
+      }
+
+      if (!canvasHydratingRef.current && !isCanvasDraggingRef.current) {
+        syncCanvasPointer(canvas);
+      }
     };
 
-    const ro = new ResizeObserver(onLayoutChange);
-    ro.observe(workspace);
-    workspace.addEventListener('scroll', onLayoutChange, { passive: true });
-    window.addEventListener('resize', onLayoutChange);
+    const ro = new ResizeObserver(onStageResize);
+    ro.observe(stage);
+    window.addEventListener('resize', onStageResize);
 
     return () => {
       ro.disconnect();
-      workspace.removeEventListener('scroll', onLayoutChange);
-      window.removeEventListener('resize', onLayoutChange);
+      window.removeEventListener('resize', onStageResize);
     };
   }, [canvas]);
 
@@ -1704,91 +2055,115 @@ const GenericProductDesigner = () => {
     };
   }, [canvas]);
 
+  // Hand / pan tool: drag anywhere on the stage to pan the canvas. The pan is a
+  // CSS transform applied directly to the canvas card (see applyPanTransform),
+  // never a scroll — this is what keeps it smooth and reliable at any zoom.
   useEffect(() => {
-    if (!canvas) return;
+    const stage = canvasStageRef.current;
+    if (!canvas || !stage) return undefined;
 
     let isDragging = false;
-    let lastPanX = 0;
-    let lastPanY = 0;
+    let lastX = 0;
+    let lastY = 0;
 
-    const handleMouseDown = (e) => {
-      if (activeToolRef.current !== 'pan' || canvasHydratingRef.current) return;
-
-      e.e.preventDefault();
-      e.e.stopPropagation();
+    const beginDrag = (clientX, clientY) => {
       isDragging = true;
       setIsPanning(true);
-      lastPanX = e.e.clientX;
-      lastPanY = e.e.clientY;
+      lastX = clientX;
+      lastY = clientY;
       canvas.discardActiveObject();
-      canvas.renderAll();
-      canvas.defaultCursor = 'grabbing';
-      canvas.hoverCursor = 'grabbing';
-      canvas.selection = false;
-      if (canvas.upperCanvasEl) canvas.upperCanvasEl.style.cursor = 'grabbing';
-      if (canvas.lowerCanvasEl) canvas.lowerCanvasEl.style.cursor = 'grabbing';
+      canvas.requestRenderAll();
     };
 
-    const handleMouseMove = (e) => {
+    const onPointerDown = (event) => {
       if (activeToolRef.current !== 'pan') return;
-      if (isDragging) {
-        e.e.preventDefault();
-        e.e.stopPropagation();
-        const deltaX = e.e.clientX - lastPanX;
-        const deltaY = e.e.clientY - lastPanY;
-        const vpt = canvas.viewportTransform;
-        vpt[4] += deltaX;
-        vpt[5] += deltaY;
-        lastPanX = e.e.clientX;
-        lastPanY = e.e.clientY;
-        canvas.requestRenderAll();
-      } else {
-        canvas.defaultCursor = 'grab';
-        canvas.hoverCursor = 'grab';
-      }
+      const point = event.touches?.[0] ?? event;
+      event.preventDefault();
+      beginDrag(point.clientX, point.clientY);
     };
 
-    const handleMouseUp = () => {
-      if (activeToolRef.current === 'pan' && isDragging) {
-        isDragging = false;
-        setIsPanning(false);
-        canvas.defaultCursor = 'grab';
-        canvas.hoverCursor = 'grab';
-      }
+    const onPointerMove = (event) => {
+      if (!isDragging || activeToolRef.current !== 'pan') return;
+      const point = event.touches?.[0] ?? event;
+      event.preventDefault();
+      const dx = point.clientX - lastX;
+      const dy = point.clientY - lastY;
+      lastX = point.clientX;
+      lastY = point.clientY;
+      panRef.current = { x: panRef.current.x + dx, y: panRef.current.y + dy };
+      applyPanTransform();
+      requestOffsetSync();
     };
 
-    canvas.on('mouse:down', handleMouseDown);
-    canvas.on('mouse:move', handleMouseMove);
-    canvas.on('mouse:up', handleMouseUp);
+    const endDrag = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      setIsPanning(false);
+      syncCanvasPointer(canvas);
+    };
+
+    stage.addEventListener('mousedown', onPointerDown, { capture: true });
+    window.addEventListener('mousemove', onPointerMove);
+    window.addEventListener('mouseup', endDrag);
+    stage.addEventListener('touchstart', onPointerDown, { passive: false, capture: true });
+    window.addEventListener('touchmove', onPointerMove, { passive: false });
+    window.addEventListener('touchend', endDrag);
 
     if (activeTool === 'pan') {
       canvas.selection = false;
-      canvas.defaultCursor = 'grab';
-      canvas.hoverCursor = 'grab';
-      if (canvas.upperCanvasEl) canvas.upperCanvasEl.style.cursor = 'grab';
-      if (canvas.lowerCanvasEl) canvas.lowerCanvasEl.style.cursor = 'grab';
     } else {
       prepareCanvasForInteraction(canvas);
     }
 
     return () => {
-      canvas.off('mouse:down', handleMouseDown);
-      canvas.off('mouse:move', handleMouseMove);
-      canvas.off('mouse:up', handleMouseUp);
+      stage.removeEventListener('mousedown', onPointerDown, { capture: true });
+      window.removeEventListener('mousemove', onPointerMove);
+      window.removeEventListener('mouseup', endDrag);
+      stage.removeEventListener('touchstart', onPointerDown, { capture: true });
+      window.removeEventListener('touchmove', onPointerMove);
+      window.removeEventListener('touchend', endDrag);
     };
   }, [canvas, activeTool]);
 
+  // Scroll wheel behaves like a professional design tool: plain wheel/trackpad
+  // scroll pans the canvas, Ctrl/Cmd + wheel zooms toward the cursor.
   useEffect(() => {
-    if (!canvas || autosavePromptShownRef.current) return;
+    const stage = canvasStageRef.current;
+    if (!canvas || !stage) return undefined;
+
+    const onWheel = (event) => {
+      event.preventDefault();
+
+      if (event.ctrlKey || event.metaKey) {
+        const prevZoom = zoomRef.current || 100;
+        const nextZoom = prevZoom + (event.deltaY > 0 ? -10 : 10);
+        zoomAnchored(nextZoom, { x: event.clientX, y: event.clientY });
+        return;
+      }
+
+      panRef.current = {
+        x: panRef.current.x - event.deltaX,
+        y: panRef.current.y - event.deltaY,
+      };
+      applyPanTransform();
+      requestOffsetSync();
+    };
+
+    stage.addEventListener('wheel', onWheel, { passive: false });
+    return () => stage.removeEventListener('wheel', onWheel);
+  }, [canvas]);
+
+  useEffect(() => {
+    if (isProductMode || !canvas || autosavePromptShownRef.current) return;
     const saved = loadOnlineDesignerAutosave();
     if (saved?.pages?.length) {
       setShowAutosaveRestore(true);
       autosavePromptShownRef.current = true;
     }
-  }, [canvas]);
+  }, [canvas, isProductMode]);
 
   useEffect(() => {
-    if (!canvas) return undefined;
+    if (!canvas || isProductMode) return undefined;
     const persistAutosave = () => {
       if (isApplyingTemplateRef.current || suppressPageLoadRef.current || canvasHydratingRef.current) return;
       const activeIndex = currentPageIndexRef.current;
@@ -1826,7 +2201,7 @@ const GenericProductDesigner = () => {
       clearInterval(timer);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [canvas, currentPageIndex]);
+  }, [canvas, currentPageIndex, isProductMode]);
 
   useEffect(() => {
     // Only build the (expensive) template previews while the Templates tab is
@@ -1890,13 +2265,10 @@ const GenericProductDesigner = () => {
     loadPage(nextIndex);
   };
 
+  // Zoom the whole canvas around the center of the visible stage, so the
+  // artboard scales in/out in place instead of drifting toward a corner.
   const handleZoom = (value) => {
-    if (!canvas) return;
-    const nextZoom = Math.max(25, Math.min(300, value));
-    setZoom(nextZoom);
-    canvas.setZoom(nextZoom / 100);
-    canvas.calcOffset();
-    canvas.requestRenderAll();
+    zoomAnchored(value, null);
   };
 
   const addText = () => {
@@ -2103,48 +2475,215 @@ const GenericProductDesigner = () => {
     reader.readAsDataURL(file);
   };
 
-  const searchWebAssets = async () => {
-    if (!searchQuery.trim()) return;
-    setSearching(true);
-    try {
-      let mapped = [];
-      const openverseResponse = await fetch(
-        `https://api.openverse.org/v1/images/?q=${encodeURIComponent(searchQuery)}&page_size=20`
-      );
-      if (openverseResponse.ok) {
-        const ovData = await openverseResponse.json();
-        mapped = (ovData?.results || []).map((item) => ({
-          id: item.id,
-          title: item.title || item.creator || 'Image',
-          thumb: item.thumbnail,
-          url: item.url
-        }));
-      }
+  const mapPexelsResult = (item) => ({
+    id: `px-${item.id}`,
+    title: item.alt || item.photographer || 'Photo',
+    thumb: item.src?.medium || item.src?.small || item.src?.original,
+    url: item.src?.large2x || item.src?.large || item.src?.original,
+    creator: item.photographer || '',
+    source: 'Pexels',
+    license: 'Free to use (Pexels)',
+    width: item.width,
+    height: item.height,
+  });
 
-      if (!mapped.length) {
-        const wikimediaEndpoint = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(
-          `${searchQuery} filetype:bitmap`
-        )}&gsrlimit=16&prop=imageinfo&iiprop=url&iiurlwidth=500&format=json&origin=*`;
-        const response = await fetch(wikimediaEndpoint);
-        const data = await response.json();
-        const pagesData = data?.query?.pages ? Object.values(data.query.pages) : [];
-        mapped = pagesData
-          .map((item) => ({
-            id: item.pageid,
-            title: item.title?.replace('File:', '') || 'Image',
-            thumb: item.imageinfo?.[0]?.thumburl || item.imageinfo?.[0]?.url,
-            url: item.imageinfo?.[0]?.url
-          }))
-          .filter((item) => item.url);
-      }
-      setWebAssets(mapped);
+  const mapOpenverseResult = (item) => ({
+    id: `ov-${item.id}`,
+    title: item.title || item.creator || 'Photo',
+    thumb: item.thumbnail || item.url,
+    url: item.url,
+    creator: item.creator || '',
+    source: item.source || 'Openverse',
+    license: item.license || '',
+    width: item.width,
+    height: item.height,
+  });
+
+  const mapWikimediaResult = (item) => ({
+    id: `wm-${item.pageid}`,
+    title: item.title?.replace(/^File:/, '') || 'Photo',
+    thumb: item.imageinfo?.[0]?.thumburl || item.imageinfo?.[0]?.url,
+    url: item.imageinfo?.[0]?.url,
+    creator: 'Wikimedia Commons',
+    source: 'Wikimedia',
+    license: 'CC',
+    width: item.imageinfo?.[0]?.width,
+    height: item.imageinfo?.[0]?.height,
+  });
+
+  // Best quality + most reliable when a free Pexels key is configured
+  // (set VITE_PEXELS_API_KEY). Falls back to keyless sources otherwise.
+  const fetchPexelsPhotos = async (query, page, orientation) => {
+    const key = import.meta.env.VITE_PEXELS_API_KEY;
+    if (!key) return null;
+    try {
+      const params = new URLSearchParams({
+        query,
+        page: String(page),
+        per_page: String(PHOTO_PAGE_SIZE),
+      });
+      const orientationMap = { tall: 'portrait', wide: 'landscape', square: 'square' };
+      if (orientationMap[orientation]) params.set('orientation', orientationMap[orientation]);
+      const response = await fetch(`https://api.pexels.com/v1/search?${params.toString()}`, {
+        headers: { Authorization: key },
+      });
+      if (!response.ok) return { results: [], hasMore: false };
+      const data = await response.json();
+      const results = (data?.photos || []).map(mapPexelsResult).filter((item) => item.url);
+      return { results, hasMore: Boolean(data?.next_page) };
     } catch (error) {
-      console.error('Web search failed', error);
-      setWebAssets([]);
-    } finally {
-      setSearching(false);
+      console.warn('[pexels]', error);
+      return { results: [], hasMore: false };
     }
   };
+
+  const fetchOpenversePhotos = async (query, page, orientation) => {
+    try {
+      const params = new URLSearchParams({
+        q: query,
+        page: String(page),
+        page_size: String(PHOTO_PAGE_SIZE),
+        license_type: 'commercial,modification',
+        mature: 'false',
+      });
+      if (orientation && orientation !== 'all') {
+        params.set('aspect_ratio', orientation);
+      }
+      const response = await fetch(`https://api.openverse.org/v1/images/?${params.toString()}`);
+      if (!response.ok) return { results: [], hasMore: false };
+      const data = await response.json();
+      const results = (data?.results || []).map(mapOpenverseResult).filter((item) => item.url);
+      const hasMore = Boolean(data?.page && data?.page_count && data.page < data.page_count);
+      return { results, hasMore };
+    } catch (error) {
+      // Openverse is behind a Cloudflare bot-challenge for anonymous traffic and
+      // may throw a CORS/network error — degrade gracefully to the next source.
+      console.warn('[openverse]', error);
+      return { results: [], hasMore: false };
+    }
+  };
+
+  const fetchWikimediaPhotos = async (query, page) => {
+    try {
+      const offset = (page - 1) * PHOTO_PAGE_SIZE;
+      const endpoint =
+        `https://commons.wikimedia.org/w/api.php?action=query&generator=search` +
+        `&gsrnamespace=6&gsrsearch=${encodeURIComponent(`${query} filetype:bitmap`)}` +
+        `&gsrlimit=${PHOTO_PAGE_SIZE}&gsroffset=${offset}` +
+        `&prop=imageinfo&iiprop=url|size&iiurlwidth=500&format=json&origin=*`;
+      const response = await fetch(endpoint);
+      if (!response.ok) return { results: [], hasMore: false };
+      const data = await response.json();
+      const pagesData = data?.query?.pages ? Object.values(data.query.pages) : [];
+      const results = pagesData
+        .sort((a, b) => (a.index || 0) - (b.index || 0))
+        .map(mapWikimediaResult)
+        .filter((item) => item.url);
+      return { results, hasMore: Boolean(data?.continue) };
+    } catch (error) {
+      console.warn('[wikimedia]', error);
+      return { results: [], hasMore: false };
+    }
+  };
+
+  const searchWebAssets = async ({ page = 1, append = false, queryOverride, orientationOverride } = {}) => {
+    const query = (queryOverride ?? searchQuery).trim();
+    const orientation = orientationOverride ?? webOrientation;
+    if (!query) {
+      setWebAssets([]);
+      setWebHasMore(false);
+      setWebError('');
+      return;
+    }
+
+    const token = ++webSearchTokenRef.current;
+    if (append) {
+      setWebLoadingMore(true);
+    } else {
+      setSearching(true);
+      setWebError('');
+    }
+
+    try {
+      let results = [];
+      let hasMore = false;
+
+      // Try sources in order of quality/reliability; each degrades gracefully.
+      const pexels = await fetchPexelsPhotos(query, page, orientation);
+      if (pexels && pexels.results.length) {
+        results = pexels.results;
+        hasMore = pexels.hasMore;
+      }
+
+      if (!results.length) {
+        const openverse = await fetchOpenversePhotos(query, page, orientation);
+        results = openverse.results;
+        hasMore = openverse.hasMore;
+      }
+
+      if (!results.length) {
+        const wikimedia = await fetchWikimediaPhotos(query, page);
+        results = wikimedia.results;
+        hasMore = wikimedia.hasMore;
+      }
+
+      if (token !== webSearchTokenRef.current) return;
+
+      setWebAssets((prev) => {
+        if (!append) return results;
+        const seen = new Set(prev.map((item) => item.url));
+        return [...prev, ...results.filter((item) => !seen.has(item.url))];
+      });
+      setWebPage(page);
+      setWebHasMore(hasMore);
+      if (!results.length && !append) {
+        setWebError(`No photos found for "${query}". Try a different keyword or category.`);
+      }
+    } catch (error) {
+      console.error('Web search failed', error);
+      if (token !== webSearchTokenRef.current) return;
+      if (!append) {
+        setWebAssets([]);
+        setWebError('Could not load photos right now. Please check your connection and try again.');
+      }
+      setWebHasMore(false);
+    } finally {
+      if (token === webSearchTokenRef.current) {
+        setSearching(false);
+        setWebLoadingMore(false);
+      }
+    }
+  };
+
+  const loadMoreWebAssets = () => {
+    if (searching || webLoadingMore || !webHasMore) return;
+    searchWebAssets({ page: webPage + 1, append: true });
+  };
+
+  // Debounced live search — types like a professional stock-photo picker.
+  useEffect(() => {
+    if (activeTab !== 'web') return undefined;
+    const query = (webActiveCategory || searchQuery).trim();
+    if (!query) return undefined;
+    const timer = setTimeout(() => {
+      searchWebAssets({
+        page: 1,
+        append: false,
+        queryOverride: query,
+        orientationOverride: webOrientation,
+      });
+    }, webActiveCategory && searchQuery === webActiveCategory ? 0 : 450);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, webOrientation, webActiveCategory, activeTab]);
+
+  // Show a sensible default gallery the first time the Photos tab is opened.
+  useEffect(() => {
+    if (activeTab !== 'web' || webAssets.length || searching || searchQuery.trim()) return;
+    setWebActiveCategory('Business');
+    setSearchQuery('Business');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   const addWebAssetToCanvas = (url) => {
     placeImageOnCanvas(url, 140, 140);
@@ -2426,9 +2965,7 @@ const GenericProductDesigner = () => {
   };
 
   const fitToScreen = () => {
-    if (!canvas || !canvasWorkspaceRef.current) return;
-    const fittedZoom = fitCanvasToWorkspace(canvas, canvasWorkspaceRef.current);
-    setZoom(fittedZoom);
+    fitCanvasStable();
   };
 
   const toggleTextStyle = (style) => {
@@ -2558,7 +3095,8 @@ const GenericProductDesigner = () => {
         loadTokenRef.current += 1;
         await loadPageOntoCanvas(canvas, clonePageRecord(targetPage));
 
-        const fittedZoom = fitCanvasToWorkspace(canvas, canvasWorkspaceRef.current);
+        const fittedZoom = fitCanvasToWorkspace(canvas, canvasStageRef.current || canvasWorkspaceRef.current);
+        resetPan();
         setZoom(fittedZoom);
         await waitForCanvasLayout();
         prepareCanvasForInteraction(canvas);
@@ -2832,7 +3370,6 @@ const GenericProductDesigner = () => {
       transparentBackground = false,
     } = options;
 
-    const previousZoom = targetCanvas.getZoom?.() ?? 1;
     const previousVpt = Array.isArray(targetCanvas.viewportTransform)
       ? targetCanvas.viewportTransform.slice()
       : [1, 0, 0, 1, 0, 0];
@@ -2896,7 +3433,10 @@ const GenericProductDesigner = () => {
       if (transparentBackground) {
         targetCanvas.setBackgroundColor(previousBackground, () => {});
       }
-      restoreCanvasViewport(targetCanvas, previousZoom, previousVpt);
+      if (Array.isArray(previousVpt) && previousVpt.length === 6) {
+        targetCanvas.setViewportTransform(previousVpt);
+      }
+      applyCanvasDisplayZoom(targetCanvas, zoom);
     }
   };
 
@@ -2977,7 +3517,6 @@ const GenericProductDesigner = () => {
     const pageList = buildProjectPagesSnapshot(activePageIndex) ?? pagesRef.current;
     pagesRef.current = pageList;
     const pageIndices = getExportPageIndices(pageScope, pageList.length, activePageIndex);
-    const savedZoom = canvas.getZoom();
     const savedVpt = canvas.viewportTransform?.slice() || [1, 0, 0, 1, 0, 0];
     let activePageJsonClone = null;
     const formattedDate = new Date().toISOString().slice(0, 10);
@@ -3091,7 +3630,10 @@ const GenericProductDesigner = () => {
         commitPagesState(syncedPages);
       }
 
-      restoreCanvasViewport(canvas, savedZoom, savedVpt);
+      if (Array.isArray(savedVpt) && savedVpt.length === 6) {
+        canvas.setViewportTransform(savedVpt);
+      }
+      applyCanvasDisplayZoom(canvas, zoom);
       syncCanvasPointer(canvas);
 
       const fileLabel =
@@ -3117,7 +3659,10 @@ const GenericProductDesigner = () => {
           console.error('[generic-designer-export-restore]', restoreError);
         }
       }
-      restoreCanvasViewport(canvas, savedZoom, savedVpt);
+      if (Array.isArray(savedVpt) && savedVpt.length === 6) {
+        canvas.setViewportTransform(savedVpt);
+      }
+      applyCanvasDisplayZoom(canvas, zoom);
       syncCanvasPointer(canvas);
       return false;
     } finally {
@@ -3144,8 +3689,14 @@ const GenericProductDesigner = () => {
   };
 
   const exitToHome = () => {
-    clearOnlineDesignerAutosave();
+    if (!isProductMode) {
+      clearOnlineDesignerAutosave();
+    }
     setShowExitModal(false);
+    if (isProductMode) {
+      navigate(savedDraft?.returnPath || location.state?.fromPath || '/');
+      return;
+    }
     navigate(getRoutePath('home'));
   };
 
@@ -3185,6 +3736,352 @@ const GenericProductDesigner = () => {
       suppressPageLoadRef.current = false;
       setIsExportingPng(false);
     }
+  };
+
+  // ----- Product mode: preview + order flow -----------------------------------
+
+  const buildReviewSummaryRows = () => {
+    const rows = [];
+    const draft = savedDraft || {};
+    const push = (label, value) => {
+      if (!label || value == null || String(value).trim() === '') return;
+      rows.push({ label: String(label), value: String(value) });
+    };
+
+    push('Product', draft.productName || productType);
+    push('Design method', 'Online Designer');
+    push('Quantity', productQuantity);
+    push('Size', selectedSizeParam || draft.selectedSize);
+    push('Material', productSearchParams.get('material') || draft.material);
+    push('Sides printed', sidePrintedParam || draft.sidesPrinted);
+    push('Lamination', productSearchParams.get('lamination') || draft.lamination);
+    push('Corners', productSearchParams.get('roundCorners') || draft.roundCorners);
+    push('Delivery', productSearchParams.get('deliveryOption') || draft.deliveryOption);
+
+    Object.entries(productOptionParams).forEach(([key, value]) => {
+      if (['size', 'material', 'lamination', 'round_corners', 'delivery_option'].includes(key)) return;
+      push(humanizeProductOptionKey(key), value);
+    });
+
+    Object.entries(draft.selectedAttributeValues || {}).forEach(([label, value]) => {
+      push(label, value);
+    });
+
+    return rows;
+  };
+
+  const buildCartLineItem = () => {
+    const draft = savedDraft || {};
+    const productOptions = buildReviewSummaryRows()
+      .filter((row) => !['Product', 'Design method', 'Quantity'].includes(row.label))
+      .map((row) => ({ label: row.label, value: row.value }));
+
+    const linePrice =
+      draft.isVatInclusive === false
+        ? Number(draft.linePriceExVat || 0)
+        : Number(draft.linePriceIncVat || draft.linePriceExVat || 0);
+
+    return {
+      id: draft.productId || `${productType}-${Date.now()}`,
+      name: draft.productName || productType,
+      title: draft.productName || productType,
+      category: draft.productCategory || productCategory,
+      price: linePrice,
+      image: draft.productImage || '',
+      quantity: productQuantity,
+      designOption: 'custom',
+      withoutArtwork: false,
+      artworkAttached: true,
+      artworkPreviewUrl: designArtworkUrl,
+      fileUrls: designArtworkUrl ? [designArtworkUrl] : [],
+      source: draft.source || 'in-house',
+      thirdPartyProductKey: draft.thirdPartyProductKey || null,
+      deliveryOption: productSearchParams.get('deliveryOption') || draft.deliveryOption,
+      selectedAttributes: draft.selectedAttributeValues || {},
+      productOptions,
+      summary: buildReviewSummaryRows().map((row) => ({ label: row.label, value: row.value })),
+      description: 'Custom design via online designer',
+    };
+  };
+
+  const getReviewPriceLabel = () => {
+    const draft = savedDraft || {};
+    const amount =
+      draft.isVatInclusive === false
+        ? Number(draft.linePriceExVat || 0)
+        : Number(draft.linePriceIncVat || draft.linePriceExVat || 0);
+    if (!amount) return '';
+    const suffix = draft.isVatInclusive === false ? ' (Ex VAT)' : ' (Inc VAT)';
+    return `£${amount.toFixed(2)}${suffix}`;
+  };
+
+  // Capture every product side (page) to a NON-watermarked PNG data URL, then
+  // restore the page the user was editing. Shared by download, order & preview.
+  const captureProductPages = async () => {
+    const activePageIndex = currentPageIndexRef.current;
+    const pageList = buildProjectPagesSnapshot(activePageIndex) ?? pagesRef.current;
+    pagesRef.current = pageList;
+    const savedVpt = canvas.viewportTransform?.slice() || [1, 0, 0, 1, 0, 0];
+    let activePageJsonClone = null;
+
+    commitPendingCanvasEdits();
+    const activeJson = safeCanvasToJson(canvas);
+    if (activeJson) {
+      try {
+        activePageJsonClone = JSON.parse(JSON.stringify(activeJson));
+      } catch (cloneError) {
+        console.warn('[product-active-json-clone]', cloneError);
+      }
+    }
+
+    const captures = [];
+    try {
+      for (let pageIndex = 0; pageIndex < pageList.length; pageIndex += 1) {
+        if (pageIndex !== activePageIndex) {
+          await renderPageToCanvas(clonePageRecord(pageList[pageIndex]));
+        }
+        const page = pageList[pageIndex];
+        const pageWidth = page.width || canvas.getWidth();
+        const pageHeight = page.height || canvas.getHeight();
+        const capture = captureCanvasImage(canvas, pageWidth, pageHeight, {
+          forceFormat: 'png',
+          quality: 1,
+          multiplier: 2,
+        });
+        captures.push({
+          ...capture,
+          width: pageWidth,
+          height: pageHeight,
+          name: page.name || `Side ${pageIndex + 1}`,
+        });
+      }
+    } finally {
+      if (pageList.length > 1 && activePageJsonClone) {
+        await loadPageOntoCanvas(canvas, {
+          ...pageList[activePageIndex],
+          json: activePageJsonClone,
+          backgroundStyle: backgroundStyleRef.current,
+        });
+        prepareCanvasForInteraction(canvas);
+      }
+      if (Array.isArray(savedVpt) && savedVpt.length === 6) {
+        canvas.setViewportTransform(savedVpt);
+      }
+      applyCanvasDisplayZoom(canvas, zoom);
+      syncCanvasPointer(canvas);
+    }
+
+    return captures;
+  };
+
+  const buildPdfFromCaptures = async (captures) => {
+    const { jsPDF } = await import('jspdf');
+    const first = captures[0];
+    const pdf = new jsPDF({
+      orientation: first.width >= first.height ? 'landscape' : 'portrait',
+      unit: 'px',
+      format: [Math.round(first.width), Math.round(first.height)],
+      compress: true,
+    });
+    captures.forEach((capture, index) => {
+      if (index > 0) {
+        pdf.addPage(
+          [Math.round(capture.width), Math.round(capture.height)],
+          capture.width >= capture.height ? 'landscape' : 'portrait',
+        );
+      }
+      pdf.addImage(
+        capture.dataUrl,
+        capture.imageType || 'PNG',
+        0,
+        0,
+        Math.round(capture.width),
+        Math.round(capture.height),
+        undefined,
+        'FAST',
+      );
+    });
+    return pdf;
+  };
+
+  // Build a production-ready, NON-watermarked PDF of every side and upload it.
+  const exportProductArtwork = async () => {
+    if (!canvas || isPreparingOrder) return false;
+
+    setIsPreparingOrder(true);
+    suppressPageLoadRef.current = true;
+
+    try {
+      const captures = await captureProductPages();
+      if (!captures.length || !captures[0]?.width) {
+        throw new Error('Nothing to export.');
+      }
+
+      const pdf = await buildPdfFromCaptures(captures);
+      const formattedDate = new Date().toISOString().slice(0, 10);
+      const fileName = `Artwork_${formattedDate}.pdf`;
+      const blob = pdf.output('blob');
+
+      let hostedUrl = '';
+      try {
+        const file = new File([blob], fileName, { type: 'application/pdf' });
+        const uploaded = await uploadService.uploadArtwork(file);
+        hostedUrl = uploaded?.url || '';
+      } catch (uploadError) {
+        console.error('[product-artwork-upload]', uploadError);
+        toast.error(uploadError?.message || 'Could not save your design. Please sign in and try again.');
+        return false;
+      }
+
+      if (!hostedUrl) {
+        toast.error('Could not save your design for production. Please try again.');
+        return false;
+      }
+
+      setDesignPdfFileName(fileName);
+      setDesignArtworkUrl(hostedUrl);
+      return true;
+    } catch (error) {
+      console.error('[product-artwork-export]', error);
+      toast.error('Could not prepare your design. Please try again.');
+      return false;
+    } finally {
+      suppressPageLoadRef.current = false;
+      setIsPreparingOrder(false);
+    }
+  };
+
+  // Download the print-ready PDF to the user's device (and upload it so the
+  // order review is ready). This mirrors the old "Save & Download" button.
+  const downloadProductArtwork = async () => {
+    if (!canvas || isDownloadingArtwork) return;
+    setIsDownloadingArtwork(true);
+    suppressPageLoadRef.current = true;
+    try {
+      const captures = await captureProductPages();
+      if (!captures.length || !captures[0]?.width) {
+        throw new Error('Nothing to export.');
+      }
+      const pdf = await buildPdfFromCaptures(captures);
+      const formattedDate = new Date().toISOString().slice(0, 10);
+      const fileName = `Artwork_${formattedDate}.pdf`;
+      pdf.save(fileName);
+
+      // Also upload so "Preview & Order" can attach the file immediately.
+      try {
+        const blob = pdf.output('blob');
+        const file = new File([blob], fileName, { type: 'application/pdf' });
+        const uploaded = await uploadService.uploadArtwork(file);
+        if (uploaded?.url) {
+          setDesignArtworkUrl(uploaded.url);
+          setDesignPdfFileName(fileName);
+        }
+      } catch (uploadError) {
+        console.warn('[product-artwork-download-upload]', uploadError);
+      }
+
+      toast.success('Design downloaded to your device.');
+    } catch (error) {
+      console.error('[product-artwork-download]', error);
+      toast.error('Could not download your design. Please try again.');
+    } finally {
+      suppressPageLoadRef.current = false;
+      setIsDownloadingArtwork(false);
+    }
+  };
+
+  const handleDownloadProductArtwork = () => {
+    if (isDownloadingArtwork) return;
+    if (isAuthenticated() && localStorage.getItem('token')) {
+      void downloadProductArtwork();
+      return;
+    }
+    setDesignerAuthOpen(true);
+  };
+
+  // Generate front/back previews and open the rotating 3D artwork view.
+  const handleOpen3DPreview = async () => {
+    if (!canvas || isGeneratingPreview) return;
+    setIsGeneratingPreview(true);
+    suppressPageLoadRef.current = true;
+    try {
+      const captures = await captureProductPages();
+      setSidePreviewUrls({
+        front: captures[0]?.dataUrl || '',
+        back: captures[1]?.dataUrl || '',
+      });
+      const initialRotation = isProductDoubleSided ? -22 : -10;
+      previewRotationTargetRef.current = initialRotation;
+      setPreviewRotationY(initialRotation);
+      setShow3DPreviewModal(true);
+    } catch (error) {
+      console.error('[product-3d-preview]', error);
+      toast.error('Could not generate the preview. Please try again.');
+    } finally {
+      suppressPageLoadRef.current = false;
+      setIsGeneratingPreview(false);
+    }
+  };
+
+  const runPreviewAndOrder = async () => {
+    const ok = await exportProductArtwork();
+    if (ok) setShowReviewScreen(true);
+  };
+
+  const handlePreviewAndOrder = () => {
+    if (isPreparingOrder) return;
+    if (isAuthenticated() && localStorage.getItem('token')) {
+      void runPreviewAndOrder();
+      return;
+    }
+    setDesignerAuthOpen(true);
+  };
+
+  const performReviewAddToCart = async () => {
+    if (!designArtworkUrl) {
+      toast.error('Design file is missing. Please prepare your design again.');
+      return;
+    }
+    setIsAddingToCart(true);
+    try {
+      await addToCart(buildCartLineItem());
+      toast.success('Added to basket');
+      navigate(savedDraft?.returnPath || location.state?.fromPath || '/');
+    } catch (error) {
+      toast.error(error?.message || 'Could not add to basket.');
+    } finally {
+      setIsAddingToCart(false);
+    }
+  };
+
+  const performReviewCheckout = async () => {
+    if (!designArtworkUrl) {
+      toast.error('Design file is missing. Please prepare your design again.');
+      return;
+    }
+    setIsProcessingCheckout(true);
+    try {
+      navigate('/checkout', { state: { checkoutItems: [buildCartLineItem()] } });
+    } finally {
+      setIsProcessingCheckout(false);
+    }
+  };
+
+  const requireAuthForReviewAction = (action) => {
+    if (isAuthenticated() && localStorage.getItem('token')) return true;
+    pendingReviewActionRef.current = action;
+    setReviewAuthOpen(true);
+    return false;
+  };
+
+  const handleReviewAddToCart = () => {
+    if (!requireAuthForReviewAction('cart')) return;
+    void performReviewAddToCart();
+  };
+
+  const handleReviewCheckout = () => {
+    if (!requireAuthForReviewAction('checkout')) return;
+    void performReviewCheckout();
   };
 
   const saveProject = () => {
@@ -3404,7 +4301,72 @@ const GenericProductDesigner = () => {
   const shapeHasImageFill = Boolean(isShapeSelected && selectedObject?.imageFillSrc);
 
   return (
-    <div className="flex h-screen flex-col bg-slate-100 overflow-hidden" style={font}>
+    <>
+    {isProductMode && showReviewScreen ? (
+      <>
+        <DesignReviewScreen
+          productTitle={savedDraft?.productName || productType}
+          pdfUrl={designArtworkUrl}
+          pdfFileName={designPdfFileName}
+          summaryRows={buildReviewSummaryRows()}
+          priceLabel={getReviewPriceLabel()}
+          onBackToEditor={() => setShowReviewScreen(false)}
+          onAddToCart={handleReviewAddToCart}
+          onProceedToCheckout={handleReviewCheckout}
+          isAddingToCart={isAddingToCart}
+          isProcessingCheckout={isProcessingCheckout}
+        />
+        <DesignerAuthModal
+          open={reviewAuthOpen}
+          onClose={() => {
+            setReviewAuthOpen(false);
+            pendingReviewActionRef.current = null;
+          }}
+          onAuthenticated={async () => {
+            const action = pendingReviewActionRef.current;
+            pendingReviewActionRef.current = null;
+            if (action === 'cart') await performReviewAddToCart();
+            if (action === 'checkout') await performReviewCheckout();
+          }}
+          title="Sign in to continue"
+          subtitle="Sign in or create an account to add your design to basket or checkout."
+          benefits={[
+            'Save your design to your order history',
+            'Track production and delivery from your account',
+            'Checkout securely with your saved details',
+          ]}
+          verifyOtpButtonLabel="Verify & continue"
+          signInButtonLabel="Sign in & continue"
+        />
+      </>
+    ) : null}
+
+    {isProductMode ? (
+      <DesignerAuthModal
+        open={designerAuthOpen}
+        onClose={() => setDesignerAuthOpen(false)}
+        onAuthenticated={async () => {
+          setDesignerAuthOpen(false);
+          await runPreviewAndOrder();
+        }}
+        title="Sign in to save your design"
+        subtitle="Sign in or create an account so we can attach your print-ready design to your order."
+        benefits={[
+          'Save your design to your order history',
+          'Track production and delivery from your account',
+          'Checkout securely with your saved details',
+        ]}
+        verifyOtpButtonLabel="Verify & continue"
+        signInButtonLabel="Sign in & continue"
+      />
+    ) : null}
+
+    <div
+      className={`flex h-screen flex-col bg-slate-100 overflow-hidden ${
+        isProductMode && showReviewScreen ? 'invisible pointer-events-none' : ''
+      }`}
+      style={font}
+    >
       <header className="relative z-20 flex h-[58px] shrink-0 items-center gap-3 border-b border-slate-200/90 bg-white/95 px-4 shadow-[0_1px_0_rgba(15,23,42,0.04)] backdrop-blur-md sm:gap-4 sm:px-5">
         <button
           type="button"
@@ -3422,7 +4384,9 @@ const GenericProductDesigner = () => {
         <div className="min-w-0 flex-1 sm:flex-none">
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-700">RSPUK Studio</p>
           <h1 className="truncate text-[15px] font-bold leading-tight text-slate-900 sm:text-base">
-            Online Design Tool
+            {isProductMode
+              ? savedDraft?.productName || productType || 'Product Designer'
+              : 'Online Design Tool'}
           </h1>
         </div>
 
@@ -4442,11 +5406,20 @@ const GenericProductDesigner = () => {
 
         {activeTab === 'pages' && (
           <div className="space-y-4">
+            {!isProductMode && (
             <div className="grid grid-cols-3 gap-2">
               <button type="button" onClick={addPage} className="p-2 rounded-lg bg-blue-600 text-white text-sm">Add Page</button>
               <button type="button" onClick={duplicatePage} className="p-2 rounded-lg border border-gray-300 text-sm">Duplicate</button>
               <button type="button" onClick={deletePage} className="p-2 rounded-lg border border-red-300 text-red-600 text-sm">Delete</button>
             </div>
+            )}
+            {isProductMode && (
+              <p className="rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-2 text-xs text-blue-800">
+                {isProductDoubleSided
+                  ? 'This product has Front and Back sides. Switch sides using the page panel on the right.'
+                  : 'This product has a single print side.'}
+              </p>
+            )}
             <div className="space-y-2">
               {pages.map((page, idx) => (
                 <button
@@ -4465,25 +5438,106 @@ const GenericProductDesigner = () => {
         )}
 
         {activeTab === 'web' && (
-          <div className="space-y-3">
-            <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-              Search free stock photos from Openverse and Wikimedia Commons.
-            </p>
-            <div className="flex gap-2">
+          <div className="space-y-4">
+            <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3">
+              <p className="text-xs font-medium text-slate-600">
+                Search millions of free, commercial-use photos. Click or drag onto your canvas.
+              </p>
+            </div>
+
+            <div className="relative">
+              <svg
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15z" />
+              </svg>
               <input
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search images from web..."
-                className="flex-1 p-2 border border-gray-300 rounded-lg text-sm"
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setWebActiveCategory('');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    searchWebAssets({
+                      page: 1,
+                      append: false,
+                      queryOverride: searchQuery,
+                      orientationOverride: webOrientation,
+                    });
+                  }
+                }}
+                placeholder="Search photos… e.g. coffee shop, neon sign"
+                className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
               />
-              <button
-                onClick={searchWebAssets}
-                className="px-3 py-2 rounded-lg bg-gray-900 text-white text-sm"
-              >
-                {searching ? '...' : 'Search'}
-              </button>
             </div>
-            <div className="grid grid-cols-2 gap-2 max-h-[460px] overflow-auto">
+
+            <div className="flex flex-wrap gap-1.5">
+              {PHOTO_ORIENTATIONS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setWebOrientation(option.id)}
+                  className={`rounded-full px-3 py-1 text-[11px] font-semibold transition-colors ${
+                    webOrientation === option.id
+                      ? 'bg-emerald-600 text-white'
+                      : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
+            <div>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Popular</p>
+              <div className="flex flex-wrap gap-1.5">
+                {PHOTO_CATEGORIES.map((category) => (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => {
+                      setWebActiveCategory(category);
+                      setSearchQuery(category);
+                    }}
+                    className={`rounded-full px-3 py-1 text-[11px] font-semibold transition-colors ${
+                      webActiveCategory === category
+                        ? 'bg-slate-900 text-white'
+                        : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {category}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {webError ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                {webError}
+              </div>
+            ) : null}
+
+            <div className="grid grid-cols-2 gap-2 max-h-[min(52vh,520px)] overflow-auto pr-1">
+              {searching && !webAssets.length
+                ? Array.from({ length: 8 }).map((_, index) => (
+                    <div
+                      key={`photo-skeleton-${index}`}
+                      className="animate-pulse overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
+                    >
+                      <div className="h-28 bg-slate-200" />
+                      <div className="space-y-2 p-2">
+                        <div className="h-2 rounded bg-slate-200" />
+                        <div className="h-2 w-2/3 rounded bg-slate-200" />
+                      </div>
+                    </div>
+                  ))
+                : null}
+
               {webAssets.map((asset) => (
                 <button
                   key={asset.id}
@@ -4491,14 +5545,68 @@ const GenericProductDesigner = () => {
                   draggable
                   onDragStart={(e) => startDesignerDrag(e, { kind: 'image', url: asset.url })}
                   onClick={() => addWebAssetToCanvas(asset.url)}
-                  className="border border-gray-200 rounded-lg p-1 text-left hover:bg-gray-50 cursor-grab active:cursor-grabbing"
+                  className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md cursor-grab active:cursor-grabbing"
                   title={asset.title}
                 >
-                  <img src={asset.thumb || asset.url} alt={asset.title} className="w-full h-24 object-cover rounded" />
-                  <div className="text-[11px] mt-1 text-gray-600 line-clamp-2">{asset.title}</div>
+                  <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
+                    <img
+                      src={asset.thumb || asset.url}
+                      alt={asset.title}
+                      loading="lazy"
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-900/70 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-1 p-2 text-[10px] text-white opacity-0 transition-all group-hover:translate-y-0 group-hover:opacity-100">
+                      <p className="truncate font-semibold">{asset.creator || asset.source}</p>
+                      <p className="truncate text-white/80">{asset.license || 'Free to use'}</p>
+                    </div>
+                    <div className="pointer-events-none absolute right-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-slate-700 opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
+                      Add
+                    </div>
+                  </div>
+                  <div className="px-2 py-1.5">
+                    <p className="line-clamp-1 text-[11px] font-medium text-slate-700">{asset.title}</p>
+                    {asset.width && asset.height ? (
+                      <p className="text-[10px] text-slate-400">
+                        {asset.width} × {asset.height}
+                      </p>
+                    ) : null}
+                  </div>
                 </button>
               ))}
             </div>
+
+            {!searching && !webAssets.length && !webError ? (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center">
+                <p className="text-sm font-semibold text-slate-700">Search for photos</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Try a keyword like <span className="font-medium">restaurant</span>,{' '}
+                  <span className="font-medium">logo background</span>, or pick a category above.
+                </p>
+              </div>
+            ) : null}
+
+            {webHasMore ? (
+              <button
+                type="button"
+                onClick={loadMoreWebAssets}
+                disabled={webLoadingMore}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {webLoadingMore ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700" />
+                    Loading more…
+                  </>
+                ) : (
+                  'Load more photos'
+                )}
+              </button>
+            ) : null}
+
+            {searching && webAssets.length > 0 ? (
+              <p className="text-center text-[11px] text-slate-500">Updating results…</p>
+            ) : null}
           </div>
         )}
 
@@ -4692,24 +5800,9 @@ const GenericProductDesigner = () => {
         ) : null}
       </div>
 
-      <main className="flex min-w-0 flex-1 flex-col bg-slate-100">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-slate-100">
         <div className="flex shrink-0 items-center justify-between gap-3 overflow-hidden border-b border-slate-200/80 bg-white px-3 py-2.5 shadow-sm sm:px-4" data-tour="online-toolbar">
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setActiveTool(activeTool === 'pan' ? 'select' : 'pan')}
-              className={`p-2 rounded-lg border transition-colors ${
-                activeTool === 'pan'
-                  ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
-                  : 'border-gray-300 hover:bg-gray-50'
-              }`}
-              title="Pan (hold Space)"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 100-3m0 3h.01M17 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 100-3m0 3h.01M12 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 100-3m0 3h.01" />
-              </svg>
-            </button>
-            <div className="w-px h-7 bg-gray-200" />
             <button
               onClick={undo}
               disabled={historyIndex <= 0}
@@ -4975,7 +6068,22 @@ const GenericProductDesigner = () => {
             )}
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setActiveTool(activeTool === 'pan' ? 'select' : 'pan')}
+              className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border text-sm transition-colors ${
+                activeTool === 'pan'
+                  ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                  : 'border-gray-300 text-slate-700 hover:bg-gray-50'
+              }`}
+              title="Hand tool — drag to scroll (hold Space)"
+              aria-label="Hand tool"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11V6a1.5 1.5 0 013 0m0 0v-.5a1.5 1.5 0 013 0V6m0 0a1.5 1.5 0 013 0v5m0 0V9.5a1.5 1.5 0 013 0V14a6 6 0 01-6 6h-2.5a6 6 0 01-4.9-2.55l-2.06-2.94a1.6 1.6 0 012.5-2l1.46 1.49" />
+              </svg>
+            </button>
             <button
               type="button"
               onClick={fitToScreen}
@@ -4984,15 +6092,41 @@ const GenericProductDesigner = () => {
             >
               Fit
             </button>
-            <span className="text-sm text-gray-600">Zoom</span>
+            <button
+              type="button"
+              onClick={() => handleZoom(zoom - 10)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 text-lg font-semibold leading-none text-slate-700 hover:bg-gray-50"
+              title="Zoom out"
+              aria-label="Zoom out"
+            >
+              −
+            </button>
             <input
               type="range"
-              min="25"
+              min="10"
               max="300"
               value={zoom}
               onChange={(e) => handleZoom(Number(e.target.value))}
+              className="accent-emerald-600"
+              title="Zoom"
             />
-            <span className="text-sm font-semibold w-14 text-right">{zoom}%</span>
+            <button
+              type="button"
+              onClick={() => handleZoom(zoom + 10)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 text-lg font-semibold leading-none text-slate-700 hover:bg-gray-50"
+              title="Zoom in"
+              aria-label="Zoom in"
+            >
+              +
+            </button>
+            <button
+              type="button"
+              onClick={() => handleZoom(100)}
+              className="w-14 rounded-lg border border-gray-300 px-1 py-1.5 text-center text-sm font-semibold text-slate-700 hover:bg-gray-50"
+              title="Reset to 100%"
+            >
+              {zoom}%
+            </button>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -5040,7 +6174,7 @@ const GenericProductDesigner = () => {
 
         <div
           ref={canvasWorkspaceRef}
-          className={`relative flex-1 overflow-auto bg-[linear-gradient(180deg,#e2e8f0_0%,#cbd5e1_100%)] p-4 md:p-6 ${isCanvasDragOver ? 'ring-2 ring-inset ring-emerald-400' : ''}`}
+          className={`relative min-h-0 flex-1 overflow-hidden bg-[linear-gradient(180deg,#e2e8f0_0%,#cbd5e1_100%)] p-4 md:p-6 ${isCanvasDragOver ? 'ring-2 ring-inset ring-emerald-400' : ''}`}
           data-tour="online-canvas"
         >
           {selectedObject && isTextObject(selectedObject) && textEditorActive && (
@@ -5119,9 +6253,59 @@ const GenericProductDesigner = () => {
               </button>
             </div>
           )}
-          <div className="flex min-h-full min-w-full items-center justify-center p-2">
-            <div className={`relative inline-block rounded-2xl bg-white p-2 shadow-[0_20px_50px_-20px_rgba(15,23,42,0.35)] ring-1 ring-slate-900/5 ${isPanning ? 'cursor-grabbing' : activeTool === 'pan' ? 'cursor-grab' : ''}`}>
-              <canvas ref={canvasElRef} style={{ display: 'block' }} />
+          {activeTool === 'pan' && (
+            <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-2">
+              <div className="flex items-center gap-2 rounded-full bg-slate-900/92 px-4 py-2 text-xs font-medium text-white shadow-lg">
+                <span className="text-emerald-300">Hand tool</span>
+                <span className="text-slate-400">·</span>
+                <span>Drag or scroll to pan</span>
+                <span className="text-slate-400">·</span>
+                <span>Ctrl/⌘ + scroll to zoom</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTool('select')}
+                className="pointer-events-auto rounded-full border border-emerald-400/60 bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white shadow-md hover:bg-emerald-500"
+              >
+                Back to select
+              </button>
+            </div>
+          )}
+          <div
+            ref={canvasStageRef}
+            className={`absolute inset-0 overflow-hidden ${
+              activeTool === 'pan' ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : ''
+            }`}
+          >
+            <div
+              ref={canvasCardWrapperRef}
+              className="absolute left-1/2 top-1/2"
+              style={{ transform: 'translate(-50%, -50%)' }}
+            >
+              <CanvasSizeGuides
+                widthLabel={`${canvasWidthInput} ${canvasSizeUnit}`}
+                heightLabel={`${canvasHeightInput} ${canvasSizeUnit}`}
+                displayWidth={getCanvasDisplaySize(canvas, zoom).width}
+                displayHeight={getCanvasDisplaySize(canvas, zoom).height}
+              >
+                <div
+                  className={`relative inline-block overflow-hidden rounded-2xl bg-white p-2 shadow-[0_20px_50px_-20px_rgba(15,23,42,0.35)] ring-1 ring-slate-900/5 ${isPanning ? 'cursor-grabbing' : activeTool === 'pan' ? 'cursor-grab' : ''}`}
+                >
+                  <div
+                    className="rounded-xl"
+                    style={{
+                      backgroundColor: '#f8fafc',
+                      backgroundImage:
+                        'linear-gradient(45deg, #e2e8f0 25%, transparent 25%), linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e2e8f0 75%), linear-gradient(-45deg, transparent 75%, #e2e8f0 75%)',
+                      backgroundSize: '16px 16px',
+                      backgroundPosition: '0 0, 0 8px, 8px -8px, -8px 0px',
+                    }}
+                  >
+                    <canvas ref={canvasElRef} style={{ display: 'block' }} />
+                  </div>
+                  <div className="pointer-events-none absolute inset-2 rounded-xl ring-1 ring-emerald-400/35" aria-hidden="true" />
+                </div>
+              </CanvasSizeGuides>
             </div>
           </div>
         </div>
@@ -5133,9 +6317,9 @@ const GenericProductDesigner = () => {
             </span>
             <button
               onClick={deletePage}
-              disabled={pages.length <= 1}
+              disabled={pages.length <= 1 || isProductMode}
               className="p-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Remove Current Page"
+              title={isProductMode ? 'Sides are fixed for this product' : 'Remove Current Page'}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 7h12M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m-8 0l1 12h8l1-12" />
@@ -5156,6 +6340,8 @@ const GenericProductDesigner = () => {
               </div>
             )}
 
+            {!isProductMode && (
+              <>
             <ToolbarTooltip
               title="Save Project"
               description="Download a project file (.json) so you can reopen and continue editing later."
@@ -5193,22 +6379,77 @@ const GenericProductDesigner = () => {
                 {isExportingPng ? 'Exporting…' : 'Export PNG'}
               </button>
             </ToolbarTooltip>
+              </>
+            )}
             <input ref={projectLoadRef} type="file" accept="application/json" className="hidden" onChange={loadProject} />
             <input ref={shapeImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleShapeImageFile} />
-            <ToolbarTooltip
-              title="Save & Download"
-              description="Export your design as PDF or PNG — choose format, quality, pages, and transparency before downloading."
-            >
-              <button
-                type="button"
-                onClick={handleDownloadClick}
-                disabled={isExportingDesign}
-                data-tour="online-download"
-                className="rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-60"
+            {!isProductMode && (
+              <ToolbarTooltip
+                title="Save & Download"
+                description="Export your design as PDF or PNG — choose format, quality, pages, and transparency before downloading."
               >
-                {isExportingDesign ? 'Preparing…' : 'Save & Download'}
-              </button>
-            </ToolbarTooltip>
+                <button
+                  type="button"
+                  onClick={handleDownloadClick}
+                  disabled={isExportingDesign}
+                  data-tour="online-download"
+                  className="rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-60"
+                >
+                  {isExportingDesign ? 'Preparing…' : 'Save & Download'}
+                </button>
+              </ToolbarTooltip>
+            )}
+            {isProductMode && (
+              <>
+                <ToolbarTooltip
+                  title="3D Preview"
+                  description="See a realistic 3D preview of your design. Move your cursor to rotate it."
+                >
+                  <button
+                    type="button"
+                    onClick={handleOpen3DPreview}
+                    disabled={isGeneratingPreview}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-sm font-semibold text-emerald-800 shadow-sm transition-colors hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:opacity-60"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    {isGeneratingPreview ? 'Rendering…' : 'Preview'}
+                  </button>
+                </ToolbarTooltip>
+                <ToolbarTooltip
+                  title="Download PDF"
+                  description="Download a print-ready PDF of your design to your device."
+                >
+                  <button
+                    type="button"
+                    onClick={handleDownloadProductArtwork}
+                    disabled={isDownloadingArtwork}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:opacity-60"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    {isDownloadingArtwork ? 'Preparing…' : 'Download'}
+                  </button>
+                </ToolbarTooltip>
+                <ToolbarTooltip
+                  title="Preview & Order"
+                  description="Generate your print-ready design, review it, then add to basket or checkout."
+                >
+                  <button
+                    type="button"
+                    onClick={handlePreviewAndOrder}
+                    disabled={isPreparingOrder}
+                    data-tour="online-download"
+                    className="rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-60"
+                  >
+                    {isPreparingOrder ? 'Preparing…' : 'Preview & Order'}
+                  </button>
+                </ToolbarTooltip>
+              </>
+            )}
           </div>
         </div>
       </main>
@@ -5251,6 +6492,14 @@ const GenericProductDesigner = () => {
       </aside>
       </div>
 
+      <RefreshGuardModal
+        open={refreshGuard.open}
+        onCancel={refreshGuard.cancel}
+        onConfirm={refreshGuard.confirmReload}
+        message="Reloading may lose your current design. Your work is auto-saved locally, but we recommend downloading it first to be safe."
+        font={font}
+      />
+
       {showExitModal ? (
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm"
@@ -5276,9 +6525,11 @@ const GenericProductDesigner = () => {
                     Leave the designer?
                   </h3>
                   <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                    {canvasHasDesign()
-                      ? 'Are you sure you want to exit? Download your design as a PDF before leaving so you don\'t lose your work.'
-                      : 'Are you sure you want to exit the design tool?'}
+                    {isProductMode
+                      ? 'Return to the product page? Unsaved design changes will be lost unless you have already prepared your order.'
+                      : canvasHasDesign()
+                        ? 'Are you sure you want to exit? Download your design as a PDF before leaving so you don\'t lose your work.'
+                        : 'Are you sure you want to exit the design tool?'}
                   </p>
                 </div>
               </div>
@@ -5574,6 +6825,259 @@ const GenericProductDesigner = () => {
         </div>
       ) : null}
     </div>
+
+    {isProductMode && show3DPreviewModal && (() => {
+      const cardW = pages[0]?.width || 210;
+      const cardH = pages[0]?.height || 148;
+      const cardDepth = Math.max(10, Math.round(Math.min(cardW, cardH) * 0.028));
+      const normalizedRot = ((previewRotationY % 360) + 360) % 360;
+      const showingBackFace = normalizedRot > 90 && normalizedRot < 270;
+      const productLabel = savedDraft?.productName || productType || 'Your design';
+
+      return (
+      <div
+        className="fixed inset-0 z-[75] flex items-center justify-center p-4 sm:p-6"
+        style={font}
+        role="presentation"
+        onClick={() => setShow3DPreviewModal(false)}
+      >
+        {/* Backdrop */}
+        <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-md" aria-hidden />
+
+        <div
+          className="relative w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-white shadow-[0_32px_80px_-20px_rgba(0,0,0,0.55)]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="preview-3d-title"
+          onClick={(e) => e.stopPropagation()}
+          onMouseMove={handlePreviewPointerMove}
+          onTouchMove={handlePreviewPointerMove}
+        >
+          {/* Header */}
+          <div className="relative overflow-hidden border-b border-slate-200/80 bg-gradient-to-r from-slate-50 via-white to-blue-50/40 px-5 py-4 sm:px-6">
+            <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-blue-400/10 blur-2xl" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="mb-1.5 inline-flex items-center gap-1.5 rounded-full border border-emerald-200/80 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-emerald-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live preview
+                </div>
+                <h3 id="preview-3d-title" className="truncate text-lg font-bold tracking-tight text-slate-900 sm:text-xl">
+                  {productLabel}
+                </h3>
+                <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+                  Drag or move your cursor to rotate · {isProductDoubleSided ? 'Double-sided product' : 'Single-sided product'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShow3DPreviewModal(false)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"
+                aria-label="Close preview"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Studio viewer */}
+          <div
+            className="relative overflow-hidden"
+            style={{
+              background: 'radial-gradient(ellipse 80% 60% at 50% 20%, #1e3a5f 0%, #0f172a 45%, #020617 100%)',
+            }}
+          >
+            {/* Spotlight */}
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{
+                background: 'radial-gradient(ellipse 55% 45% at 50% 15%, rgba(255,255,255,0.12) 0%, transparent 70%)',
+              }}
+            />
+            {/* Subtle grid floor */}
+            <div
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 opacity-[0.07]"
+              style={{
+                backgroundImage:
+                  'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',
+                backgroundSize: '40px 40px',
+                transform: 'perspective(400px) rotateX(60deg)',
+                transformOrigin: 'center bottom',
+              }}
+            />
+
+            <div className="relative flex min-h-[320px] flex-col items-center justify-center px-4 py-10 sm:min-h-[380px] sm:py-12">
+              {/* Side indicator badge */}
+              <div className="mb-5 flex items-center gap-2">
+                <span
+                  className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider transition-all duration-300 ${
+                    !showingBackFace
+                      ? 'bg-white/15 text-white ring-1 ring-white/25'
+                      : 'bg-white/5 text-white/40'
+                  }`}
+                >
+                  Front
+                </span>
+                {isProductDoubleSided && (
+                  <span
+                    className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider transition-all duration-300 ${
+                      showingBackFace
+                        ? 'bg-white/15 text-white ring-1 ring-white/25'
+                        : 'bg-white/5 text-white/40'
+                    }`}
+                  >
+                    Back
+                  </span>
+                )}
+              </div>
+
+              {/* 3D stage */}
+              <div
+                className="relative flex items-center justify-center"
+                style={{ perspective: '1400px', perspectiveOrigin: '50% 40%' }}
+              >
+                {/* Floor shadow */}
+                <div
+                  className="pointer-events-none absolute -bottom-6 left-1/2 h-8 w-[72%] -translate-x-1/2 rounded-[100%] bg-black/50 blur-xl"
+                  style={{
+                    transform: `translateX(-50%) scaleX(${0.85 + Math.abs(Math.sin((previewRotationY * Math.PI) / 180)) * 0.15})`,
+                  }}
+                />
+
+                <div
+                  data-3d-preview-container="true"
+                  className="relative"
+                  style={{
+                    width: 'min(440px, 82vw)',
+                    aspectRatio: `${cardW} / ${cardH}`,
+                    transformStyle: 'preserve-3d',
+                    transform: `rotateX(18deg) rotateY(${previewRotationY}deg)`,
+                  }}
+                >
+                  {/* Front face */}
+                  <div
+                    className="absolute inset-0 overflow-hidden rounded-2xl bg-white"
+                    style={{
+                      transform: `translateZ(${cardDepth}px)`,
+                      backfaceVisibility: 'hidden',
+                      boxShadow: '0 25px 60px -12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.8)',
+                    }}
+                  >
+                    {sidePreviewUrls.front ? (
+                      <img
+                        src={sidePreviewUrls.front}
+                        alt="Front artwork"
+                        className="h-full w-full object-contain"
+                        draggable={false}
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-slate-100 text-sm text-slate-400">
+                        Front unavailable
+                      </div>
+                    )}
+                    <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-black/5" />
+                  </div>
+
+                  {/* Back face */}
+                  {isProductDoubleSided && (
+                    <div
+                      className="absolute inset-0 overflow-hidden rounded-2xl bg-white"
+                      style={{
+                        transform: `rotateY(180deg) translateZ(${cardDepth}px)`,
+                        backfaceVisibility: 'hidden',
+                        boxShadow: '0 25px 60px -12px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.8)',
+                      }}
+                    >
+                      {sidePreviewUrls.back ? (
+                        <img
+                          src={sidePreviewUrls.back}
+                          alt="Back artwork"
+                          className="h-full w-full object-contain"
+                          draggable={false}
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-slate-100 text-sm text-slate-400">
+                          Back unavailable
+                        </div>
+                      )}
+                      <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-black/5" />
+                    </div>
+                  )}
+
+                  {/* Card edge — right (paper thickness) */}
+                  <div
+                    className="absolute bottom-2 right-0 top-2 rounded-r-md"
+                    style={{
+                      width: `${cardDepth}px`,
+                      transform: `rotateY(90deg) translateZ(${cardDepth}px)`,
+                      transformOrigin: 'right center',
+                      background: 'linear-gradient(to bottom, #e8edf2, #c8d0da 40%, #a8b4c0 100%)',
+                      boxShadow: 'inset -2px 0 4px rgba(0,0,0,0.08)',
+                    }}
+                  />
+                  {/* Card edge — left */}
+                  <div
+                    className="absolute bottom-2 left-0 top-2 rounded-l-md"
+                    style={{
+                      width: `${cardDepth}px`,
+                      transform: `rotateY(-90deg) translateZ(0px)`,
+                      transformOrigin: 'left center',
+                      background: 'linear-gradient(to bottom, #d0d8e0, #b0bac6 50%, #909aa8 100%)',
+                    }}
+                  />
+                  {/* Card edge — top */}
+                  <div
+                    className="absolute left-2 right-2 top-0 rounded-t-md"
+                    style={{
+                      height: `${cardDepth}px`,
+                      transform: `rotateX(90deg) translateZ(0px)`,
+                      transformOrigin: 'top center',
+                      background: 'linear-gradient(to right, #eef1f5, #d8dfe8, #eef1f5)',
+                    }}
+                  />
+                  {/* Card edge — bottom */}
+                  <div
+                    className="absolute bottom-0 left-2 right-2 rounded-b-md"
+                    style={{
+                      height: `${cardDepth}px`,
+                      transform: `rotateX(-90deg) translateZ(0px)`,
+                      transformOrigin: 'bottom center',
+                      background: 'linear-gradient(to right, #a0aab6, #8892a0, #a0aab6)',
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Hint */}
+              <div className="mt-8 flex items-center gap-2 text-xs text-white/50">
+                <svg className="h-4 w-4 shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+                </svg>
+                <span>Move left or right to inspect every angle</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-5 py-3.5 sm:px-6">
+            <p className="text-xs text-slate-500">
+              This is a visual preview — colours may vary slightly in print.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShow3DPreviewModal(false)}
+              className="shrink-0 rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800"
+            >
+              Back to editor
+            </button>
+          </div>
+        </div>
+      </div>
+      );
+    })()}
+    </>
   );
 };
 

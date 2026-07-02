@@ -10,7 +10,6 @@ const Login = lazy(() => import("../pages/Login"));
 const Register = lazy(() => import("../pages/Register"));
 const OAuthCallback = lazy(() => import("../pages/OAuthCallback"));
 const ProductDetail = lazy(() => import("../pages/ProductDetail"));
-const ProductDesigner = lazy(() => import("../pages/ProductDesigner"));
 const GenericProductDesigner = lazy(
   () => import("../pages/GenericProductDesigner"),
 );
@@ -151,7 +150,7 @@ export const routes = [
   },
   {
     path: "/product-designer",
-    component: ProductDesigner,
+    component: GenericProductDesigner,
     layout: "minimal",
   },
   {
