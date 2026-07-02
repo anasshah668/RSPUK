@@ -5,7 +5,7 @@ import QRCode from 'qrcode';
 import { toast } from 'react-toastify';
 import { ONLINE_DESIGN_TEMPLATES, TEMPLATE_CATEGORIES } from '../data/onlineDesignTemplates';
 import { getRoutePath } from '../config/routes.config';
-import { generateTemplateThumbnail, clearTemplateThumbnailCache } from '../utils/templateThumbnail';
+import { generateTemplateThumbnail } from '../utils/templateThumbnail';
 import {
   extractFillColor,
   fitCanvasToWorkspace,
@@ -81,6 +81,15 @@ const emptyPage = (index, size = { width: 800, height: 400 }) => ({
   backgroundStyle: { ...DEFAULT_BACKGROUND_STYLE },
 });
 
+const clonePageRecord = (page) => ({
+  ...page,
+  backgroundStyle: page.backgroundStyle
+    ? JSON.parse(JSON.stringify(page.backgroundStyle))
+    : { ...DEFAULT_BACKGROUND_STYLE },
+  json: page.json ? JSON.parse(JSON.stringify(page.json)) : null,
+  thumbnail: page.thumbnail || null,
+});
+
 const QUICK_ICONS = [
   { name: 'Instagram', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><defs><linearGradient id="ig" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#feda75"/><stop offset="25%" stop-color="#fa7e1e"/><stop offset="50%" stop-color="#d62976"/><stop offset="75%" stop-color="#962fbf"/><stop offset="100%" stop-color="#4f5bd5"/></linearGradient></defs><rect width="24" height="24" rx="6" fill="url(#ig)"/><circle cx="12" cy="12" r="4.2" fill="none" stroke="#fff" stroke-width="1.6"/><circle cx="17.2" cy="6.8" r="1.1" fill="#fff"/></svg>' },
   { name: 'WhatsApp', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#25D366" d="M12 2C6.48 2 2 6.26 2 11.34c0 1.86.52 3.64 1.5 5.2L2 22l5.72-1.46A9.7 9.7 0 0012 20.7C17.52 20.7 22 16.44 22 11.34S17.52 2 12 2z"/><path fill="#fff" d="M16.9 14.1c-.24-.12-1.42-.7-1.64-.78-.22-.08-.38-.12-.54.12-.16.24-.62.78-.76.94-.14.16-.28.18-.52.06-.24-.12-1.02-.38-1.94-1.2-.72-.64-1.2-1.42-1.34-1.66-.14-.24-.02-.36.1-.48.1-.1.24-.26.36-.4.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.2-.48-.4-.42-.54-.42h-.46c-.16 0-.42.06-.64.3-.22.24-.86.84-.86 2.04 0 1.2.88 2.36 1 2.52.12.16 1.74 2.66 4.22 3.72.59.26 1.05.42 1.41.54.59.18 1.13.16 1.56.1.48-.08 1.42-.58 1.62-1.14.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.46-.28z"/></svg>' },
@@ -109,6 +118,32 @@ const TEXT_COLOR_SWATCHES = [
 
 const font = { fontFamily: 'Lexend Deca, sans-serif' };
 
+const EXPORT_QUALITY_PRESETS = {
+  low: { jpegQuality: 0.75, multiplier: 1, label: 'Low (smaller file)' },
+  medium: { jpegQuality: 0.85, multiplier: 1.25, label: 'Medium (balanced)' },
+  high: { jpegQuality: 0.95, multiplier: 2, label: 'High (best detail)' },
+};
+
+const ToolbarTooltip = ({ title, description, children }) => {
+  const child = React.Children.only(children);
+  const isDisabled = Boolean(child?.props?.disabled);
+
+  return (
+    <div className="group/tt relative inline-flex">
+      {isDisabled ? <span className="absolute inset-0 z-10" aria-hidden="true" /> : null}
+      {children}
+      <div
+        role="tooltip"
+        className="pointer-events-none absolute bottom-[calc(100%+10px)] left-1/2 z-[60] w-max max-w-[260px] -translate-x-1/2 rounded-xl border border-slate-700/60 bg-slate-900 px-3.5 py-2.5 text-left opacity-0 shadow-[0_8px_30px_rgba(15,23,42,0.35)] transition-all duration-200 ease-out translate-y-1 group-hover/tt:translate-y-0 group-hover/tt:opacity-100 group-focus-within/tt:translate-y-0 group-focus-within/tt:opacity-100"
+      >
+        <p className="text-xs font-semibold text-white">{title}</p>
+        <p className="mt-1 text-[11px] leading-relaxed text-slate-300">{description}</p>
+        <span className="absolute left-1/2 top-full -translate-x-1/2 border-[6px] border-transparent border-t-slate-900" />
+      </div>
+    </div>
+  );
+};
+
 const SIDEBAR_TAB_META = {
   templates: { label: 'Templates', panelTitle: 'Start from a template' },
   insert: { label: 'Insert', panelTitle: 'Insert elements' },
@@ -122,12 +157,40 @@ const SIDEBAR_TAB_META = {
 
 const isTextObject = (obj) => ['text', 'i-text', 'textbox'].includes(obj?.type);
 
+const FILLABLE_SHAPE_TYPES = ['rect', 'circle', 'triangle', 'ellipse', 'polygon', 'path'];
+
+const CANVAS_JSON_PROPERTIES = [
+  'name',
+  'selectable',
+  'evented',
+  'editable',
+  'lockMovementX',
+  'lockMovementY',
+  'lockScalingX',
+  'lockScalingY',
+  'lockRotation',
+  'hasControls',
+  'hasBorders',
+  'hoverCursor',
+  'objectCaching',
+  'opacity',
+  'rx',
+  'ry',
+  'imageFillSrc',
+  'shapeFillColor',
+  'imageFillZoom',
+  'imageFillPanX',
+  'imageFillPanY',
+];
+
 const exitCanvasTextEditing = (targetCanvas) => {
   if (!targetCanvas) return;
   targetCanvas.getObjects().forEach((obj) => {
     if (obj.isEditing) obj.exitEditing();
   });
 };
+
+const WATERMARK_LOGO_SRC = '/logo.png';
 
 const DESIGNER_DRAG_MIME = 'application/x-rspuk-designer';
 
@@ -236,6 +299,7 @@ const GenericProductDesigner = () => {
   const historyIndexRef = useRef(-1);
   const canvasHydratingRef = useRef(false);
   const activeToolRef = useRef('select');
+  const loadTokenRef = useRef(0);
 
   const canvasTextEditorRef = useRef(null);
   const queueTextEditorFocusRef = useRef(null);
@@ -246,11 +310,30 @@ const GenericProductDesigner = () => {
   const canvasDropRef = useRef({});
   const sidebarScrollRef = useRef(null);
   const stickySidebarTextRef = useRef(null);
+  const shapeImageInputRef = useRef(null);
+  const shapeImageCacheRef = useRef(new Map());
+  const watermarkLogoRef = useRef(null);
+  const shapeImagePanDragRef = useRef(null);
+  const isShapeImageAdjustModeRef = useRef(false);
+  const enterShapeImageAdjustModeRef = useRef(() => {});
+  const exitShapeImageAdjustModeRef = useRef(() => {});
+  const skipExitAdjustModeRef = useRef(false);
 
   const [canvas, setCanvas] = useState(null);
   const [zoom, setZoom] = useState(100);
   const [activeTab, setActiveTab] = useState('templates');
   const [selectedObject, setSelectedObject] = useState(null);
+  const [transformDraft, setTransformDraft] = useState({
+    x: '0',
+    y: '0',
+    w: '0',
+    h: '0',
+    rotation: '0',
+  });
+  const activeTransformFieldRef = useRef(null);
+  const [shapeFillColor, setShapeFillColor] = useState('#3b82f6');
+  const [shapeImageZoom, setShapeImageZoom] = useState(1);
+  const [isShapeImageAdjustMode, setIsShapeImageAdjustMode] = useState(false);
   const [selectedTextDraft, setSelectedTextDraft] = useState('');
   const [textEditorActive, setTextEditorActive] = useState(false);
   const [isCanvasDragOver, setIsCanvasDragOver] = useState(false);
@@ -310,16 +393,41 @@ const GenericProductDesigner = () => {
   const [templateCategory, setTemplateCategory] = useState('All');
   const [templateQuery, setTemplateQuery] = useState('');
   const [applyingTemplateId, setApplyingTemplateId] = useState(null);
-  const [templateSwitchModal, setTemplateSwitchModal] = useState({ open: false, templateName: '' });
+  const [templateSwitchModal, setTemplateSwitchModal] = useState({
+    open: false,
+    templateName: '',
+    templatePageCount: 1,
+    projectPageCount: 1,
+  });
   const [showExitModal, setShowExitModal] = useState(false);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [downloadModalContext, setDownloadModalContext] = useState(null);
+  const [downloadForm, setDownloadForm] = useState({
+    format: 'pdf',
+    quality: 'high',
+    pageScope: 'all',
+    transparentBackground: false,
+  });
   const fontPickerRef = useRef(null);
   const pagesRef = useRef(pages);
   const currentPageIndexRef = useRef(currentPageIndex);
   const backgroundStyleRef = useRef(backgroundStyle);
 
-  useEffect(() => {
-    pagesRef.current = pages;
-  }, [pages]);
+  const commitPagesState = (nextPages) => {
+    pagesRef.current = nextPages;
+    setPages(nextPages);
+  };
+
+  const setActivePageIndex = (index) => {
+    currentPageIndexRef.current = index;
+    setCurrentPageIndex(index);
+  };
+
+  const updatePagesFromRef = (updater) => {
+    const nextPages = updater(pagesRef.current);
+    commitPagesState(nextPages);
+    return nextPages;
+  };
 
   useEffect(() => {
     currentPageIndexRef.current = currentPageIndex;
@@ -399,35 +507,215 @@ const GenericProductDesigner = () => {
 
   openCanvasTextEditorRef.current = openCanvasTextEditor;
 
+  // Serialize a single fabric object, healing the object first if fabric's
+  // native toObject() throws (e.g. malformed per-character text styles, which
+  // make canvas.toJSON() crash and silently abort a whole page snapshot).
+  const serializeObjectSafely = (obj, index) => {
+    if (!obj) return null;
+    try {
+      return obj.toObject(CANVAS_JSON_PROPERTIES);
+    } catch (firstError) {
+      // Heal the most common offenders (bad text styles / clipPath) and retry.
+      let restoreStyles;
+      let restoreClip;
+      try {
+        if (obj.styles && typeof obj.styles === 'object') {
+          restoreStyles = obj.styles;
+          obj.styles = {};
+        }
+        if (obj.clipPath) {
+          restoreClip = obj.clipPath;
+          obj.clipPath = undefined;
+        }
+        const healed = obj.toObject(CANVAS_JSON_PROPERTIES);
+        return healed;
+      } catch (secondError) {
+        console.warn('[serialize-object]', obj?.type, index, secondError);
+        // Last resort: a minimal, always-serializable representation so the
+        // object is not lost from the page snapshot.
+        const fillColor = typeof obj.fill === 'string' ? obj.fill : undefined;
+        return {
+          type: obj.type || 'rect',
+          left: obj.left ?? 0,
+          top: obj.top ?? 0,
+          width: obj.width ?? 0,
+          height: obj.height ?? 0,
+          scaleX: obj.scaleX ?? 1,
+          scaleY: obj.scaleY ?? 1,
+          angle: obj.angle ?? 0,
+          opacity: obj.opacity ?? 1,
+          fill: fillColor,
+          radius: obj.radius,
+          rx: obj.rx,
+          ry: obj.ry,
+          name: obj.name,
+          text: obj.text,
+          fontSize: obj.fontSize,
+          fontFamily: obj.fontFamily,
+          fontWeight: obj.fontWeight,
+          fontStyle: obj.fontStyle,
+          textAlign: obj.textAlign,
+          lineHeight: obj.lineHeight,
+          charSpacing: obj.charSpacing,
+          imageFillSrc: obj.imageFillSrc,
+          shapeFillColor: obj.shapeFillColor,
+          imageFillZoom: obj.imageFillZoom,
+          imageFillPanX: obj.imageFillPanX,
+          imageFillPanY: obj.imageFillPanY,
+        };
+      } finally {
+        if (restoreStyles !== undefined) obj.styles = restoreStyles;
+        if (restoreClip !== undefined) obj.clipPath = restoreClip;
+      }
+    }
+  };
+
+  // Build a canvas JSON snapshot object-by-object so a single bad object can
+  // never wipe the whole snapshot (which previously caused pages to revert).
+  const buildCanvasJsonSafely = (targetCanvas) => {
+    const objects = targetCanvas
+      .getObjects()
+      .map((obj, index) => serializeObjectSafely(obj, index))
+      .filter(Boolean);
+
+    const json = {
+      version: fabric.version,
+      objects,
+    };
+
+    const bg = targetCanvas.backgroundColor;
+    if (bg) {
+      if (typeof bg === 'string') {
+        json.background = bg;
+      } else if (typeof bg.toObject === 'function') {
+        try {
+          json.background = bg.toObject();
+        } catch (bgError) {
+          console.warn('[serialize-background]', bgError);
+        }
+      }
+    }
+
+    return json;
+  };
+
   const safeCanvasToJson = (targetCanvas = canvas) => {
     if (!targetCanvas) return null;
     try {
       return targetCanvas.toJSON();
     } catch (error) {
-      console.warn('[canvas-to-json]', error);
-      return null;
+      // Native serialization failed — fall back to the resilient path so the
+      // page snapshot still succeeds and edits are not lost on page switch.
+      try {
+        return buildCanvasJsonSafely(targetCanvas);
+      } catch (fallbackError) {
+        console.warn('[canvas-to-json-fallback]', fallbackError);
+        return null;
+      }
     }
   };
 
-  const persistCanvasSnapshot = (pageIndex = currentPageIndex) => {
+  const commitPendingCanvasEdits = () => {
     if (!canvas) return;
-    const snapshotJson = safeCanvasToJson(canvas);
-    if (!snapshotJson) return;
+    exitCanvasTextEditing(canvas);
+    setTextEditorActive(false);
+    canvas.calcOffset();
+    canvas.requestRenderAll();
+  };
 
-    const snapshotThumb = getCanvasThumbnail();
-    setPages((prev) =>
-      prev.map((page, idx) =>
-        idx === pageIndex
-          ? { ...page, json: snapshotJson, thumbnail: snapshotThumb || page.thumbnail }
-          : page,
-      ),
-    );
+  const buildPagesSnapshotFromCanvas = () => syncPageSnapshotAt(currentPageIndexRef.current);
+
+  const syncPageSnapshotAt = (pageIndex = currentPageIndexRef.current, { includeThumbnail = true } = {}) => {
+    if (!canvas) return null;
+
+    commitPendingCanvasEdits();
+
+    const snapshotJson = safeCanvasToJson(canvas);
+    if (!snapshotJson) return null;
+
+    let clonedJson;
+    try {
+      clonedJson = JSON.parse(JSON.stringify(snapshotJson));
+    } catch (error) {
+      console.warn('[page-snapshot-clone]', error);
+      return null;
+    }
+
+    const snapshotThumb = includeThumbnail ? getCanvasThumbnail() : null;
+    const nextBackground = backgroundStyleRef.current
+      ? JSON.parse(JSON.stringify(backgroundStyleRef.current))
+      : { ...DEFAULT_BACKGROUND_STYLE };
+
+    const updatedPages = pagesRef.current.map((page, idx) => {
+      if (idx !== pageIndex) return clonePageRecord(page);
+      return {
+        ...page,
+        json: clonedJson,
+        thumbnail: snapshotThumb || page.thumbnail,
+        backgroundStyle: nextBackground,
+      };
+    });
+
+    return updatedPages;
+  };
+
+  const buildProjectPagesSnapshot = (activeIndex = currentPageIndexRef.current) => {
+    if (!canvas) return pagesRef.current.map(clonePageRecord);
+
+    commitPendingCanvasEdits();
+
+    const activeSnap = safeCanvasToJson(canvas);
+    let activeJson = null;
+    if (activeSnap) {
+      try {
+        activeJson = JSON.parse(JSON.stringify(activeSnap));
+      } catch (error) {
+        console.warn('[project-snapshot-clone]', error);
+      }
+    }
+
+    const activeThumb = getCanvasThumbnail();
+    const nextBackground = backgroundStyleRef.current
+      ? JSON.parse(JSON.stringify(backgroundStyleRef.current))
+      : { ...DEFAULT_BACKGROUND_STYLE };
+
+    return pagesRef.current.map((page, idx) => {
+      const cloned = clonePageRecord(page);
+      if (idx !== activeIndex || !activeJson) return cloned;
+      return {
+        ...cloned,
+        json: activeJson,
+        thumbnail: activeThumb || cloned.thumbnail,
+        backgroundStyle: nextBackground,
+      };
+    });
+  };
+
+  const restoreCanvasViewport = (targetCanvas, zoomLevel, viewportTransform) => {
+    if (!targetCanvas) return;
+    if (typeof zoomLevel === 'number') {
+      targetCanvas.setZoom(zoomLevel);
+    }
+    if (Array.isArray(viewportTransform) && viewportTransform.length === 6) {
+      targetCanvas.setViewportTransform(viewportTransform);
+    }
+    targetCanvas.calcOffset();
+    targetCanvas.requestRenderAll();
+  };
+
+  const persistCanvasSnapshot = (pageIndex = currentPageIndexRef.current) => {
+    const updatedPages = syncPageSnapshotAt(pageIndex);
+    if (!updatedPages) return;
+
+    commitPagesState(updatedPages);
 
     try {
-      const serialized = JSON.stringify(snapshotJson);
-      setHistory([serialized]);
-      setHistoryIndex(0);
-      historyIndexRef.current = 0;
+      const serialized = JSON.stringify(updatedPages[pageIndex]?.json);
+      if (serialized) {
+        setHistory([serialized]);
+        setHistoryIndex(0);
+        historyIndexRef.current = 0;
+      }
     } catch (error) {
       console.warn('[canvas-history]', error);
     }
@@ -450,9 +738,9 @@ const GenericProductDesigner = () => {
     canvas.setDimensions({ width, height });
     canvas.calcOffset();
     canvas.renderAll();
-    setPages((prev) =>
+    updatePagesFromRef((prev) =>
       prev.map((page, idx) =>
-        idx === currentPageIndex ? { ...page, width, height } : page,
+        idx === currentPageIndexRef.current ? { ...page, width, height } : page,
       ),
     );
     syncCanvasSizeInputs(width, height);
@@ -474,6 +762,336 @@ const GenericProductDesigner = () => {
     setSelectedObject(obj);
     refreshCanvas();
     requestAnimationFrame(() => refreshCanvas());
+  };
+
+  const isShapeObject = (obj) => {
+    if (!obj) return false;
+    if (isTextObject(obj)) return false;
+    if (obj.type === 'image') return false;
+    if (canvas && isTemplateBackgroundObject(obj, canvas)) return false;
+    return FILLABLE_SHAPE_TYPES.includes(obj.type);
+  };
+
+  // Bake image into shape-sized canvas with cover scaling + user zoom/pan.
+  const buildCoverPatternCanvas = (imageEl, targetWidth, targetHeight, { zoom = 1, panX = 0, panY = 0 } = {}) => {
+    const width = Math.max(1, Math.round(targetWidth));
+    const height = Math.max(1, Math.round(targetHeight));
+    const off = document.createElement('canvas');
+    off.width = width;
+    off.height = height;
+    const ctx = off.getContext('2d');
+    if (!ctx) return off;
+
+    const imgW = imageEl.naturalWidth || imageEl.width || 1;
+    const imgH = imageEl.naturalHeight || imageEl.height || 1;
+    const coverScale = Math.max(width / imgW, height / imgH);
+    const scale = coverScale * Math.max(1, zoom);
+    const drawW = imgW * scale;
+    const drawH = imgH * scale;
+    const dx = (width - drawW) / 2 + panX;
+    const dy = (height - drawH) / 2 + panY;
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(imageEl, dx, dy, drawW, drawH);
+    return off;
+  };
+
+  const loadShapeImageElement = (imageUrl) =>
+    new Promise((resolve, reject) => {
+      if (!imageUrl) {
+        reject(new Error('Missing image URL'));
+        return;
+      }
+      const cached = shapeImageCacheRef.current.get(imageUrl);
+      if (cached?.complete && cached.naturalWidth) {
+        resolve(cached);
+        return;
+      }
+      const imageEl = new Image();
+      imageEl.crossOrigin = 'anonymous';
+      imageEl.onload = () => {
+        shapeImageCacheRef.current.set(imageUrl, imageEl);
+        resolve(imageEl);
+      };
+      imageEl.onerror = () => reject(new Error('Could not load image'));
+      imageEl.src = imageUrl;
+    });
+
+  const renderShapeImageFill = (shapeObj, imageEl) => {
+    if (!canvas || !shapeObj || !imageEl) return;
+    const shapeWidth = shapeObj.width || shapeObj.getScaledWidth() || 1;
+    const shapeHeight = shapeObj.height || shapeObj.getScaledHeight() || 1;
+    const zoom = shapeObj.imageFillZoom ?? 1;
+    const panX = shapeObj.imageFillPanX ?? 0;
+    const panY = shapeObj.imageFillPanY ?? 0;
+    const source = buildCoverPatternCanvas(imageEl, shapeWidth, shapeHeight, { zoom, panX, panY });
+    const pattern = new fabric.Pattern({ source, repeat: 'no-repeat' });
+    shapeObj.set('fill', pattern);
+    shapeObj.set('dirty', true);
+    shapeObj.setCoords();
+    canvas.requestRenderAll();
+    setShapeImageZoom(zoom);
+    setLayerUpdate((prev) => prev + 1);
+  };
+
+  const updateShapeImageTransform = (shapeObj, overrides = {}) => {
+    if (!shapeObj?.imageFillSrc) return Promise.resolve();
+    const zoom = overrides.zoom ?? shapeObj.imageFillZoom ?? 1;
+    const panX = overrides.panX ?? shapeObj.imageFillPanX ?? 0;
+    const panY = overrides.panY ?? shapeObj.imageFillPanY ?? 0;
+    shapeObj.imageFillZoom = zoom;
+    shapeObj.imageFillPanX = panX;
+    shapeObj.imageFillPanY = panY;
+    setShapeImageZoom(zoom);
+    return loadShapeImageElement(shapeObj.imageFillSrc).then((imageEl) => {
+      renderShapeImageFill(shapeObj, imageEl);
+    });
+  };
+
+  const applyImageFillToShape = (shapeObj, imageUrl, { resetTransform = true } = {}) =>
+    loadShapeImageElement(imageUrl).then((imageEl) => {
+      shapeObj.imageFillSrc = imageEl.src;
+      if (resetTransform) {
+        shapeObj.imageFillZoom = 1;
+        shapeObj.imageFillPanX = 0;
+        shapeObj.imageFillPanY = 0;
+      }
+      renderShapeImageFill(shapeObj, imageEl);
+      return shapeObj;
+    });
+
+  const rebuildShapeImageFill = (shapeObj) => {
+    if (!shapeObj?.imageFillSrc) return;
+    updateShapeImageTransform(shapeObj).catch((error) =>
+      console.warn('[shape-image-refit]', error),
+    );
+  };
+
+  const rebuildAllShapeImageFills = (targetCanvas = canvas) => {
+    if (!targetCanvas) return;
+    targetCanvas.getObjects().forEach((obj) => {
+      if (obj?.imageFillSrc && isShapeObject(obj)) {
+        rebuildShapeImageFill(obj);
+      }
+    });
+  };
+
+  const resetShapeImageTransform = (shapeObj = selectedObject) => {
+    if (!isShapeObject(shapeObj) || !shapeObj.imageFillSrc) return;
+    updateShapeImageTransform(shapeObj, { zoom: 1, panX: 0, panY: 0 })
+      .then(() => toast.success('Image position reset'))
+      .catch(() => toast.error('Could not reset image'));
+  };
+
+  const enterShapeImageAdjustMode = (shapeObj = selectedObject) => {
+    if (!canvas || !isShapeObject(shapeObj) || !shapeObj.imageFillSrc) return;
+    canvas.setActiveObject(shapeObj);
+    setSelectedObject(shapeObj);
+    shapeObj.set({
+      lockMovementX: true,
+      lockMovementY: true,
+      hasControls: false,
+      hasBorders: true,
+      borderColor: '#10b981',
+    });
+    shapeObj.setCoords();
+    skipExitAdjustModeRef.current = true;
+    setIsShapeImageAdjustMode(true);
+    isShapeImageAdjustModeRef.current = true;
+    setShapeImageZoom(shapeObj.imageFillZoom ?? 1);
+    canvas.defaultCursor = 'grab';
+    canvas.hoverCursor = 'grab';
+    canvas.requestRenderAll();
+  };
+
+  const exitShapeImageAdjustMode = () => {
+    if (!canvas) {
+      setIsShapeImageAdjustMode(false);
+      isShapeImageAdjustModeRef.current = false;
+      return;
+    }
+    const obj = canvas.getActiveObject();
+    if (obj && isShapeObject(obj)) {
+      obj.set({
+        lockMovementX: false,
+        lockMovementY: false,
+        hasControls: true,
+        hasBorders: true,
+        borderColor: undefined,
+      });
+      obj.setCoords();
+    }
+    setIsShapeImageAdjustMode(false);
+    isShapeImageAdjustModeRef.current = false;
+    canvas.defaultCursor = 'default';
+    canvas.hoverCursor = 'move';
+    canvas.requestRenderAll();
+    saveHistoryState(canvas);
+  };
+
+  enterShapeImageAdjustModeRef.current = enterShapeImageAdjustMode;
+  exitShapeImageAdjustModeRef.current = exitShapeImageAdjustMode;
+
+  useEffect(() => {
+    isShapeImageAdjustModeRef.current = isShapeImageAdjustMode;
+  }, [isShapeImageAdjustMode]);
+
+  const applyShapeFillColor = (color, shapeObj = selectedObject) => {
+    if (!canvas || !isShapeObject(shapeObj)) return;
+    exitShapeImageAdjustMode();
+    shapeObj.set('fill', color);
+    shapeObj.imageFillSrc = null;
+    shapeObj.imageFillZoom = 1;
+    shapeObj.imageFillPanX = 0;
+    shapeObj.imageFillPanY = 0;
+    shapeObj.shapeFillColor = color;
+    shapeObj.set('dirty', true);
+    canvas.requestRenderAll();
+    setShapeFillColor(color);
+    setLayerUpdate((prev) => prev + 1);
+  };
+
+  const handleShapeImageFile = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !isShapeObject(selectedObject)) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const url = typeof ev.target?.result === 'string' ? ev.target.result : '';
+      if (!url) return;
+      applyImageFillToShape(selectedObject, url)
+        .then(() => {
+          toast.success('Image added to shape');
+          enterShapeImageAdjustMode(selectedObject);
+        })
+        .catch(() => toast.error('Could not add image to shape'));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const triggerShapeImageUpload = () => {
+    if (!isShapeObject(selectedObject)) return;
+    shapeImageInputRef.current?.click();
+  };
+
+  const removeShapeImageFill = () => {
+    if (!isShapeObject(selectedObject)) return;
+    const fallback = selectedObject.shapeFillColor || textColor || '#3b82f6';
+    applyShapeFillColor(fallback, selectedObject);
+    toast.success('Image removed from shape');
+  };
+
+  const handleShapeImageZoomChange = (value) => {
+    const zoom = Number(value);
+    if (!selectedObject?.imageFillSrc || !Number.isFinite(zoom)) return;
+    setShapeImageZoom(zoom);
+    updateShapeImageTransform(selectedObject, { zoom });
+  };
+
+  const toggleShapeImageAdjustMode = () => {
+    if (isShapeImageAdjustMode) {
+      exitShapeImageAdjustMode();
+      return;
+    }
+    enterShapeImageAdjustMode(selectedObject);
+  };
+
+  useEffect(() => {
+    if (!canvas) return undefined;
+
+    let panRaf = null;
+
+    const handleAdjustMouseDown = (opt) => {
+      if (!isShapeImageAdjustModeRef.current) return;
+      const obj = canvas.getActiveObject();
+      if (!obj?.imageFillSrc || !isShapeObject(obj)) return;
+      const pointer = canvas.getPointer(opt.e);
+      if (!obj.containsPoint(new fabric.Point(pointer.x, pointer.y))) return;
+
+      if (canvas._currentTransform) {
+        canvas._currentTransform = null;
+      }
+
+      shapeImagePanDragRef.current = {
+        object: obj,
+        startPointer: { x: pointer.x, y: pointer.y },
+        startPanX: obj.imageFillPanX || 0,
+        startPanY: obj.imageFillPanY || 0,
+      };
+      canvas.setCursor('grabbing');
+    };
+
+    const handleAdjustMouseMove = (opt) => {
+      const drag = shapeImagePanDragRef.current;
+      if (!drag) return;
+
+      const pointer = canvas.getPointer(opt.e);
+      const deltaX = pointer.x - drag.startPointer.x;
+      const deltaY = pointer.y - drag.startPointer.y;
+      const angle = fabric.util.degreesToRadians(drag.object.angle || 0);
+      const cos = Math.cos(-angle);
+      const sin = Math.sin(-angle);
+      const scaleX = drag.object.scaleX || 1;
+      const scaleY = drag.object.scaleY || 1;
+      const panX = drag.startPanX + (deltaX * cos - deltaY * sin) / scaleX;
+      const panY = drag.startPanY + (deltaX * sin + deltaY * cos) / scaleY;
+
+      if (panRaf) cancelAnimationFrame(panRaf);
+      panRaf = requestAnimationFrame(() => {
+        loadShapeImageElement(drag.object.imageFillSrc).then((imageEl) => {
+          drag.object.imageFillPanX = panX;
+          drag.object.imageFillPanY = panY;
+          renderShapeImageFill(drag.object, imageEl);
+        });
+      });
+    };
+
+    const handleAdjustMouseUp = () => {
+      if (!shapeImagePanDragRef.current) return;
+      shapeImagePanDragRef.current = null;
+      if (isShapeImageAdjustModeRef.current) {
+        canvas.setCursor('grab');
+        saveHistoryState(canvas);
+      }
+    };
+
+    const handleAdjustWheel = (opt) => {
+      if (!isShapeImageAdjustModeRef.current) return;
+      const obj = canvas.getActiveObject();
+      if (!obj?.imageFillSrc) return;
+      opt.e.preventDefault();
+      opt.e.stopPropagation();
+      const delta = opt.e.deltaY > 0 ? -0.08 : 0.08;
+      const nextZoom = Math.max(1, Math.min(4, (obj.imageFillZoom || 1) + delta));
+      updateShapeImageTransform(obj, { zoom: nextZoom }).then(() => saveHistoryState(canvas));
+    };
+
+    canvas.on('mouse:down', handleAdjustMouseDown);
+    canvas.on('mouse:move', handleAdjustMouseMove);
+    canvas.on('mouse:up', handleAdjustMouseUp);
+    canvas.on('mouse:wheel', handleAdjustWheel);
+
+    return () => {
+      if (panRaf) cancelAnimationFrame(panRaf);
+      canvas.off('mouse:down', handleAdjustMouseDown);
+      canvas.off('mouse:move', handleAdjustMouseMove);
+      canvas.off('mouse:up', handleAdjustMouseUp);
+      canvas.off('mouse:wheel', handleAdjustWheel);
+    };
+  }, [canvas]);
+
+  const findShapeAtPoint = (point) => {
+    if (!canvas || !point) return null;
+    const objects = canvas.getObjects();
+    for (let i = objects.length - 1; i >= 0; i -= 1) {
+      const obj = objects[i];
+      if (!isShapeObject(obj)) continue;
+      if (obj.visible === false) continue;
+      obj.setCoords();
+      if (obj.containsPoint(new fabric.Point(point.x, point.y))) {
+        return obj;
+      }
+    }
+    return null;
   };
 
   const currentPage = pages[currentPageIndex];
@@ -530,105 +1148,57 @@ const GenericProductDesigner = () => {
   };
 
   const saveCurrentPageSnapshot = () => {
-    if (!canvas) return;
-    const snapshotJson = safeCanvasToJson(canvas);
-    const snapshotThumb = getCanvasThumbnail();
-    const pageIndex = currentPageIndexRef.current;
-
-    setPages((prev) =>
-      prev.map((page, idx) =>
-        idx === pageIndex
-          ? {
-              ...page,
-              json: snapshotJson ?? page.json,
-              thumbnail: snapshotThumb || page.thumbnail,
-              backgroundStyle: backgroundStyleRef.current,
-            }
-          : page,
-      ),
-    );
+    const updatedPages = buildPagesSnapshotFromCanvas();
+    if (!updatedPages) return;
+    commitPagesState(updatedPages);
   };
 
   const addPage = () => {
     if (!canvas) return;
 
-    const snapshotJson = safeCanvasToJson(canvas);
-    const snapshotThumb = getCanvasThumbnail();
     const pageIndex = currentPageIndexRef.current;
-
-    let nextIndex = pageIndex;
-
-    setPages((prev) => {
-      const updated = prev.map((page, idx) =>
-        idx === pageIndex
-          ? {
-              ...page,
-              json: snapshotJson ?? page.json,
-              thumbnail: snapshotThumb || page.thumbnail,
-              backgroundStyle: backgroundStyleRef.current,
-            }
-          : page,
-      );
-      const source = updated[pageIndex] || updated[0];
-      const newPage = emptyPage(updated.length, {
-        width: source?.width || 800,
-        height: source?.height || 400,
-      });
-      const nextPages = [...updated, newPage];
-      nextIndex = nextPages.length - 1;
-      pagesRef.current = nextPages;
-      return nextPages;
+    const basePages = syncPageSnapshotAt(pageIndex) ?? buildProjectPagesSnapshot(pageIndex);
+    const source = basePages[pageIndex] || basePages[0];
+    const newPage = emptyPage(basePages.length, {
+      width: source?.width || 800,
+      height: source?.height || 400,
     });
+    const nextPages = [...basePages, newPage];
+    const nextIndex = nextPages.length - 1;
 
-    setCurrentPageIndex(nextIndex);
+    commitPagesState(nextPages);
+    setActivePageIndex(nextIndex);
+    loadPage(nextIndex);
     toast.success(`Page ${nextIndex + 1} added`);
   };
 
   const duplicatePage = () => {
     if (!canvas) return;
 
-    const snapshotJson = safeCanvasToJson(canvas);
-    const snapshotThumb = getCanvasThumbnail();
     const pageIndex = currentPageIndexRef.current;
+    const basePages = syncPageSnapshotAt(pageIndex) ?? buildProjectPagesSnapshot(pageIndex);
+    const source = basePages[pageIndex];
+    if (!source) return;
 
-    let nextIndex = pageIndex;
+    const clone = {
+      ...clonePageRecord(source),
+      id: Date.now() + Math.random(),
+      name: `${source.name} Copy`,
+    };
+    const nextPages = [...basePages, clone];
+    const nextIndex = nextPages.length - 1;
 
-    setPages((prev) => {
-      const updated = prev.map((page, idx) =>
-        idx === pageIndex
-          ? {
-              ...page,
-              json: snapshotJson ?? page.json,
-              thumbnail: snapshotThumb || page.thumbnail,
-              backgroundStyle: backgroundStyleRef.current,
-            }
-          : page,
-      );
-      const source = updated[pageIndex];
-      if (!source) return prev;
-
-      const clone = {
-        ...source,
-        id: Date.now() + Math.random(),
-        name: `${source.name} Copy`,
-        json: source.json ? JSON.parse(JSON.stringify(source.json)) : null,
-        thumbnail: source.thumbnail,
-      };
-      const nextPages = [...updated, clone];
-      nextIndex = nextPages.length - 1;
-      pagesRef.current = nextPages;
-      return nextPages;
-    });
-
-    setCurrentPageIndex(nextIndex);
+    commitPagesState(nextPages);
+    setActivePageIndex(nextIndex);
+    loadPage(nextIndex);
     toast.success('Page duplicated');
   };
 
   const persistBackgroundStyle = (nextStyle) => {
     setBackgroundStyle(nextStyle);
-    setPages((prev) =>
+    updatePagesFromRef((prev) =>
       prev.map((page, idx) =>
-        idx === currentPageIndex ? { ...page, backgroundStyle: nextStyle } : page,
+        idx === currentPageIndexRef.current ? { ...page, backgroundStyle: nextStyle } : page,
       ),
     );
   };
@@ -743,15 +1313,22 @@ const GenericProductDesigner = () => {
     const target = pagesRef.current[index];
     if (!target) return;
 
+    const token = (loadTokenRef.current += 1);
+    const pageData = clonePageRecord(target);
+
     canvasHydratingRef.current = true;
     suppressPageLoadRef.current = true;
 
     try {
-      const pageBackgroundStyle = target.backgroundStyle || { ...DEFAULT_BACKGROUND_STYLE };
+      const pageBackgroundStyle = pageData.backgroundStyle || { ...DEFAULT_BACKGROUND_STYLE };
       setBackgroundStyle(pageBackgroundStyle);
       setBackgroundColor(pageBackgroundStyle.color || '#ffffff');
 
-      await loadPageOntoCanvas(canvas, target);
+      await loadPageOntoCanvas(canvas, pageData);
+      rebuildAllShapeImageFills(canvas);
+
+      // A newer load started while we awaited — abandon this stale one.
+      if (token !== loadTokenRef.current) return;
 
       setBackgroundColor(
         pageBackgroundStyle.kind === 'solid'
@@ -762,12 +1339,16 @@ const GenericProductDesigner = () => {
       const fittedZoom = fitCanvasToWorkspace(canvas, canvasWorkspaceRef.current);
       setZoom(fittedZoom);
       await waitForCanvasLayout();
+      if (token !== loadTokenRef.current) return;
       prepareCanvasForInteraction(canvas);
       refreshCanvas();
     } finally {
-      canvasHydratingRef.current = false;
-      suppressPageLoadRef.current = false;
-      if (canvas) scheduleCanvasOffsetSync(canvas);
+      // Only the most recent load is allowed to clear the guards.
+      if (token === loadTokenRef.current) {
+        canvasHydratingRef.current = false;
+        suppressPageLoadRef.current = false;
+        if (canvas) scheduleCanvasOffsetSync(canvas);
+      }
     }
   };
 
@@ -790,6 +1371,11 @@ const GenericProductDesigner = () => {
     };
 
     fabricCanvas.on('selection:created', (e) => {
+      if (skipExitAdjustModeRef.current) {
+        skipExitAdjustModeRef.current = false;
+      } else {
+        exitShapeImageAdjustModeRef.current();
+      }
       const obj = e.selected?.[0] || null;
       setSelectedObject(obj);
       if (isTemplateBackgroundObject(obj, fabricCanvas)) {
@@ -803,9 +1389,23 @@ const GenericProductDesigner = () => {
         setFontSize(Math.round(obj.fontSize || fontSize));
         setTextColor(typeof obj.fill === 'string' ? obj.fill : extractFillColor(obj.fill));
         openTextStyleEditorRef.current(obj);
+      } else if (obj && FILLABLE_SHAPE_TYPES.includes(obj.type)) {
+        setShapeFillColor(
+          obj.shapeFillColor ||
+            (typeof obj.fill === 'string' ? obj.fill : extractFillColor(obj.fill)),
+        );
+        setShapeImageZoom(obj.imageFillZoom ?? 1);
+        if (!obj.imageFillSrc) {
+          exitShapeImageAdjustModeRef.current();
+        }
       }
     });
     fabricCanvas.on('selection:updated', (e) => {
+      if (skipExitAdjustModeRef.current) {
+        skipExitAdjustModeRef.current = false;
+      } else {
+        exitShapeImageAdjustModeRef.current();
+      }
       const obj = e.selected?.[0] || null;
       setSelectedObject(obj);
       if (isTemplateBackgroundObject(obj, fabricCanvas)) {
@@ -822,9 +1422,19 @@ const GenericProductDesigner = () => {
         if (!isCanvasDraggingRef.current) {
           openTextStyleEditorRef.current(obj);
         }
+      } else if (obj && FILLABLE_SHAPE_TYPES.includes(obj.type)) {
+        setShapeFillColor(
+          obj.shapeFillColor ||
+            (typeof obj.fill === 'string' ? obj.fill : extractFillColor(obj.fill)),
+        );
+        setShapeImageZoom(obj.imageFillZoom ?? 1);
+        if (!obj.imageFillSrc) {
+          exitShapeImageAdjustModeRef.current();
+        }
       }
     });
     fabricCanvas.on('selection:cleared', () => {
+      exitShapeImageAdjustModeRef.current();
       setSelectedObject(null);
       setSelectedTextDraft('');
       setTextEditorActive(false);
@@ -878,6 +1488,10 @@ const GenericProductDesigner = () => {
 
     fabricCanvas.on('mouse:dblclick', (e) => {
       const obj = e.target;
+      if (obj?.imageFillSrc && FILLABLE_SHAPE_TYPES.includes(obj.type)) {
+        enterShapeImageAdjustModeRef.current(obj);
+        return;
+      }
       if (!isTextObject(obj)) return;
       isCanvasDraggingRef.current = false;
       if (fabricCanvas._currentTransform) {
@@ -942,17 +1556,14 @@ const GenericProductDesigner = () => {
     };
   }, []);
 
+  // Load only once when the canvas is (re)created. All other page changes are
+  // driven explicitly by goToPage/addPage/applyTemplate so there is a single,
+  // deterministic load path (no races between an effect and manual loads).
   useEffect(() => {
     if (!canvas) return undefined;
-    if (suppressPageLoadRef.current) return undefined;
-    let cancelled = false;
-    (async () => {
-      await loadPage(currentPageIndex);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [canvas, currentPageIndex]);
+    loadPage(currentPageIndexRef.current);
+    return undefined;
+  }, [canvas]);
 
   useEffect(() => {
     if (!canvas) return;
@@ -969,9 +1580,18 @@ const GenericProductDesigner = () => {
   ]);
 
   const switchToPage = (index) => {
-    if (index === currentPageIndex) return;
-    saveCurrentPageSnapshot();
-    setCurrentPageIndex(index);
+    if (index === currentPageIndexRef.current) return;
+    if (index < 0 || index >= pagesRef.current.length) return;
+
+    // Save the page we are leaving before we navigate away.
+    const currentIndex = currentPageIndexRef.current;
+    const updatedPages = syncPageSnapshotAt(currentIndex);
+    if (updatedPages) {
+      commitPagesState(updatedPages);
+    }
+
+    setActivePageIndex(index);
+    loadPage(index);
   };
 
   useEffect(() => {
@@ -979,12 +1599,27 @@ const GenericProductDesigner = () => {
 
     let timer = null;
     const updateThumb = () => {
-      if (canvasHydratingRef.current) return;
+      if (
+        canvasHydratingRef.current ||
+        suppressPageLoadRef.current ||
+        isApplyingTemplateRef.current
+      ) {
+        return;
+      }
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
+        if (
+          canvasHydratingRef.current ||
+          suppressPageLoadRef.current ||
+          isApplyingTemplateRef.current
+        ) {
+          return;
+        }
         const thumbnail = getCanvasThumbnail();
-        setPages((prev) =>
-          prev.map((page, idx) => (idx === currentPageIndex ? { ...page, thumbnail } : page))
+        const pageIndex = currentPageIndexRef.current;
+        if (!thumbnail) return;
+        updatePagesFromRef((prev) =>
+          prev.map((page, idx) => (idx === pageIndex ? { ...page, thumbnail } : page)),
         );
       }, 120);
     };
@@ -1156,18 +1791,30 @@ const GenericProductDesigner = () => {
     if (!canvas) return undefined;
     const persistAutosave = () => {
       if (isApplyingTemplateRef.current || suppressPageLoadRef.current || canvasHydratingRef.current) return;
-      const updatedPages = pagesRef.current.map((page, idx) =>
-        idx === currentPageIndexRef.current
-          ? {
-              ...page,
-              json: safeCanvasToJson(canvas) ?? page.json,
-              backgroundStyle: backgroundStyleRef.current,
-            }
-          : page,
-      );
+      const activeIndex = currentPageIndexRef.current;
+      const canvasJson = safeCanvasToJson(canvas);
+      let activeJson = null;
+      if (canvasJson) {
+        try {
+          activeJson = JSON.parse(JSON.stringify(canvasJson));
+        } catch (error) {
+          console.warn('[autosave-clone]', error);
+        }
+      }
+      const activeBackground = backgroundStyleRef.current
+        ? JSON.parse(JSON.stringify(backgroundStyleRef.current))
+        : { ...DEFAULT_BACKGROUND_STYLE };
+      const updatedPages = pagesRef.current.map((page, idx) => {
+        if (idx !== activeIndex) return clonePageRecord(page);
+        return {
+          ...page,
+          json: activeJson ?? page.json,
+          backgroundStyle: activeBackground,
+        };
+      });
       saveOnlineDesignerAutosave({
         pages: updatedPages,
-        currentPageIndex: currentPageIndexRef.current,
+        currentPageIndex: activeIndex,
       });
       setLastSavedAt(Date.now());
     };
@@ -1182,22 +1829,44 @@ const GenericProductDesigner = () => {
   }, [canvas, currentPageIndex]);
 
   useEffect(() => {
-    clearTemplateThumbnailCache();
+    // Only build the (expensive) template previews while the Templates tab is
+    // actually visible, and after the canvas has initialised, so opening the
+    // designer stays fast and responsive on mobile.
+    if (activeTab !== 'templates' || !canvas) return undefined;
+
     let cancelled = false;
+
+    // Let the browser breathe between each thumbnail render so the main thread
+    // never locks up long enough to trigger a "page unresponsive" warning.
+    const yieldToBrowser = () =>
+      new Promise((resolve) => {
+        if (typeof window.requestIdleCallback === 'function') {
+          window.requestIdleCallback(() => resolve(), { timeout: 300 });
+        } else {
+          setTimeout(resolve, 16);
+        }
+      });
+
     (async () => {
+      // Give the editor a chance to paint before doing heavy preview work.
+      await yieldToBrowser();
       for (const template of ONLINE_DESIGN_TEMPLATES) {
         if (cancelled) break;
+        if (templateThumbnails[template.id]) continue;
         const dataUrl = await generateTemplateThumbnail(template);
         if (cancelled) break;
         if (dataUrl) {
           setTemplateThumbnails((prev) => ({ ...prev, [template.id]: dataUrl }));
         }
+        await yieldToBrowser();
       }
     })();
+
     return () => {
       cancelled = true;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, canvas]);
 
   useEffect(() => {
     if (hasCompletedOnlineDesignerTour()) return undefined;
@@ -1215,9 +1884,10 @@ const GenericProductDesigner = () => {
     if (pagesRef.current.length <= 1) return;
     const idx = currentPageIndexRef.current;
     const nextPages = pagesRef.current.filter((_, i) => i !== idx);
-    pagesRef.current = nextPages;
-    setPages(nextPages);
-    setCurrentPageIndex(Math.max(0, idx - 1));
+    const nextIndex = Math.max(0, idx - 1);
+    commitPagesState(nextPages);
+    setActivePageIndex(nextIndex);
+    loadPage(nextIndex);
   };
 
   const handleZoom = (value) => {
@@ -1480,8 +2150,26 @@ const GenericProductDesigner = () => {
     placeImageOnCanvas(url, 140, 140);
   };
 
+  const placeImageOrFillShape = (url, left, top) => {
+    if (!canvas || !url) return;
+    const targetShape = findShapeAtPoint({ x: left, y: top });
+    if (targetShape) {
+      canvas.setActiveObject(targetShape);
+      setSelectedObject(targetShape);
+      applyImageFillToShape(targetShape, url)
+        .then(() => {
+          toast.success('Image added to shape');
+          enterShapeImageAdjustMode(targetShape);
+        })
+        .catch(() => placeImageOnCanvas(url, left, top));
+      return;
+    }
+    placeImageOnCanvas(url, left, top);
+  };
+
   canvasDropRef.current = {
     placeImageOnCanvas,
+    placeImageOrFillShape,
     addShape,
     addEmojiToCanvas,
     addIconToCanvas,
@@ -1534,7 +2222,7 @@ const GenericProductDesigner = () => {
       const file = e.dataTransfer?.files?.[0];
       if (file && file.type?.startsWith('image/')) {
         const reader = new FileReader();
-        reader.onload = (ev) => actions.placeImageOnCanvas?.(ev.target?.result, left, top);
+        reader.onload = (ev) => actions.placeImageOrFillShape?.(ev.target?.result, left, top);
         reader.readAsDataURL(file);
         return;
       }
@@ -1545,7 +2233,7 @@ const GenericProductDesigner = () => {
           const payload = JSON.parse(designerPayload);
           if (payload.kind === 'shape') actions.addShape?.(payload.type, left, top);
           else if (payload.kind === 'emoji') actions.addEmojiToCanvas?.(payload.value, left, top);
-          else if (payload.kind === 'image') actions.placeImageOnCanvas?.(payload.url, left, top);
+          else if (payload.kind === 'image') actions.placeImageOrFillShape?.(payload.url, left, top);
           else if (payload.kind === 'icon') actions.addIconifyIconToCanvas?.(payload.name, left, top);
           else if (payload.kind === 'icon-svg') actions.addIconToCanvas?.(payload.svg, payload.name, left, top);
         } catch (error) {
@@ -1558,7 +2246,7 @@ const GenericProductDesigner = () => {
       const text = e.dataTransfer?.getData('text/plain') || '';
       const candidate = (uri || text).trim();
       if (isLikelyImageUrl(candidate)) {
-        actions.placeImageOnCanvas?.(candidate, left, top);
+        actions.placeImageOrFillShape?.(candidate, left, top);
       }
     };
 
@@ -1611,6 +2299,7 @@ const GenericProductDesigner = () => {
     if (!canvas || historyIndex <= 0) return;
     const next = historyIndex - 1;
     canvas.loadFromJSON(history[next], () => {
+      rebuildAllShapeImageFills(canvas);
       canvas.renderAll();
       setHistoryIndex(next);
       setLayerUpdate((prev) => prev + 1);
@@ -1621,6 +2310,7 @@ const GenericProductDesigner = () => {
     if (!canvas || historyIndex >= history.length - 1) return;
     const next = historyIndex + 1;
     canvas.loadFromJSON(history[next], () => {
+      rebuildAllShapeImageFills(canvas);
       canvas.renderAll();
       setHistoryIndex(next);
       setLayerUpdate((prev) => prev + 1);
@@ -1764,32 +2454,54 @@ const GenericProductDesigner = () => {
     return pages.some((page) => page.json?.objects?.length);
   };
 
+  const cloneTemplatePage = (page, index, nameOverride) => ({
+    ...page,
+    id: Date.now() + index + Math.random(),
+    name: nameOverride || page.name || `Page ${index + 1}`,
+    thumbnail: null,
+    backgroundStyle: page.backgroundStyle
+      ? { ...page.backgroundStyle }
+      : { ...DEFAULT_BACKGROUND_STYLE },
+    json: page.json ? JSON.parse(JSON.stringify(page.json)) : null,
+  });
+
   const requestApplyTemplate = (template) => {
     if (!template?.pages?.length || applyingTemplateId) return;
 
     const isSameTemplate = activeTemplateIdRef.current === template.id;
-    if (!isSameTemplate && canvasHasDesign()) {
+    const hasExistingWork = canvasHasDesign() || pagesRef.current.length > 1;
+
+    if (!isSameTemplate && hasExistingWork) {
       pendingTemplateRef.current = template;
-      setTemplateSwitchModal({ open: true, templateName: template.name });
+      setTemplateSwitchModal({
+        open: true,
+        templateName: template.name,
+        templatePageCount: template.pages.length,
+        projectPageCount: pagesRef.current.length,
+      });
       return;
     }
 
-    applyTemplate(template);
+    applyTemplate(template, 'replace-project');
   };
 
   const cancelTemplateSwitch = () => {
     pendingTemplateRef.current = null;
-    setTemplateSwitchModal({ open: false, templateName: '' });
+    setTemplateSwitchModal({
+      open: false,
+      templateName: '',
+      templatePageCount: 1,
+      projectPageCount: 1,
+    });
   };
 
-  const confirmTemplateSwitch = () => {
+  const confirmTemplateAction = (mode) => {
     const template = pendingTemplateRef.current;
-    setTemplateSwitchModal({ open: false, templateName: '' });
-    pendingTemplateRef.current = null;
-    if (template) applyTemplate(template);
+    cancelTemplateSwitch();
+    if (template) applyTemplate(template, mode);
   };
 
-  const applyTemplate = async (template) => {
+  const applyTemplate = async (template, mode = 'replace-project') => {
     if (!template?.pages?.length || applyingTemplateId) return;
 
     setApplyingTemplateId(template.id);
@@ -1797,31 +2509,54 @@ const GenericProductDesigner = () => {
     suppressPageLoadRef.current = true;
     canvasHydratingRef.current = true;
 
-    const newPages = template.pages.map((page, index) => ({
-      ...page,
-      id: Date.now() + index + Math.random(),
-      name: page.name || `Page ${index + 1}`,
-      thumbnail: null,
-      backgroundStyle: page.backgroundStyle
-        ? { ...page.backgroundStyle }
-        : { ...DEFAULT_BACKGROUND_STYLE },
-      json: page.json ? JSON.parse(JSON.stringify(page.json)) : null,
-    }));
+    const templatePages = template.pages.map((page, index) => cloneTemplatePage(page, index));
 
     try {
       activeToolRef.current = 'select';
       setActiveTool('select');
 
-      const first = newPages[0];
-      const pageBackgroundStyle = first.backgroundStyle || { ...DEFAULT_BACKGROUND_STYLE };
+      const activeIndex = currentPageIndexRef.current;
+      const basePages = buildProjectPagesSnapshot(activeIndex);
 
-      setPages(newPages);
-      setCurrentPageIndex(0);
+      let nextPages;
+      let nextIndex = activeIndex;
+
+      if (mode === 'replace-current-page') {
+        const templatePage = cloneTemplatePage(template.pages[0], activeIndex);
+        nextPages = basePages.map((page, idx) =>
+          idx === activeIndex
+            ? {
+                ...templatePage,
+                id: page.id,
+                name: page.name || templatePage.name,
+              }
+            : page,
+        );
+      } else if (mode === 'add-pages') {
+        const appendedPages = template.pages.map((page, index) =>
+          cloneTemplatePage(page, index, `Page ${basePages.length + index + 1}`),
+        );
+        nextPages = [...basePages, ...appendedPages];
+        nextIndex = basePages.length;
+      } else {
+        nextPages = templatePages;
+        nextIndex = 0;
+      }
+
+      pagesRef.current = nextPages;
+
+      const targetPage = nextPages[nextIndex];
+      const pageBackgroundStyle = targetPage.backgroundStyle || { ...DEFAULT_BACKGROUND_STYLE };
+
+      commitPagesState(nextPages);
+      setActivePageIndex(nextIndex);
       setBackgroundStyle(pageBackgroundStyle);
       setBackgroundColor(pageBackgroundStyle.color || '#ffffff');
 
       if (canvas) {
-        await loadPageOntoCanvas(canvas, first);
+        // Invalidate any in-flight page load so it can't overwrite the template.
+        loadTokenRef.current += 1;
+        await loadPageOntoCanvas(canvas, clonePageRecord(targetPage));
 
         const fittedZoom = fitCanvasToWorkspace(canvas, canvasWorkspaceRef.current);
         setZoom(fittedZoom);
@@ -1831,15 +2566,39 @@ const GenericProductDesigner = () => {
         canvasHydratingRef.current = false;
         scheduleCanvasOffsetSync(canvas);
 
-        setTimeout(() => {
-          persistCanvasSnapshot(0);
-          setLayerUpdate((prev) => prev + 1);
-        }, 120);
+        const updatedAfterTemplate = syncPageSnapshotAt(nextIndex);
+        if (updatedAfterTemplate) {
+          commitPagesState(updatedAfterTemplate);
+        }
+
+        const captureAppliedPageThumbnail = () => {
+          const thumbnail = getCanvasThumbnail();
+          if (!thumbnail) return;
+          updatePagesFromRef((prev) =>
+            prev.map((page, idx) => (idx === nextIndex ? { ...page, thumbnail } : page)),
+          );
+        };
+        captureAppliedPageThumbnail();
+        setTimeout(captureAppliedPageThumbnail, 200);
+        setTimeout(captureAppliedPageThumbnail, 500);
+
+        setLayerUpdate((prev) => prev + 1);
       }
 
-      activeTemplateIdRef.current = template.id;
+      if (mode === 'replace-project') {
+        activeTemplateIdRef.current = template.id;
+      }
+
       setIsLeftDrawerOpen(true);
-      toast.success(`"${template.name}" ready — click any text, then type in the editor above the canvas`);
+
+      if (mode === 'replace-current-page') {
+        toast.success(`"${template.name}" applied to page ${nextIndex + 1}. Your other pages were kept.`);
+      } else if (mode === 'add-pages') {
+        const addedLabel = templatePages.length === 1 ? '1 new page' : `${templatePages.length} new pages`;
+        toast.success(`"${template.name}" added as ${addedLabel}.`);
+      } else {
+        toast.success(`"${template.name}" ready — click any text, then type in the editor above the canvas`);
+      }
     } catch (error) {
       console.error('[apply-template]', template.id, error);
       toast.error('Could not load that template. Please try again.');
@@ -1869,13 +2628,17 @@ const GenericProductDesigner = () => {
   const restoreAutosave = () => {
     const saved = loadOnlineDesignerAutosave();
     if (!saved?.pages?.length) return;
-    setPages(
-      saved.pages.map((page) => ({
-        ...page,
-        backgroundStyle: page.backgroundStyle || { ...DEFAULT_BACKGROUND_STYLE },
-      })),
-    );
-    setCurrentPageIndex(saved.currentPageIndex || 0);
+    const restoredPages = saved.pages.map((page) => ({
+      ...clonePageRecord(page),
+      name: page.name,
+      id: page.id,
+      width: page.width,
+      height: page.height,
+    }));
+    const restoreIndex = saved.currentPageIndex || 0;
+    commitPagesState(restoredPages);
+    setActivePageIndex(restoreIndex);
+    loadPage(restoreIndex);
     setShowAutosaveRestore(false);
     toast.success('Previous session restored');
   };
@@ -1981,34 +2744,160 @@ const GenericProductDesigner = () => {
     };
   }, [canvas, zoom, activeTool, historyIndex, history]);
 
-  const captureCanvasImage = (targetCanvas, pageWidth, pageHeight) => {
+  // Load the brand logo once for use as a watermark (cached across exports).
+  const loadWatermarkLogo = () =>
+    new Promise((resolve) => {
+      const cached = watermarkLogoRef.current;
+      if (cached?.complete && cached.naturalWidth) {
+        resolve(cached);
+        return;
+      }
+      const logo = new Image();
+      logo.onload = () => {
+        watermarkLogoRef.current = logo;
+        resolve(logo);
+      };
+      logo.onerror = () => resolve(null);
+      logo.src = WATERMARK_LOGO_SRC;
+    });
+
+  // Overlay a light brand logo watermark in the bottom-right corner.
+  const applyWatermarkToDataUrl = async (dataUrl, imageType = 'PNG') => {
+    if (!dataUrl) return dataUrl;
+    const logo = await loadWatermarkLogo().catch(() => null);
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const w = img.naturalWidth || img.width;
+          const h = img.naturalHeight || img.height;
+          if (!w || !h) {
+            resolve(dataUrl);
+            return;
+          }
+          const off = document.createElement('canvas');
+          off.width = w;
+          off.height = h;
+          const ctx = off.getContext('2d');
+          if (!ctx) {
+            resolve(dataUrl);
+            return;
+          }
+
+          if (imageType === 'JPEG') {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, w, h);
+          }
+          ctx.drawImage(img, 0, 0, w, h);
+
+          const margin = Math.round(Math.min(w, h) * 0.03);
+
+          if (logo && (logo.naturalWidth || logo.width)) {
+            const logoW = logo.naturalWidth || logo.width;
+            const logoH = logo.naturalHeight || logo.height;
+            const targetW = Math.max(60, Math.round(Math.min(w, h) * 0.18));
+            const targetH = Math.round((logoH / logoW) * targetW);
+            ctx.save();
+            ctx.globalAlpha = 0.12;
+            ctx.drawImage(
+              logo,
+              w - targetW - margin,
+              h - targetH - margin,
+              targetW,
+              targetH,
+            );
+            ctx.restore();
+          }
+
+          const mime = imageType === 'JPEG' ? 'image/jpeg' : 'image/png';
+          const quality = imageType === 'JPEG' ? 0.92 : undefined;
+          resolve(off.toDataURL(mime, quality));
+        } catch (watermarkError) {
+          console.warn('[watermark]', watermarkError);
+          resolve(dataUrl);
+        }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  };
+
+  const captureCanvasImage = (targetCanvas, pageWidth, pageHeight, options = {}) => {
+    const {
+      preferJpeg = false,
+      forceFormat = null,
+      quality = 0.95,
+      multiplier: customMultiplier,
+      transparentBackground = false,
+    } = options;
+
+    const previousZoom = targetCanvas.getZoom?.() ?? 1;
+    const previousVpt = Array.isArray(targetCanvas.viewportTransform)
+      ? targetCanvas.viewportTransform.slice()
+      : [1, 0, 0, 1, 0, 0];
+    const previousBackground = targetCanvas.backgroundColor;
+
     resetCanvasViewport(targetCanvas);
     targetCanvas.calcOffset();
+
+    if (transparentBackground) {
+      targetCanvas.setBackgroundColor('transparent', () => {});
+    }
     targetCanvas.renderAll();
 
     const maxDim = Math.max(pageWidth || 1, pageHeight || 1);
-    const multiplier = maxDim > 1600 ? 1 : maxDim > 1100 ? 1.25 : 2;
-    const attempts = [
-      { format: 'png', quality: 1, multiplier },
-      { format: 'png', quality: 0.92, multiplier: 1 },
-      { format: 'jpeg', quality: 0.95, multiplier: 1 },
-    ];
+    const defaultMultiplier = maxDim > 1600 ? 1 : maxDim > 1100 ? 1.25 : 2;
+    const multiplier = customMultiplier ?? defaultMultiplier;
 
-    for (const opts of attempts) {
-      try {
-        const dataUrl = targetCanvas.toDataURL(opts);
-        if (dataUrl && dataUrl.length > 100) {
-          return {
-            dataUrl,
-            imageType: opts.format === 'jpeg' ? 'JPEG' : 'PNG',
-          };
-        }
-      } catch (captureError) {
-        console.warn('[export-capture]', captureError);
-      }
+    let attempts;
+    if (forceFormat === 'png') {
+      attempts = [
+        { format: 'png', quality: 1, multiplier },
+        { format: 'png', quality: 1, multiplier: 1 },
+      ];
+    } else if (forceFormat === 'jpeg') {
+      attempts = [
+        { format: 'jpeg', quality, multiplier },
+        { format: 'jpeg', quality: Math.max(0.7, quality - 0.1), multiplier: 1 },
+        { format: 'png', quality: 1, multiplier: 1 },
+      ];
+    } else if (preferJpeg) {
+      attempts = [
+        { format: 'jpeg', quality, multiplier },
+        { format: 'jpeg', quality: Math.max(0.7, quality - 0.1), multiplier: 1 },
+        { format: 'png', quality: 1, multiplier: 1 },
+      ];
+    } else {
+      attempts = [
+        { format: 'png', quality: 1, multiplier },
+        { format: 'png', quality: 1, multiplier: 1 },
+        { format: 'jpeg', quality, multiplier: 1 },
+      ];
     }
 
-    throw new Error('Failed to capture canvas image');
+    try {
+      for (const opts of attempts) {
+        try {
+          const dataUrl = targetCanvas.toDataURL(opts);
+          if (dataUrl && dataUrl.length > 100) {
+            return {
+              dataUrl,
+              imageType: opts.format === 'jpeg' ? 'JPEG' : 'PNG',
+              fileExt: opts.format === 'jpeg' ? 'jpg' : 'png',
+            };
+          }
+        } catch (captureError) {
+          console.warn('[export-capture]', captureError);
+        }
+      }
+      throw new Error('Failed to capture canvas image');
+    } finally {
+      if (transparentBackground) {
+        targetCanvas.setBackgroundColor(previousBackground, () => {});
+      }
+      restoreCanvasViewport(targetCanvas, previousZoom, previousVpt);
+    }
   };
 
   const renderPageToCanvas = async (pageData) => {
@@ -2016,97 +2905,220 @@ const GenericProductDesigner = () => {
     await loadPageOntoCanvas(canvas, pageData);
   };
 
-  const exportCurrentPage = async () => {
+  const triggerFileDownload = (href, filename) => {
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = href;
+    link.click();
+  };
+
+  const getExportPageIndices = (pageScope, pageCount, activeIndex) => {
+    if (pageScope === 'current') return [activeIndex];
+    return Array.from({ length: pageCount }, (_, index) => index);
+  };
+
+  const buildDownloadSummary = (form, pageCount, activeIndex) => {
+    const indices = getExportPageIndices(form.pageScope, pageCount, activeIndex);
+    const pageLabel =
+      indices.length === 1
+        ? `page ${indices[0] + 1}`
+        : `${indices.length} pages`;
+    const qualityLabel = EXPORT_QUALITY_PRESETS[form.quality]?.label || 'High';
+    const formatLabel = form.format === 'png' ? 'PNG image' : 'PDF document';
+    const transparencyNote =
+      form.format === 'png' && form.transparentBackground ? ' with transparent background' : '';
+    return `Download ${pageLabel} as ${formatLabel} (${qualityLabel})${transparencyNote}.`;
+  };
+
+  const openDownloadModal = (context = null) => {
+    const pageCount = pagesRef.current.length;
+    setDownloadForm({
+      format: 'pdf',
+      quality: 'high',
+      pageScope: pageCount > 1 ? 'all' : 'current',
+      transparentBackground: false,
+    });
+    setDownloadModalContext(context);
+    setShowDownloadModal(true);
+  };
+
+  const closeDownloadModal = () => {
+    if (isExportingDesign) return;
+    setShowDownloadModal(false);
+    setDownloadModalContext(null);
+  };
+
+  const handleDownloadModalSuccess = (context) => {
+    if (context === 'clearAutosave') {
+      clearOnlineDesignerAutosave();
+    } else if (context === 'exit') {
+      setShowExitModal(false);
+      exitToHome();
+    } else if (context === 'exitOnly') {
+      setShowExitModal(false);
+    }
+  };
+
+  const exportDesign = async (options = {}) => {
     if (!canvas || pages.length === 0 || isExportingDesign) return false;
+
+    const {
+      format = 'pdf',
+      quality = 'high',
+      pageScope = 'all',
+      transparentBackground = false,
+    } = options;
+    const qualitySettings = EXPORT_QUALITY_PRESETS[quality] || EXPORT_QUALITY_PRESETS.high;
 
     setIsExportingDesign(true);
     suppressPageLoadRef.current = true;
 
+    const activePageIndex = currentPageIndexRef.current;
+    const pageList = buildProjectPagesSnapshot(activePageIndex) ?? pagesRef.current;
+    pagesRef.current = pageList;
+    const pageIndices = getExportPageIndices(pageScope, pageList.length, activePageIndex);
+    const savedZoom = canvas.getZoom();
+    const savedVpt = canvas.viewportTransform?.slice() || [1, 0, 0, 1, 0, 0];
+    let activePageJsonClone = null;
+    const formattedDate = new Date().toISOString().slice(0, 10);
+
     try {
-      const { jsPDF } = await import('jspdf');
+      commitPendingCanvasEdits();
 
-      const snapshotJson = safeCanvasToJson(canvas);
-      const pagesSnapshot = pagesRef.current.map((page, idx) =>
-        idx === currentPageIndexRef.current
-          ? {
-              ...page,
-              json: snapshotJson ?? page.json,
-              backgroundStyle: backgroundStyleRef.current,
-            }
-          : page,
-      );
-
-      const previousPage = pagesSnapshot[currentPageIndexRef.current];
-      const firstPage = pagesSnapshot[0];
-      if (!firstPage?.width || !firstPage?.height) {
-        throw new Error('Invalid page dimensions');
-      }
-
-      const initialOrientation = firstPage.width >= firstPage.height ? 'landscape' : 'portrait';
-      const pdf = new jsPDF({
-        orientation: initialOrientation,
-        unit: 'px',
-        format: [Math.round(firstPage.width), Math.round(firstPage.height)],
-      });
-
-      for (let i = 0; i < pagesSnapshot.length; i += 1) {
-        const page = pagesSnapshot[i];
-        await renderPageToCanvas(page);
-        const { dataUrl, imageType } = captureCanvasImage(canvas, page.width, page.height);
-
-        if (i > 0) {
-          const orientation = page.width >= page.height ? 'landscape' : 'portrait';
-          pdf.addPage(
-            [Math.round(page.width), Math.round(page.height)],
-            orientation,
-          );
+      const activeJson = safeCanvasToJson(canvas);
+      if (activeJson) {
+        try {
+          activePageJsonClone = JSON.parse(JSON.stringify(activeJson));
+        } catch (cloneError) {
+          console.warn('[export-active-json-clone]', cloneError);
         }
-        pdf.addImage(
-          dataUrl,
-          imageType,
-          0,
-          0,
-          Math.round(page.width),
-          Math.round(page.height),
-          undefined,
-          'FAST',
-        );
       }
 
-      await renderPageToCanvas(previousPage);
-      prepareCanvasForInteraction(canvas);
+      const captureOptions = {
+        quality: qualitySettings.jpegQuality,
+        multiplier: qualitySettings.multiplier,
+        transparentBackground: format === 'png' && transparentBackground,
+        forceFormat: format === 'png' ? 'png' : 'jpeg',
+      };
+
+      const capturePage = (page) => {
+        const pageWidth = page.width || canvas.getWidth();
+        const pageHeight = page.height || canvas.getHeight();
+        const capture = captureCanvasImage(canvas, pageWidth, pageHeight, captureOptions);
+        return { ...capture, width: pageWidth, height: pageHeight };
+      };
+
+      const captures = [];
+      for (const pageIndex of pageIndices) {
+        if (pageIndex !== activePageIndex) {
+          await renderPageToCanvas(clonePageRecord(pageList[pageIndex]));
+        }
+        const capture = {
+          pageIndex,
+          pageName: pageList[pageIndex]?.name || `Page ${pageIndex + 1}`,
+          ...capturePage(pageList[pageIndex]),
+        };
+        capture.dataUrl = await applyWatermarkToDataUrl(capture.dataUrl, capture.imageType);
+        captures.push(capture);
+      }
+
+      if (!captures.length || !captures[0]?.width || !captures[0]?.height) {
+        throw new Error('Nothing to export — check your page selection and try again.');
+      }
+
+      if (format === 'png') {
+        captures.forEach((capture) => {
+          const suffix = captures.length > 1 ? `_Page${capture.pageIndex + 1}` : '';
+          triggerFileDownload(
+            capture.dataUrl,
+            `Design${suffix}_${formattedDate}.${capture.fileExt || 'png'}`,
+          );
+        });
+      } else {
+        const firstPage = captures[0];
+        const { jsPDF } = await import('jspdf');
+        const pdf = new jsPDF({
+          orientation: firstPage.width >= firstPage.height ? 'landscape' : 'portrait',
+          unit: 'px',
+          format: [Math.round(firstPage.width), Math.round(firstPage.height)],
+          compress: true,
+        });
+
+        captures.forEach((capture, index) => {
+          if (index > 0) {
+            pdf.addPage(
+              [Math.round(capture.width), Math.round(capture.height)],
+              capture.width >= capture.height ? 'landscape' : 'portrait',
+            );
+          }
+          pdf.addImage(
+            capture.dataUrl,
+            capture.imageType,
+            0,
+            0,
+            Math.round(capture.width),
+            Math.round(capture.height),
+            undefined,
+            'FAST',
+          );
+        });
+
+        pdf.save(`Design_${formattedDate}.pdf`);
+      }
+
+      if (pageList.length > 1 && activePageJsonClone) {
+        await loadPageOntoCanvas(canvas, {
+          ...pageList[activePageIndex],
+          json: activePageJsonClone,
+          backgroundStyle: backgroundStyleRef.current,
+        });
+        prepareCanvasForInteraction(canvas);
+      }
+
+      const updatedPages = buildPagesSnapshotFromCanvas();
+      if (updatedPages) {
+        commitPagesState(updatedPages);
+      } else if (activePageJsonClone) {
+        const syncedPages = pageList.map((page, idx) =>
+          idx === activePageIndex
+            ? {
+                ...page,
+                json: activePageJsonClone,
+                backgroundStyle: backgroundStyleRef.current,
+              }
+            : page,
+        );
+        commitPagesState(syncedPages);
+      }
+
+      restoreCanvasViewport(canvas, savedZoom, savedVpt);
       syncCanvasPointer(canvas);
 
-      setPages((prev) =>
-        prev.map((page, idx) => {
-          const snap = pagesSnapshot[idx];
-          if (!snap) return page;
-          return idx === currentPageIndexRef.current
-            ? {
-                ...snap,
-                thumbnail: getCanvasThumbnail() || page.thumbnail,
-              }
-            : snap;
-        }),
-      );
-
-      const formattedDate = new Date().toISOString().slice(0, 10);
-      pdf.save(`Design_${formattedDate}.pdf`);
-      toast.success('Design saved to your device.');
+      const fileLabel =
+        format === 'png'
+          ? captures.length > 1
+            ? `${captures.length} PNG files`
+            : 'PNG file'
+          : 'PDF file';
+      toast.success(`${fileLabel} saved to your device.`);
       return true;
     } catch (error) {
       console.error('[generic-designer-export]', error);
-      toast.error('Could not export your design. Please try again.');
-      try {
-        const fallbackPage = pagesRef.current[currentPageIndexRef.current];
-        if (fallbackPage) {
-          await renderPageToCanvas(fallbackPage);
+      toast.error(error?.message || 'Could not export your design. Please try again.');
+      if (pageList.length > 1 && activePageJsonClone) {
+        try {
+          await loadPageOntoCanvas(canvas, {
+            ...pageList[activePageIndex],
+            json: activePageJsonClone,
+            backgroundStyle: backgroundStyleRef.current,
+          });
           prepareCanvasForInteraction(canvas);
-          syncCanvasPointer(canvas);
+        } catch (restoreError) {
+          console.error('[generic-designer-export-restore]', restoreError);
         }
-      } catch (restoreError) {
-        console.error('[generic-designer-export-restore]', restoreError);
       }
+      restoreCanvasViewport(canvas, savedZoom, savedVpt);
+      syncCanvasPointer(canvas);
       return false;
     } finally {
       suppressPageLoadRef.current = false;
@@ -2114,13 +3126,21 @@ const GenericProductDesigner = () => {
     }
   };
 
-  const handleDownloadClick = async () => {
-    await exportCurrentPage();
-    clearOnlineDesignerAutosave();
+  const confirmDownloadExport = async () => {
+    const context = downloadModalContext;
+    const ok = await exportDesign(downloadForm);
+    if (!ok) return;
+    setShowDownloadModal(false);
+    setDownloadModalContext(null);
+    handleDownloadModalSuccess(context);
   };
 
-  const handleExitDownload = async () => {
-    await exportCurrentPage();
+  const handleDownloadClick = () => {
+    openDownloadModal('clearAutosave');
+  };
+
+  const handleExitDownload = () => {
+    openDownloadModal('exitOnly');
   };
 
   const exitToHome = () => {
@@ -2129,10 +3149,8 @@ const GenericProductDesigner = () => {
     navigate(getRoutePath('home'));
   };
 
-  const handleDownloadAndExit = async () => {
-    const ok = await exportCurrentPage();
-    if (!ok) return;
-    exitToHome();
+  const handleDownloadAndExit = () => {
+    openDownloadModal('exit');
   };
 
   const handleConfirmExit = () => {
@@ -2148,12 +3166,13 @@ const GenericProductDesigner = () => {
     setIsExportingPng(true);
     suppressPageLoadRef.current = true;
     try {
-      saveCurrentPageSnapshot();
-      const { dataUrl } = captureCanvasImage(
+      buildPagesSnapshotFromCanvas();
+      const { dataUrl: rawDataUrl, imageType } = captureCanvasImage(
         canvas,
         canvas.getWidth(),
         canvas.getHeight(),
       );
+      const dataUrl = await applyWatermarkToDataUrl(rawDataUrl, imageType);
       const link = document.createElement('a');
       link.download = `Design_Page${currentPageIndexRef.current + 1}_${new Date().toISOString().slice(0, 10)}.png`;
       link.href = dataUrl;
@@ -2169,8 +3188,13 @@ const GenericProductDesigner = () => {
   };
 
   const saveProject = () => {
-    saveCurrentPageSnapshot();
-    const payload = JSON.stringify({ pages, currentPageIndex }, null, 2);
+    const snapshotPages = buildPagesSnapshotFromCanvas() ?? pagesRef.current;
+    commitPagesState(snapshotPages);
+    const payload = JSON.stringify(
+      { pages: snapshotPages, currentPageIndex: currentPageIndexRef.current },
+      null,
+      2,
+    );
     const blob = new Blob([payload], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -2188,13 +3212,17 @@ const GenericProductDesigner = () => {
       try {
         const data = JSON.parse(ev.target.result);
         if (!data?.pages?.length) return;
-        setPages(
-          data.pages.map((page) => ({
-            ...page,
-            backgroundStyle: page.backgroundStyle || { ...DEFAULT_BACKGROUND_STYLE },
-          })),
-        );
-        setCurrentPageIndex(data.currentPageIndex || 0);
+        const restoredPages = data.pages.map((page) => ({
+          ...clonePageRecord(page),
+          name: page.name,
+          id: page.id,
+          width: page.width,
+          height: page.height,
+        }));
+        const nextIndex = data.currentPageIndex || 0;
+        commitPagesState(restoredPages);
+        setActivePageIndex(nextIndex);
+        loadPage(nextIndex);
       } catch (error) {
         console.error('Invalid project file', error);
       }
@@ -2206,7 +3234,139 @@ const GenericProductDesigner = () => {
     if (!canvas || !selectedObject) return;
     selectedObject.set(property, value);
     selectedObject.setCoords();
-    canvas.renderAll();
+    canvas.requestRenderAll();
+    setLayerUpdate((prev) => prev + 1);
+  };
+
+  const getObjectTransformDisplay = (obj) => {
+    if (!obj) {
+      return { x: 0, y: 0, w: 0, h: 0, rotation: 0 };
+    }
+    const bounds = obj.getBoundingRect(true, true);
+    return {
+      x: Math.round(obj.left ?? bounds.left ?? 0),
+      y: Math.round(obj.top ?? bounds.top ?? 0),
+      w: Math.round(bounds.width || (obj.width || 0) * (obj.scaleX || 1)),
+      h: Math.round(bounds.height || (obj.height || 0) * (obj.scaleY || 1)),
+      rotation: Math.round(obj.angle || 0),
+    };
+  };
+
+  const transformDraftFromObject = (obj) => {
+    const values = getObjectTransformDisplay(obj);
+    return {
+      x: String(values.x),
+      y: String(values.y),
+      w: String(values.w),
+      h: String(values.h),
+      rotation: String(values.rotation),
+    };
+  };
+
+  useEffect(() => {
+    if (!selectedObject) return;
+    if (activeTransformFieldRef.current) return;
+    setTransformDraft(transformDraftFromObject(selectedObject));
+  }, [selectedObject, layerUpdate]);
+
+  const parseTransformInput = (value) => {
+    const trimmed = String(value ?? '').trim();
+    if (trimmed === '' || trimmed === '-' || trimmed === '.') return null;
+    const num = Number(trimmed);
+    return Number.isFinite(num) ? num : null;
+  };
+
+  const applyTransformField = (field, rawValue) => {
+    if (!canvas || !selectedObject) return false;
+    const num = parseTransformInput(rawValue);
+    if (num === null) return false;
+
+    if (field === 'x') {
+      selectedObject.set('left', num);
+    } else if (field === 'y') {
+      selectedObject.set('top', num);
+    } else if (field === 'rotation') {
+      selectedObject.set('angle', num);
+    } else if (field === 'w') {
+      const targetW = Math.max(1, num);
+      if (isTextObject(selectedObject)) {
+        selectedObject.set({ width: targetW, scaleX: 1 });
+        if (typeof selectedObject.initDimensions === 'function') {
+          selectedObject.initDimensions();
+        }
+      } else if (selectedObject.type === 'circle') {
+        selectedObject.set({ radius: targetW / 2, scaleX: 1, scaleY: 1 });
+      } else {
+        const baseW = selectedObject.width || 1;
+        selectedObject.set('scaleX', targetW / Math.max(baseW, 0.001));
+      }
+    } else if (field === 'h') {
+      const targetH = Math.max(1, num);
+      if (isTextObject(selectedObject)) {
+        const baseH = selectedObject.height || 1;
+        selectedObject.set('scaleY', targetH / Math.max(baseH, 0.001));
+      } else if (selectedObject.type === 'circle') {
+        selectedObject.set({ radius: targetH / 2, scaleX: 1, scaleY: 1 });
+      } else {
+        const baseH = selectedObject.height || 1;
+        selectedObject.set('scaleY', targetH / Math.max(baseH, 0.001));
+      }
+    }
+
+    selectedObject.setCoords();
+    canvas.requestRenderAll();
+    setLayerUpdate((prev) => prev + 1);
+    return true;
+  };
+
+  const handleTransformDraftChange = (field, value) => {
+    activeTransformFieldRef.current = field;
+    setTransformDraft((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const commitTransformField = (field) => {
+    const ok = applyTransformField(field, transformDraft[field]);
+    if (ok && (field === 'w' || field === 'h') && selectedObject?.imageFillSrc) {
+      rebuildShapeImageFill(selectedObject);
+    }
+    activeTransformFieldRef.current = null;
+    if (selectedObject) {
+      setTransformDraft(transformDraftFromObject(selectedObject));
+    }
+    if (!ok) {
+      toast.error('Enter a valid number.');
+    }
+  };
+
+  const flipSelectedObject = (axis) => {
+    if (!canvas || !selectedObject) return;
+    const prop = axis === 'horizontal' ? 'flipX' : 'flipY';
+    selectedObject.set(prop, !selectedObject[prop]);
+    selectedObject.setCoords();
+    canvas.requestRenderAll();
+    setLayerUpdate((prev) => prev + 1);
+  };
+
+  const handleTransformFocus = (field, event) => {
+    activeTransformFieldRef.current = field;
+    event.target.select();
+  };
+
+  const handleTransformKeyDown = (field, event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      commitTransformField(field);
+      event.currentTarget.blur();
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      activeTransformFieldRef.current = null;
+      if (selectedObject) {
+        setTransformDraft(transformDraftFromObject(selectedObject));
+      }
+      event.currentTarget.blur();
+    }
   };
 
   const alignSelection = (mode) => {
@@ -2236,6 +3396,12 @@ const GenericProductDesigner = () => {
   const isTextSelected = Boolean(
     selectedObject && canvas && isTextObject(selectedObject),
   );
+
+  const isShapeSelected = Boolean(
+    selectedObject && canvas && isShapeObject(selectedObject),
+  );
+
+  const shapeHasImageFill = Boolean(isShapeSelected && selectedObject?.imageFillSrc);
 
   return (
     <div className="flex h-screen flex-col bg-slate-100 overflow-hidden" style={font}>
@@ -3401,48 +4567,105 @@ const GenericProductDesigner = () => {
               </p>
             )}
 
+            {shapeHasImageFill && (
+              <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h5 className="text-xs font-semibold text-emerald-900">Image in shape</h5>
+                  <button
+                    type="button"
+                    onClick={toggleShapeImageAdjustMode}
+                    className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold ${
+                      isShapeImageAdjustMode
+                        ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                        : 'border border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-100'
+                    }`}
+                  >
+                    {isShapeImageAdjustMode ? 'Done' : 'Adjust position'}
+                  </button>
+                </div>
+                <p className="text-[11px] leading-relaxed text-slate-600">
+                  {isShapeImageAdjustMode
+                    ? 'Drag the image to reposition. Scroll on the canvas to zoom in or out.'
+                    : 'Double-click the shape or tap Adjust position to reposition the image inside the frame.'}
+                </p>
+                <div>
+                  <label className="mb-1 block text-xs text-gray-600">
+                    Zoom: {Math.round(shapeImageZoom * 100)}%
+                  </label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="4"
+                    step="0.01"
+                    value={shapeImageZoom}
+                    onChange={(e) => handleShapeImageZoomChange(e.target.value)}
+                    onMouseUp={() => canvas && saveHistoryState(canvas)}
+                    onTouchEnd={() => canvas && saveHistoryState(canvas)}
+                    className="w-full"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={resetShapeImageTransform}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-gray-50"
+                >
+                  Reset position
+                </button>
+              </div>
+            )}
+
             {!isBackgroundSelected && (
             <>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-xs text-gray-600 block mb-1">X</label>
                 <input
-                  type="number"
-                  value={Math.round(selectedObject.left || 0)}
-                  onChange={(e) => updateSelectedObject('left', Number(e.target.value))}
+                  type="text"
+                  inputMode="decimal"
+                  value={transformDraft.x}
+                  onChange={(e) => handleTransformDraftChange('x', e.target.value)}
+                  onFocus={(e) => handleTransformFocus('x', e)}
+                  onBlur={() => commitTransformField('x')}
+                  onKeyDown={(e) => handleTransformKeyDown('x', e)}
                   className="w-full p-2 border border-gray-300 rounded text-sm"
                 />
               </div>
               <div>
                 <label className="text-xs text-gray-600 block mb-1">Y</label>
                 <input
-                  type="number"
-                  value={Math.round(selectedObject.top || 0)}
-                  onChange={(e) => updateSelectedObject('top', Number(e.target.value))}
+                  type="text"
+                  inputMode="decimal"
+                  value={transformDraft.y}
+                  onChange={(e) => handleTransformDraftChange('y', e.target.value)}
+                  onFocus={(e) => handleTransformFocus('y', e)}
+                  onBlur={() => commitTransformField('y')}
+                  onKeyDown={(e) => handleTransformKeyDown('y', e)}
                   className="w-full p-2 border border-gray-300 rounded text-sm"
                 />
               </div>
               <div>
                 <label className="text-xs text-gray-600 block mb-1">W</label>
                 <input
-                  type="number"
-                  value={Math.round((selectedObject.width || 0) * (selectedObject.scaleX || 1))}
-                  onChange={(e) => {
-                    const base = selectedObject.width || 1;
-                    updateSelectedObject('scaleX', Number(e.target.value) / base);
-                  }}
+                  type="text"
+                  inputMode="decimal"
+                  value={transformDraft.w}
+                  onChange={(e) => handleTransformDraftChange('w', e.target.value)}
+                  onFocus={(e) => handleTransformFocus('w', e)}
+                  onBlur={() => commitTransformField('w')}
+                  onKeyDown={(e) => handleTransformKeyDown('w', e)}
                   className="w-full p-2 border border-gray-300 rounded text-sm"
                 />
               </div>
               <div>
                 <label className="text-xs text-gray-600 block mb-1">H</label>
                 <input
-                  type="number"
-                  value={Math.round((selectedObject.height || 0) * (selectedObject.scaleY || 1))}
-                  onChange={(e) => {
-                    const base = selectedObject.height || 1;
-                    updateSelectedObject('scaleY', Number(e.target.value) / base);
-                  }}
+                  type="text"
+                  inputMode="decimal"
+                  value={transformDraft.h}
+                  onChange={(e) => handleTransformDraftChange('h', e.target.value)}
+                  onFocus={(e) => handleTransformFocus('h', e)}
+                  onBlur={() => commitTransformField('h')}
+                  onKeyDown={(e) => handleTransformKeyDown('h', e)}
                   className="w-full p-2 border border-gray-300 rounded text-sm"
                 />
               </div>
@@ -3450,9 +4673,13 @@ const GenericProductDesigner = () => {
             <div>
               <label className="text-xs text-gray-600 block mb-1">Rotation</label>
               <input
-                type="number"
-                value={Math.round(selectedObject.angle || 0)}
-                onChange={(e) => updateSelectedObject('angle', Number(e.target.value))}
+                type="text"
+                inputMode="decimal"
+                value={transformDraft.rotation}
+                onChange={(e) => handleTransformDraftChange('rotation', e.target.value)}
+                onFocus={(e) => handleTransformFocus('rotation', e)}
+                onBlur={() => commitTransformField('rotation')}
+                onKeyDown={(e) => handleTransformKeyDown('rotation', e)}
                 className="w-full p-2 border border-gray-300 rounded text-sm"
               />
             </div>
@@ -3602,8 +4829,118 @@ const GenericProductDesigner = () => {
                 </div>
               </>
             )}
+            {isShapeSelected && (
+              <>
+                <div className="w-px h-7 bg-gray-200 mx-1" />
+                <span className="text-xs font-semibold text-emerald-800">Fill</span>
+                <label
+                  className="inline-flex h-8 w-8 cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-gray-300 bg-white hover:bg-gray-50"
+                  title="Pick fill colour"
+                >
+                  <input
+                    type="color"
+                    value={/^#/.test(shapeFillColor) ? shapeFillColor : '#3b82f6'}
+                    onChange={(e) => applyShapeFillColor(e.target.value, selectedObject)}
+                    className="sr-only"
+                  />
+                  <span
+                    className="h-5 w-5 rounded-md border border-gray-200"
+                    style={{ backgroundColor: shapeHasImageFill ? 'transparent' : shapeFillColor }}
+                  />
+                </label>
+                <div className="hidden sm:flex items-center gap-1">
+                  {TEXT_COLOR_SWATCHES.slice(0, 6).map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => applyShapeFillColor(color, selectedObject)}
+                      className={`h-6 w-6 rounded-md border ${
+                        !shapeHasImageFill && shapeFillColor === color
+                          ? 'border-emerald-500 ring-2 ring-emerald-200'
+                          : 'border-gray-200'
+                      }`}
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    />
+                  ))}
+                </div>
+                <div className="w-px h-7 bg-gray-200 mx-1" />
+                <button
+                  type="button"
+                  onClick={triggerShapeImageUpload}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+                  title="Fill this shape with an image"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a2 2 0 012-2h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 15l4-4 4 4 3-3 5 5" />
+                    <circle cx="9" cy="9" r="1.5" fill="currentColor" stroke="none" />
+                  </svg>
+                  {shapeHasImageFill ? 'Replace image' : 'Fill image'}
+                </button>
+                {shapeHasImageFill && (
+                  <button
+                    type="button"
+                    onClick={removeShapeImageFill}
+                    className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-gray-50"
+                    title="Remove image and keep the shape"
+                  >
+                    Remove image
+                  </button>
+                )}
+                {shapeHasImageFill && (
+                  <>
+                    <div className="w-px h-7 bg-gray-200 mx-1" />
+                    <button
+                      type="button"
+                      onClick={toggleShapeImageAdjustMode}
+                      className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${
+                        isShapeImageAdjustMode
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                          : 'border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                      }`}
+                      title="Drag to reposition the image inside the shape"
+                    >
+                      {isShapeImageAdjustMode ? 'Done adjusting' : 'Adjust position'}
+                    </button>
+                    <label className="hidden lg:flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
+                      <span>Zoom</span>
+                      <input
+                        type="range"
+                        min="1"
+                        max="4"
+                        step="0.01"
+                        value={shapeImageZoom}
+                        onChange={(e) => handleShapeImageZoomChange(e.target.value)}
+                        onMouseUp={() => canvas && saveHistoryState(canvas)}
+                        onTouchEnd={() => canvas && saveHistoryState(canvas)}
+                        className="w-20"
+                      />
+                      <span className="w-9 text-right tabular-nums">{Math.round(shapeImageZoom * 100)}%</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={resetShapeImageTransform}
+                      className="hidden md:inline-flex rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-gray-50"
+                      title="Reset image zoom and position"
+                    >
+                      Reset
+                    </button>
+                  </>
+                )}
+              </>
+            )}
             {!isBackgroundSelected && (
               <>
+                <div className="w-px h-7 bg-gray-200 mx-1" />
+                <div className="flex items-center gap-1">
+                  <button onClick={() => flipSelectedObject('horizontal')} className="p-1.5 border border-gray-300 rounded hover:bg-gray-50" title="Flip horizontal">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v18M7 8l-4 4 4 4M17 8l4 4-4 4" /></svg>
+                  </button>
+                  <button onClick={() => flipSelectedObject('vertical')} className="p-1.5 border border-gray-300 rounded hover:bg-gray-50" title="Flip vertical">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12h18M8 7l4-4 4 4M8 17l4 4 4-4" /></svg>
+                  </button>
+                </div>
                 <div className="w-px h-7 bg-gray-200 mx-1" />
                 <div className="flex items-center gap-1">
                   <button onClick={() => alignSelection('left')} className="p-1.5 border border-gray-300 rounded hover:bg-gray-50" title="Align Left">
@@ -3737,9 +5074,10 @@ const GenericProductDesigner = () => {
           )}
           {isCanvasDragOver && (
             <div className="pointer-events-none absolute inset-4 z-10 flex items-center justify-center rounded-2xl border-2 border-dashed border-emerald-400 bg-emerald-50/40">
-              <p className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-emerald-800 shadow-sm">
-                Drop here to add to your design
-              </p>
+              <div className="rounded-2xl bg-white px-4 py-2.5 text-center shadow-sm">
+                <p className="text-sm font-semibold text-emerald-800">Drop here to add to your design</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">Drop an image onto a shape to fill it</p>
+              </div>
             </div>
           )}
           {selectedObject && isTextObject(selectedObject) && !textEditorActive && (
@@ -3763,6 +5101,24 @@ const GenericProductDesigner = () => {
               </button>
             </div>
           )}
+          {isShapeImageAdjustMode && shapeHasImageFill && (
+            <div className="pointer-events-none fixed bottom-24 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-2">
+              <div className="flex items-center gap-2 rounded-full bg-slate-900/92 px-4 py-2 text-xs font-medium text-white shadow-lg">
+                <span className="text-emerald-300">Adjusting image</span>
+                <span className="text-slate-400">·</span>
+                <span>Drag to move</span>
+                <span className="text-slate-400">·</span>
+                <span>Scroll to zoom</span>
+              </div>
+              <button
+                type="button"
+                onClick={exitShapeImageAdjustMode}
+                className="pointer-events-auto rounded-full border border-emerald-400/60 bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white shadow-md hover:bg-emerald-500"
+              >
+                Done adjusting
+              </button>
+            </div>
+          )}
           <div className="flex min-h-full min-w-full items-center justify-center p-2">
             <div className={`relative inline-block rounded-2xl bg-white p-2 shadow-[0_20px_50px_-20px_rgba(15,23,42,0.35)] ring-1 ring-slate-900/5 ${isPanning ? 'cursor-grabbing' : activeTool === 'pan' ? 'cursor-grab' : ''}`}>
               <canvas ref={canvasElRef} style={{ display: 'block' }} />
@@ -3770,7 +5126,7 @@ const GenericProductDesigner = () => {
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-200/80 bg-white px-4 py-3 shadow-[0_-4px_20px_-12px_rgba(15,23,42,0.12)]">
+        <div className="relative z-20 flex shrink-0 items-center justify-between gap-3 overflow-visible border-t border-slate-200/80 bg-white px-4 py-3 shadow-[0_-4px_20px_-12px_rgba(15,23,42,0.12)]">
           <div className="flex items-center gap-2">
             <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-700">
               Page {currentPageIndex + 1}/{pages.length}
@@ -3786,7 +5142,7 @@ const GenericProductDesigner = () => {
               </svg>
             </button>
           </div>
-          <div className="flex gap-2 items-center">
+          <div className="flex items-center gap-2">
             {selectedObject && (
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-600">Opacity</span>
@@ -3800,29 +5156,59 @@ const GenericProductDesigner = () => {
               </div>
             )}
 
-            <button onClick={saveProject} className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50">
-              Save Project
-            </button>
-            <button onClick={() => projectLoadRef.current?.click()} className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50">
-              Load Project
-            </button>
-            <button
-              type="button"
-              onClick={exportCurrentPageAsPng}
-              disabled={isExportingPng}
-              className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-60"
+            <ToolbarTooltip
+              title="Save Project"
+              description="Download a project file (.json) so you can reopen and continue editing later."
             >
-              {isExportingPng ? 'Exporting…' : 'Export PNG'}
-            </button>
+              <button
+                type="button"
+                onClick={saveProject}
+                className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              >
+                Save Project
+              </button>
+            </ToolbarTooltip>
+            <ToolbarTooltip
+              title="Load Project"
+              description="Open a project file you previously saved from this design tool."
+            >
+              <button
+                type="button"
+                onClick={() => projectLoadRef.current?.click()}
+                className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              >
+                Load Project
+              </button>
+            </ToolbarTooltip>
+            <ToolbarTooltip
+              title="Export PNG"
+              description="Quickly download the current page as a PNG image — ideal for social posts and web use."
+            >
+              <button
+                type="button"
+                onClick={exportCurrentPageAsPng}
+                disabled={isExportingPng}
+                className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:opacity-60"
+              >
+                {isExportingPng ? 'Exporting…' : 'Export PNG'}
+              </button>
+            </ToolbarTooltip>
             <input ref={projectLoadRef} type="file" accept="application/json" className="hidden" onChange={loadProject} />
-            <button
-              onClick={handleDownloadClick}
-              disabled={isExportingDesign}
-              data-tour="online-download"
-              className="rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:from-blue-700 hover:to-blue-800 disabled:opacity-60"
+            <input ref={shapeImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleShapeImageFile} />
+            <ToolbarTooltip
+              title="Save & Download"
+              description="Export your design as PDF or PNG — choose format, quality, pages, and transparency before downloading."
             >
-              {isExportingDesign ? 'Preparing PDF…' : 'Save & Download'}
-            </button>
+              <button
+                type="button"
+                onClick={handleDownloadClick}
+                disabled={isExportingDesign}
+                data-tour="online-download"
+                className="rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-60"
+              >
+                {isExportingDesign ? 'Preparing…' : 'Save & Download'}
+              </button>
+            </ToolbarTooltip>
           </div>
         </div>
       </main>
@@ -3907,7 +5293,7 @@ const GenericProductDesigner = () => {
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
-                {isExportingDesign ? 'Preparing PDF…' : 'Download & exit'}
+                {isExportingDesign ? 'Preparing…' : 'Download & exit'}
               </button>
               <button
                 type="button"
@@ -3918,7 +5304,7 @@ const GenericProductDesigner = () => {
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
                 </svg>
-                {isExportingDesign ? 'Preparing PDF…' : 'Download only'}
+                {isExportingDesign ? 'Preparing…' : 'Download only'}
               </button>
               <div className="flex justify-end gap-2 pt-1">
                 <button
@@ -3943,10 +5329,165 @@ const GenericProductDesigner = () => {
         </div>
       ) : null}
 
+      {showDownloadModal ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm"
+          onClick={closeDownloadModal}
+        >
+          <div
+            className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_25px_50px_-12px_rgba(15,23,42,0.35)]"
+            style={font}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="download-design-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 id="download-design-title" className="text-base font-semibold text-slate-900">
+                    Save &amp; Download
+                  </h3>
+                  <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                    Choose your export settings, then confirm to download.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 px-5 py-4">
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Format</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'pdf', label: 'PDF', hint: 'Best for print & sharing' },
+                    { id: 'png', label: 'PNG', hint: 'Best for web & social' },
+                  ].map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() =>
+                        setDownloadForm((prev) => ({
+                          ...prev,
+                          format: option.id,
+                          transparentBackground: option.id === 'pdf' ? false : prev.transparentBackground,
+                        }))
+                      }
+                      className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                        downloadForm.format === option.id
+                          ? 'border-blue-300 bg-blue-50 ring-1 ring-blue-100'
+                          : 'border-slate-200 bg-white hover:bg-slate-50'
+                      }`}
+                    >
+                      <p className="text-sm font-semibold text-slate-900">{option.label}</p>
+                      <p className="mt-0.5 text-[11px] text-slate-500">{option.hint}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="download-quality" className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Quality
+                </label>
+                <select
+                  id="download-quality"
+                  value={downloadForm.quality}
+                  onChange={(e) => setDownloadForm((prev) => ({ ...prev, quality: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                >
+                  {Object.entries(EXPORT_QUALITY_PRESETS).map(([key, preset]) => (
+                    <option key={key} value={key}>
+                      {preset.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {pages.length > 1 ? (
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Pages</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'all', label: 'All pages', hint: `${pages.length} pages` },
+                      { id: 'current', label: 'Current page only', hint: `Page ${currentPageIndex + 1}` },
+                    ].map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setDownloadForm((prev) => ({ ...prev, pageScope: option.id }))}
+                        className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                          downloadForm.pageScope === option.id
+                            ? 'border-emerald-300 bg-emerald-50 ring-1 ring-emerald-100'
+                            : 'border-slate-200 bg-white hover:bg-slate-50'
+                        }`}
+                      >
+                        <p className="text-sm font-semibold text-slate-900">{option.label}</p>
+                        <p className="mt-0.5 text-[11px] text-slate-500">{option.hint}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {downloadForm.format === 'png' ? (
+                <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={downloadForm.transparentBackground}
+                    onChange={(e) =>
+                      setDownloadForm((prev) => ({
+                        ...prev,
+                        transparentBackground: e.target.checked,
+                      }))
+                    }
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>
+                    <span className="block font-semibold text-slate-900">Transparent background</span>
+                    <span className="mt-0.5 block text-xs text-slate-500">
+                      Export with no canvas background colour (useful for overlays and logos).
+                    </span>
+                  </span>
+                </label>
+              ) : null}
+
+              <div className="rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-3 text-sm text-blue-900">
+                {buildDownloadSummary(downloadForm, pages.length, currentPageIndex)}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
+              <button
+                type="button"
+                onClick={closeDownloadModal}
+                disabled={isExportingDesign}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDownloadExport}
+                disabled={isExportingDesign || !canvas}
+                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isExportingDesign ? 'Preparing download…' : 'Confirm download'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {templateSwitchModal.open ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm">
           <div
-            className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_25px_50px_-12px_rgba(15,23,42,0.35)]"
+            className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_25px_50px_-12px_rgba(15,23,42,0.35)]"
             style={font}
             role="dialog"
             aria-modal="true"
@@ -3961,28 +5502,72 @@ const GenericProductDesigner = () => {
                 </div>
                 <div>
                   <h3 id="template-switch-title" className="text-base font-semibold text-slate-900">
-                    Switch template?
+                    Use this template
                   </h3>
                   <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                    Load <span className="font-semibold text-slate-800">{templateSwitchModal.templateName}</span> and replace your current design? Any unsaved changes will be lost.
+                    You have{' '}
+                    <span className="font-semibold text-slate-800">
+                      {templateSwitchModal.projectPageCount} page
+                      {templateSwitchModal.projectPageCount === 1 ? '' : 's'}
+                    </span>{' '}
+                    in your project. Choose how to load{' '}
+                    <span className="font-semibold text-slate-800">{templateSwitchModal.templateName}</span>.
                   </p>
                 </div>
               </div>
             </div>
-            <div className="flex justify-end gap-2 px-5 py-4">
+
+            <div className="space-y-2 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => confirmTemplateAction('replace-current-page')}
+                className="w-full rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-left transition-colors hover:bg-emerald-100"
+              >
+                <p className="text-sm font-semibold text-emerald-900">Apply to this page only</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-emerald-800/80">
+                  Replace page {currentPageIndex + 1} with this template. All other pages stay exactly as they are.
+                  {templateSwitchModal.templatePageCount > 1
+                    ? ' (Uses the first page of the template.)'
+                    : ''}
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => confirmTemplateAction('add-pages')}
+                className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-left transition-colors hover:bg-blue-100"
+              >
+                <p className="text-sm font-semibold text-blue-900">Add as new page(s)</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-blue-800/80">
+                  Keep all existing pages and append{' '}
+                  {templateSwitchModal.templatePageCount === 1
+                    ? 'this template'
+                    : `all ${templateSwitchModal.templatePageCount} template pages`}{' '}
+                  to the end of your project.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => confirmTemplateAction('replace-project')}
+                className="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-left transition-colors hover:bg-red-100"
+              >
+                <p className="text-sm font-semibold text-red-900">Replace entire project</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-red-800/80">
+                  Delete all {templateSwitchModal.projectPageCount} existing page
+                  {templateSwitchModal.projectPageCount === 1 ? '' : 's'} and start fresh with this template only.
+                  This cannot be undone.
+                </p>
+              </button>
+            </div>
+
+            <div className="flex justify-end border-t border-slate-200 px-5 py-4">
               <button
                 type="button"
                 onClick={cancelTemplateSwitch}
                 className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
               >
-                Keep current design
-              </button>
-              <button
-                type="button"
-                onClick={confirmTemplateSwitch}
-                className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
-              >
-                Switch template
+                Cancel
               </button>
             </div>
           </div>

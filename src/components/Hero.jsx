@@ -65,7 +65,7 @@ const Hero = () => {
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2.5 pt-1 animate-fade-in-up-delay-3">
                 <button
-                  onClick={() => navigate(getRoutePath('productDesigner'))}
+                  onClick={() => navigate(getRoutePath('genericProductDesigner'))}
                   className="group bg-blue-600 hover:bg-blue-700 text-white px-4 md:px-5 py-2.5 rounded-lg transition-all duration-300 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm hover:shadow-md hover:shadow-blue-500/40 transform hover:-translate-y-0.5"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
