@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import Hero from '../components/Hero';
 import VideoShowcase from '../components/VideoShowcase';
 import Services from '../components/Services';
@@ -15,6 +15,20 @@ import Contact from '../components/Contact';
 import ReadyToLightUp from '../components/ReadyToLightUp';
 
 const HomePage = () => {
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get('category')) return;
+
+    const timer = window.setTimeout(() => {
+      const productsSection = document.getElementById('products');
+      if (productsSection) {
+        productsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
   return (
     <>
       <div id="home">

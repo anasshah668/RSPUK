@@ -58,6 +58,22 @@ const deleteGalleryProject = (projectId) => {
   return httpClient.delete(`${apiRoutes.admin.galleryProjectById}/${projectId}`);
 };
 
+const listFaqsAdmin = () => {
+  return httpClient.get(`${apiRoutes.admin.faqsAdmin}`);
+};
+
+const createFaq = (payload) => {
+  return httpClient.post(`${apiRoutes.admin.faqs}`, payload);
+};
+
+const updateFaq = (faqId, payload) => {
+  return httpClient.put(`${apiRoutes.admin.faqById}/${faqId}`, payload);
+};
+
+const deleteFaq = (faqId) => {
+  return httpClient.delete(`${apiRoutes.admin.faqById}/${faqId}`);
+};
+
 export const adminService = {
   analytics,
   getTopAnnouncement,
@@ -68,6 +84,10 @@ export const adminService = {
   createGalleryProject,
   updateGalleryProject,
   deleteGalleryProject,
+  listFaqsAdmin,
+  createFaq,
+  updateFaq,
+  deleteFaq,
 };
 
 export default adminService;

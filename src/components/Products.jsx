@@ -23,7 +23,8 @@ const Products = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      await fetchCategories();
+      const loadedCategories = await fetchCategories();
+      await fetchProducts(loadedCategories);
     };
     loadData();
   }, []);
@@ -43,14 +44,6 @@ const Products = () => {
   }, [location.search]);
 
   useEffect(() => {
-    // Fetch products after categories are loaded (only once)
-    if (categories.length > 0 && allProducts.length === 0) {
-      fetchProducts();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categories]);
-
-  useEffect(() => {
     // Filter products based on selected category
     setVisibleCount(10);
     if (selectedCategory === 'All') {
@@ -66,70 +59,62 @@ const Products = () => {
 
   const fetchCategories = async () => {
     try {
-      // Use centralized service
       const data = await categoryService.list();
-      if (data.categories) {
-        setCategories(data.categories);
-      }
+      const loadedCategories = Array.isArray(data.categories) ? data.categories : [];
+      setCategories(loadedCategories);
+      return loadedCategories;
     } catch (error) {
       console.error('Error fetching categories:', error);
+      return [];
     }
   };
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (categoryList = categories) => {
     try {
       setLoading(true);
-      const data = await productService.list({ page: 1, limit: 100 });
+      const data = await productService.listAll();
       const products = Array.isArray(data.products) ? data.products : [];
 
-      if (products.length > 0) {
-        // Get category mapping from current categories state
-        const categoryMap = {};
-        if (categories.length > 0) {
-          categories.forEach(cat => {
-            categoryMap[cat.name] = cat.displayName;
-          });
-        }
+      const categoryMap = {};
+      categoryList.forEach((cat) => {
+        categoryMap[cat.name] = cat.displayName;
+      });
 
-        // Transform backend products to match frontend format
-        const transformedProducts = products.map(product => {
-          const categorySlug = product.category;
-          const categoryDisplayName = categoryMap[categorySlug] || 
-            categorySlug.charAt(0).toUpperCase() + categorySlug.slice(1).replace('-', ' ');
-          
-          return {
-            id: product._id,
-            name: product.name,
-            description: String(product.description || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
-            category: categoryDisplayName,
-            categorySlug: categorySlug,
-            categoryDisplayName: categoryDisplayName,
-            price: product.basePrice || product.variants?.[0]?.price || 0,
-            originalPrice: null,
-            image: product.productImage?.url || product.images?.[0]?.url || '',
-            badge: null,
-            rating: 4.5,
-            reviews: 0,
-            _id: product._id,
-            productData: product, // Store full product data for navigation
-            source: product.source || 'local',
-          };
-        });
+      const transformedProducts = products.map((product) => {
+        const categorySlug = product.category;
+        const categoryDisplayName =
+          categoryMap[categorySlug] ||
+          categorySlug.charAt(0).toUpperCase() + categorySlug.slice(1).replace(/-/g, ' ');
 
-        setAllProducts(transformedProducts);
-        // Apply current filter
-        if (selectedCategory === 'All') {
-          setFilteredProducts(transformedProducts);
-        } else {
-          const filtered = transformedProducts.filter(product => 
-            product.categorySlug === selectedCategory
-          );
-          setFilteredProducts(filtered);
-        }
+        return {
+          id: product._id,
+          name: product.name,
+          description: String(product.description || '')
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim(),
+          category: categoryDisplayName,
+          categorySlug,
+          categoryDisplayName,
+          price: product.basePrice || product.variants?.[0]?.price || 0,
+          originalPrice: null,
+          image: product.productImage?.url || product.images?.[0]?.url || '',
+          badge: null,
+          rating: 4.5,
+          reviews: 0,
+          _id: product._id,
+          productData: product,
+          source: product.source || 'local',
+        };
+      });
+
+      setAllProducts(transformedProducts);
+      if (selectedCategory === 'All') {
+        setFilteredProducts(transformedProducts);
       } else {
-        // No products found, show empty state
-        setAllProducts([]);
-        setFilteredProducts([]);
+        setFilteredProducts(
+          transformedProducts.filter((product) => product.categorySlug === selectedCategory),
+        );
       }
     } catch (error) {
       console.error('Error fetching products:', error);

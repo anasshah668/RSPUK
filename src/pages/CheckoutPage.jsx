@@ -13,6 +13,7 @@ import {
   vatAmountFromNet,
 } from '../utils/vatUtils';
 import { formatPaymentErrorForToast } from '../utils/formatPaymentChargeError';
+import { isTradeprintLineItem } from '../utils/productSource';
 
 const sliderItems = [
   {
@@ -269,9 +270,7 @@ async function normalizeThirdPartyLinesForValidation(lines) {
 }
 
 async function submitTradeprintOrderAfterPayment({ lineItems, customerInfo, orderReference }) {
-  const thirdPartyLines = lineItems.filter(
-    (item) => String(item?.source || '').trim() === 'third-party',
-  );
+  const thirdPartyLines = lineItems.filter((item) => isTradeprintLineItem(item));
   if (thirdPartyLines.length === 0) {
     return { skipped: true };
   }
@@ -531,9 +530,7 @@ const CheckoutPage = () => {
     const linesWithOverrides = lineItemsForAdmin.map((item, idx) =>
       applyArtworkOverrideToLine(item, getCheckoutLineKey(item, idx)),
     );
-    const thirdPartyLines = linesWithOverrides.filter(
-      (item) => String(item?.source || '').trim() === 'third-party'
-    );
+    const thirdPartyLines = linesWithOverrides.filter((item) => isTradeprintLineItem(item));
     if (thirdPartyLines.length === 0) return true;
 
     const linesReadyForValidation = await normalizeThirdPartyLinesForValidation(thirdPartyLines);
@@ -567,7 +564,7 @@ const CheckoutPage = () => {
       setFailingArtworkLineKeys(
         linesWithOverrides
           .map((item, idx) => ({ item, key: getCheckoutLineKey(item, idx) }))
-          .filter((entry) => String(entry.item?.source || '').trim() === 'third-party')
+          .filter((entry) => isTradeprintLineItem(entry.item))
           .map((entry) => entry.key),
       );
       toast.error(summary);
@@ -604,7 +601,7 @@ const CheckoutPage = () => {
         const thirdPartyKeys = [];
         let tpCounter = 0;
         linesWithOverrides.forEach((item, idx) => {
-          if (String(item?.source || '').trim() !== 'third-party') return;
+          if (!isTradeprintLineItem(item)) return;
           const key = getCheckoutLineKey(item, idx);
           const indexAmongThirdParty = tpCounter;
           tpCounter += 1;
@@ -710,9 +707,7 @@ const CheckoutPage = () => {
         paymentId = paymentResult?.paymentId || null;
 
         let tradeprintResult = null;
-        const hasThirdPartyLines = lineItemsForAdmin.some(
-          (item) => String(item?.source || '').trim() === 'third-party',
-        );
+        const hasThirdPartyLines = lineItemsForAdmin.some((item) => isTradeprintLineItem(item));
         if (hasThirdPartyLines) {
           tradeprintResult = await submitTradeprintOrderAfterPayment({
             lineItems: lineItemsForAdmin,
@@ -816,7 +811,7 @@ const CheckoutPage = () => {
     const allLines = buildLineItemsForAdmin();
     const thirdPartyEntries = allLines
       .map((item, idx) => ({ item, key: getCheckoutLineKey(item, idx) }))
-      .filter((entry) => String(entry.item?.source || '').trim() === 'third-party');
+      .filter((entry) => isTradeprintLineItem(entry.item));
     if (failingArtworkLineKeys.length === 0) return thirdPartyEntries;
     const keySet = new Set(failingArtworkLineKeys);
     return thirdPartyEntries.filter((entry) => keySet.has(entry.key));

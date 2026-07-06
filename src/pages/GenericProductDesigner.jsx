@@ -17,15 +17,19 @@ import { generateTemplateThumbnail } from '../utils/templateThumbnail';
 import {
   applyCanvasDisplayZoom,
   extractFillColor,
+  enforceCanvasDisplayAspectRatio,
   fitCanvasToWorkspace,
   getCanvasDisplaySize,
   getCanvasStageAvailSize,
+  getDefaultCanvasPixelSize,
+  DEFAULT_CANVAS_SIZE_MM,
   getTemplateBackgroundObject,
   isTemplateBackgroundObject,
   loadPageOntoCanvas,
   prepareCanvasForInteraction,
   resetCanvasViewport,
   scheduleCanvasOffsetSync,
+  setCanvasLogicalDimensions,
   syncCanvasPointer,
   syncTemplateBackgroundFill,
   waitForCanvasLayout,
@@ -59,9 +63,10 @@ import {
 } from '../utils/designerIconify';
 
 const DESIGN_CANVAS_DPI = 96;
-const CANVAS_SIZE_UNITS = ['mm', 'cm', 'in'];
+const CANVAS_SIZE_UNITS = ['mm', 'cm', 'in', 'px'];
 
 const pixelsToCanvasUnit = (pixels, unit) => {
+  if (unit === 'px') return Number(pixels || 0);
   const inches = Number(pixels || 0) / DESIGN_CANVAS_DPI;
   if (unit === 'in') return inches;
   if (unit === 'cm') return inches * 2.54;
@@ -71,6 +76,7 @@ const pixelsToCanvasUnit = (pixels, unit) => {
 const canvasUnitToPixels = (value, unit) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return 0;
+  if (unit === 'px') return Math.max(1, Math.round(numeric));
   const inches = unit === 'in' ? numeric : unit === 'cm' ? numeric / 2.54 : numeric / 25.4;
   return Math.max(1, Math.round(inches * DESIGN_CANVAS_DPI));
 };
@@ -78,11 +84,12 @@ const canvasUnitToPixels = (value, unit) => {
 const formatCanvasUnitValue = (value, unit) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return '';
+  if (unit === 'px') return String(Math.round(numeric));
   if (unit === 'in') return String(Math.round(numeric * 100) / 100);
   return String(Math.round(numeric * 10) / 10);
 };
 
-const emptyPage = (index, size = { width: 800, height: 400 }) => ({
+const emptyPage = (index, size = getDefaultCanvasPixelSize()) => ({
   id: Date.now() + index,
   name: `Page ${index + 1}`,
   width: size.width,
@@ -540,12 +547,8 @@ const GenericProductDesigner = () => {
   const [showFontPicker, setShowFontPicker] = useState(false);
   const [showAllByCategory, setShowAllByCategory] = useState({});
   const [canvasSizeUnit, setCanvasSizeUnit] = useState('mm');
-  const [canvasWidthInput, setCanvasWidthInput] = useState(() =>
-    formatCanvasUnitValue(pixelsToCanvasUnit(800, 'mm'), 'mm'),
-  );
-  const [canvasHeightInput, setCanvasHeightInput] = useState(() =>
-    formatCanvasUnitValue(pixelsToCanvasUnit(400, 'mm'), 'mm'),
-  );
+  const [canvasWidthInput, setCanvasWidthInput] = useState(String(DEFAULT_CANVAS_SIZE_MM.width));
+  const [canvasHeightInput, setCanvasHeightInput] = useState(String(DEFAULT_CANVAS_SIZE_MM.height));
   const [iconResultsByCategory, setIconResultsByCategory] = useState({});
   const [iconLoadingByCategory, setIconLoadingByCategory] = useState({});
   const [iconErrorByCategory, setIconErrorByCategory] = useState({});
@@ -958,7 +961,7 @@ const GenericProductDesigner = () => {
   // place instead of drifting toward a corner.
   const zoomAnchored = (nextZoomRaw, anchorClientPoint) => {
     if (!canvas) return;
-    const nextZoom = Math.max(10, Math.min(300, Math.round(nextZoomRaw)));
+    const nextZoom = Math.max(1, Math.min(300, Math.round(nextZoomRaw)));
     const prevZoom = zoomRef.current || 100;
     if (nextZoom === prevZoom) return;
 
@@ -992,9 +995,33 @@ const GenericProductDesigner = () => {
   const fitCanvasNow = () => {
     const stageEl = canvasStageRef.current || canvasWorkspaceRef.current;
     if (!canvas || !stageEl) return;
-    const fittedZoom = fitCanvasToWorkspace(canvas, stageEl);
+    let fittedZoom = fitCanvasToWorkspace(canvas, stageEl);
     userZoomedRef.current = false;
     resetPan();
+
+    // Safety pass: measure what actually landed in the DOM (artboard +
+    // dimension guides) against the real stage box. Our overhead estimate
+    // (guide labels, card padding) is only an approximation, so this catches
+    // any mismatch — font metrics, wrapping, late layout shifts — and shrinks
+    // further until it genuinely fits. This guarantees the artboard can
+    // never render larger than the visible screen, no matter how large a
+    // size (cm/in/mm) was requested: the on-screen box always ends up the
+    // same "standard" size that fits the current viewport.
+    const wrapperEl = canvasCardWrapperRef.current;
+    if (wrapperEl) {
+      const stageRect = stageEl.getBoundingClientRect();
+      const wrapperRect = wrapperEl.getBoundingClientRect();
+      const overflowRatio = Math.max(
+        wrapperRect.width / Math.max(stageRect.width, 1),
+        wrapperRect.height / Math.max(stageRect.height, 1),
+      );
+      if (overflowRatio > 1.01) {
+        fittedZoom = Math.max(0.1, fittedZoom / overflowRatio);
+        applyCanvasDisplayZoom(canvas, fittedZoom);
+      }
+    }
+
+    enforceCanvasDisplayAspectRatio(canvas);
     setZoom(fittedZoom);
     scheduleCanvasOffsetSync(canvas);
   };
@@ -1014,8 +1041,9 @@ const GenericProductDesigner = () => {
       return;
     }
 
-    canvas.setDimensions({ width, height });
-    canvas.calcOffset();
+    // Logical / export resolution only — on-screen size stays fixed to the
+    // workspace via fitCanvasStable (never blow up the DOM element).
+    setCanvasLogicalDimensions(canvas, width, height);
     canvas.renderAll();
     updatePagesFromRef((prev) =>
       prev.map((page, idx) =>
@@ -1023,6 +1051,7 @@ const GenericProductDesigner = () => {
       ),
     );
     syncCanvasSizeInputs(width, height);
+    userZoomedRef.current = false;
     fitCanvasStable();
     refreshCanvas();
   };
@@ -1439,8 +1468,8 @@ const GenericProductDesigner = () => {
     const basePages = syncPageSnapshotAt(pageIndex) ?? buildProjectPagesSnapshot(pageIndex);
     const source = basePages[pageIndex] || basePages[0];
     const newPage = emptyPage(basePages.length, {
-      width: source?.width || 800,
-      height: source?.height || 400,
+      width: source?.width || getDefaultCanvasPixelSize().width,
+      height: source?.height || getDefaultCanvasPixelSize().height,
     });
     const nextPages = [...basePages, newPage];
     const nextIndex = nextPages.length - 1;
@@ -1615,12 +1644,20 @@ const GenericProductDesigner = () => {
           : pageBackgroundStyle.patternConfig?.background || '#ffffff',
       );
 
-      const fittedZoom = fitCanvasToWorkspace(canvas, canvasStageRef.current || canvasWorkspaceRef.current);
-      resetPan();
-      setZoom(fittedZoom);
+      fitCanvasNow();
       await waitForCanvasLayout();
       if (token !== loadTokenRef.current) return;
+      fitCanvasNow();
       prepareCanvasForInteraction(canvas);
+      const defaultPx = getDefaultCanvasPixelSize();
+      if (pageData.width === defaultPx.width && pageData.height === defaultPx.height) {
+        setCanvasSizeUnit('mm');
+        syncCanvasSizeInputs(pageData.width, pageData.height, 'mm');
+      } else {
+        setCanvasSizeUnit('px');
+        setCanvasWidthInput(String(pageData.width));
+        setCanvasHeightInput(String(pageData.height));
+      }
       refreshCanvas();
     } finally {
       // Only the most recent load is allowed to clear the guards.
@@ -1635,9 +1672,10 @@ const GenericProductDesigner = () => {
   useEffect(() => {
     if (!canvasElRef.current) return;
 
+    const defaultSize = getDefaultCanvasPixelSize();
     const fabricCanvas = new fabric.Canvas(canvasElRef.current, {
-      width: 800,
-      height: 400,
+      width: defaultSize.width,
+      height: defaultSize.height,
       backgroundColor: '#ffffff',
       preserveObjectStacking: true,
       enableRetinaScaling: false
@@ -1825,6 +1863,11 @@ const GenericProductDesigner = () => {
 
     window.addEventListener('mouseup', handleWindowMouseUp);
 
+    const stageEl = canvasStageRef.current || canvasWorkspaceRef.current;
+    if (stageEl) {
+      fitCanvasToWorkspace(fabricCanvas, stageEl);
+    }
+
     setCanvas(fabricCanvas);
     saveHistoryState(fabricCanvas);
 
@@ -1905,8 +1948,9 @@ const GenericProductDesigner = () => {
   useEffect(() => {
     if (!canvas) return;
     const page = pages[currentPageIndex];
-    const widthPx = canvas.getWidth() || page?.width || 800;
-    const heightPx = canvas.getHeight() || page?.height || 400;
+    // Page record is the source of truth (templates ship their own width/height).
+    const widthPx = page?.width || canvas.getWidth() || getDefaultCanvasPixelSize().width;
+    const heightPx = page?.height || canvas.getHeight() || getDefaultCanvasPixelSize().height;
     syncCanvasSizeInputs(widthPx, heightPx, canvasSizeUnit);
   }, [
     canvas,
@@ -2013,9 +2057,7 @@ const GenericProductDesigner = () => {
         const displayH = canvas.lowerCanvasEl?.clientHeight || getCanvasDisplaySize(canvas, zoomRef.current).height;
 
         if (displayW > availW + 1 || displayH > availH + 1) {
-          const fittedZoom = fitCanvasToWorkspace(canvas, stage);
-          resetPan();
-          setZoom(fittedZoom);
+          fitCanvasNow();
         }
       }
 
@@ -3093,12 +3135,14 @@ const GenericProductDesigner = () => {
       if (canvas) {
         // Invalidate any in-flight page load so it can't overwrite the template.
         loadTokenRef.current += 1;
+        setCanvasSizeUnit('px');
+        setCanvasWidthInput(String(targetPage.width));
+        setCanvasHeightInput(String(targetPage.height));
         await loadPageOntoCanvas(canvas, clonePageRecord(targetPage));
 
-        const fittedZoom = fitCanvasToWorkspace(canvas, canvasStageRef.current || canvasWorkspaceRef.current);
-        resetPan();
-        setZoom(fittedZoom);
+        fitCanvasNow();
         await waitForCanvasLayout();
+        fitCanvasNow();
         prepareCanvasForInteraction(canvas);
         refreshCanvas();
         canvasHydratingRef.current = false;
@@ -6103,9 +6147,9 @@ const GenericProductDesigner = () => {
             </button>
             <input
               type="range"
-              min="10"
+              min="1"
               max="300"
-              value={zoom}
+              value={Math.max(1, Math.round(zoom))}
               onChange={(e) => handleZoom(Number(e.target.value))}
               className="accent-emerald-600"
               title="Zoom"
@@ -6125,7 +6169,7 @@ const GenericProductDesigner = () => {
               className="w-14 rounded-lg border border-gray-300 px-1 py-1.5 text-center text-sm font-semibold text-slate-700 hover:bg-gray-50"
               title="Reset to 100%"
             >
-              {zoom}%
+              {zoom < 1 ? zoom.toFixed(1) : Math.round(zoom)}%
             </button>
           </div>
 
@@ -6140,11 +6184,12 @@ const GenericProductDesigner = () => {
               <option value="mm">mm</option>
               <option value="cm">cm</option>
               <option value="in">in</option>
+              <option value="px">px</option>
             </select>
             <input
               type="number"
               min={canvasSizeUnit === 'in' ? '0.1' : '1'}
-              step={canvasSizeUnit === 'in' ? '0.01' : '0.1'}
+              step={canvasSizeUnit === 'px' ? '1' : canvasSizeUnit === 'in' ? '0.01' : '0.1'}
               value={canvasWidthInput}
               onChange={(e) => setCanvasWidthInput(e.target.value)}
               className="w-20 rounded-lg border border-gray-300 p-2 text-sm"
@@ -6155,7 +6200,7 @@ const GenericProductDesigner = () => {
             <input
               type="number"
               min={canvasSizeUnit === 'in' ? '0.1' : '1'}
-              step={canvasSizeUnit === 'in' ? '0.01' : '0.1'}
+              step={canvasSizeUnit === 'px' ? '1' : canvasSizeUnit === 'in' ? '0.01' : '0.1'}
               value={canvasHeightInput}
               onChange={(e) => setCanvasHeightInput(e.target.value)}
               className="w-20 rounded-lg border border-gray-300 p-2 text-sm"
@@ -6292,8 +6337,10 @@ const GenericProductDesigner = () => {
                   className={`relative inline-block overflow-hidden rounded-2xl bg-white p-2 shadow-[0_20px_50px_-20px_rgba(15,23,42,0.35)] ring-1 ring-slate-900/5 ${isPanning ? 'cursor-grabbing' : activeTool === 'pan' ? 'cursor-grab' : ''}`}
                 >
                   <div
-                    className="rounded-xl"
+                    className="inline-block rounded-xl"
                     style={{
+                      width: getCanvasDisplaySize(canvas, zoom).width || undefined,
+                      height: getCanvasDisplaySize(canvas, zoom).height || undefined,
                       backgroundColor: '#f8fafc',
                       backgroundImage:
                         'linear-gradient(45deg, #e2e8f0 25%, transparent 25%), linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e2e8f0 75%), linear-gradient(-45deg, transparent 75%, #e2e8f0 75%)',
@@ -6301,7 +6348,7 @@ const GenericProductDesigner = () => {
                       backgroundPosition: '0 0, 0 8px, 8px -8px, -8px 0px',
                     }}
                   >
-                    <canvas ref={canvasElRef} style={{ display: 'block' }} />
+                    <canvas ref={canvasElRef} style={{ display: 'block', maxWidth: 'none', maxHeight: 'none' }} />
                   </div>
                   <div className="pointer-events-none absolute inset-2 rounded-xl ring-1 ring-emerald-400/35" aria-hidden="true" />
                 </div>

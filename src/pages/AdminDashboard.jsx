@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { useAuth } from '../context/AuthContext';
@@ -15,7 +15,7 @@ import AdminDesignServiceTab from '../components/AdminDesignServiceTab';
 import AdminActivityFeed from '../components/AdminActivityFeed';
 import { FileViewerLink, isHttpUrl, linkLabelForUrl, openFileViewer } from '../components/FileDocViewer';
 import { RevenueColumnChart, NewUsersChart } from '../components/AdminOverviewCharts';
-import { isThirdPartyOrder, thirdPartyOrderStatusLabel } from '../utils/orderThirdParty';
+import { isThirdPartyOrder, thirdPartyOrderStatusLabel, orderFulfillmentTypeLabel } from '../utils/orderThirdParty';
 import { designService } from '../services/designService';
 import {
   ensureAdminSeenInitialized,
@@ -26,6 +26,11 @@ import {
   markActivityItemSeen,
   markAllActivitySeen,
 } from '../utils/adminTabNotifications';
+import {
+  hasCompletedAdminDashboardTour,
+  startAdminDashboardTour,
+  destroyAdminDashboardTour,
+} from '../utils/adminDashboardTour';
 
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -49,6 +54,7 @@ const AdminDashboard = () => {
     designRequests: [],
   });
   const [dashboardRefreshing, setDashboardRefreshing] = useState(false);
+  const tourAutoStartRef = useRef(false);
 
   const refreshTabBadges = async () => {
     if (user?.role !== 'admin' || !user?._id) return;
@@ -102,7 +108,7 @@ const AdminDashboard = () => {
         const data = await adminService.analytics();
         setAnalytics(data);
       } else if (activeTab === 'products') {
-        const data = await productService.list();
+        const data = await productService.listAll();
         setProducts(data.products || []);
       } else if (activeTab === 'orders') {
         const data = await orderService.list();
@@ -155,6 +161,34 @@ const AdminDashboard = () => {
     }
     setActiveTab(tab);
   };
+
+  const handleStartAdminTour = () => {
+    destroyAdminDashboardTour();
+    window.setTimeout(() => {
+      startAdminDashboardTour({
+        activeTab,
+        onSwitchTab: handleTabSelect,
+      });
+    }, 150);
+  };
+
+  useEffect(() => {
+    if (!authReady || user?.role !== 'admin' || loading) return undefined;
+    if (hasCompletedAdminDashboardTour() || tourAutoStartRef.current) return undefined;
+
+    const timer = window.setTimeout(() => {
+      tourAutoStartRef.current = true;
+      startAdminDashboardTour({
+        activeTab,
+        onSwitchTab: handleTabSelect,
+        markComplete: true,
+      });
+    }, 600);
+
+    return () => window.clearTimeout(timer);
+  }, [authReady, user?.role, loading]);
+
+  useEffect(() => () => destroyAdminDashboardTour(), []);
 
   const handleActivityOpen = (entry) => {
     if (!user?._id || !entry) return;
@@ -209,7 +243,7 @@ const AdminDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header - Dark theme like main header */}
-      <header className="bg-gray-800 shadow-lg">
+      <header className="bg-gray-800 shadow-lg" data-tour="admin-header">
         <div className="container mx-auto px-4 lg:px-8">
           <div className="flex items-center justify-between h-20">
             <div className="flex items-center gap-4">
@@ -240,6 +274,19 @@ const AdminDashboard = () => {
             </div>
             <div className="flex items-center gap-3">
               <button
+                type="button"
+                onClick={handleStartAdminTour}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors"
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                title="Open admin guide"
+                aria-label="Open admin guide"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Guide
+              </button>
+              <button
                 onClick={() => navigate('/')}
                 className="text-gray-200 hover:text-white font-medium flex items-center gap-2 transition-colors text-sm"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
@@ -266,9 +313,9 @@ const AdminDashboard = () => {
       </header>
 
       {/* Tabs */}
-      <div className="bg-white border-b">
+      <div className="bg-white border-b" data-tour="admin-tabs">
         <div className="container mx-auto px-4">
-          <div className="flex gap-1">
+          <div className="flex gap-1 overflow-x-auto">
             {['overview', 'products', 'categories', 'orders', 'quotes', 'design-service', 'neon-pricing', 'featured-pricing', 'settings'].map((tab) => {
               const badgeCount = getAdminTabBadgeCount(tab, tabBadges);
               const tabLabel =
@@ -283,6 +330,7 @@ const AdminDashboard = () => {
               return (
               <button
                 key={tab}
+                data-tour={`admin-tab-${tab}`}
                 onClick={() => handleTabSelect(tab)}
                 className={`relative px-6 py-4 font-semibold text-sm transition-colors capitalize ${
                   activeTab === tab
@@ -338,24 +386,49 @@ const AdminDashboard = () => {
             {activeTab === 'quotes' && (
               <QuotesTab quotes={quotes} onResponse={handleQuoteResponse} />
             )}
-            {activeTab === 'design-service' && <AdminDesignServiceTab />}
+            {activeTab === 'design-service' && (
+              <div data-tour="admin-design-service">
+                <AdminDesignServiceTab />
+              </div>
+            )}
             {activeTab === 'neon-pricing' && (
               neonPricingSettings ? (
-                <AdminNeonPricingTab
-                  settings={neonPricingSettings}
-                  onSaved={(data) => setNeonPricingSettings(data)}
-                />
+                <div data-tour="admin-neon-pricing">
+                  <AdminNeonPricingTab
+                    settings={neonPricingSettings}
+                    onSaved={(data) => setNeonPricingSettings(data)}
+                  />
+                </div>
               ) : (
                 <p className="text-red-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                   Could not load neon pricing settings. Ensure the API is running and you are signed in as admin.
                 </p>
               )
             )}
-            {activeTab === 'featured-pricing' && <AdminFeaturedSignagePricingTab />}
+            {activeTab === 'featured-pricing' && (
+              <div data-tour="admin-featured-pricing">
+                <AdminFeaturedSignagePricingTab />
+              </div>
+            )}
             {activeTab === 'settings' && <SettingsTab />}
           </>
         )}
       </div>
+
+      <button
+        type="button"
+        onClick={handleStartAdminTour}
+        data-tour="admin-guide-btn"
+        className="fixed bottom-6 right-6 z-50 inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:bg-blue-500 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
+        style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+        title="Open admin guide"
+        aria-label="Open admin guide"
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        Guide
+      </button>
     </div>
   );
 };
@@ -411,15 +484,17 @@ const OverviewTab = ({
         </button>
       </div>
 
-      <AdminActivityFeed
-        activities={activities}
-        onOpen={onActivityOpen}
-        onDismiss={onActivityDismiss}
-        onDismissAll={onActivityDismissAll}
-      />
+      <div data-tour="admin-overview-activity">
+        <AdminActivityFeed
+          activities={activities}
+          onOpen={onActivityOpen}
+          onDismiss={onActivityDismiss}
+          onDismissAll={onActivityDismissAll}
+        />
+      </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4" data-tour="admin-overview-stats">
         {stats.map((stat, index) => (
           <div key={index} className="bg-white rounded-lg shadow p-6">
             <p className="text-gray-600 text-sm mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -433,7 +508,7 @@ const OverviewTab = ({
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6" data-tour="admin-overview-charts">
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
             Revenue by Month
@@ -478,6 +553,7 @@ const ProductsTab = ({ products, onRefresh }) => {
         </h2>
         <button
           onClick={() => setShowAddModal(true)}
+          data-tour="admin-products-add"
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           style={{ fontFamily: 'Lexend Deca, sans-serif' }}
         >
@@ -485,12 +561,13 @@ const ProductsTab = ({ products, onRefresh }) => {
         </button>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-hidden" data-tour="admin-products-list">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -504,6 +581,15 @@ const ProductsTab = ({ products, onRefresh }) => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm text-gray-500 capitalize">{product.category}</div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={`px-2 py-1 text-xs rounded-full ${
+                    product.source === 'third-party'
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-blue-100 text-blue-800'
+                  }`}>
+                    {product.source === 'third-party' ? 'Tradeprint' : 'In-house'}
+                  </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm text-gray-900">£{product.basePrice}</div>
@@ -765,7 +851,10 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
 
     const stripHtml = (html) => (html || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
     if (!stripHtml(formData.description)) newErrors.description = 'Description is required';
-
+    if (!formData.category?.trim()) newErrors.category = 'Category is required';
+    if (!product && (!String(formData.basePrice || '').trim() || Number(formData.basePrice) <= 0)) {
+      newErrors.basePrice = 'A valid price greater than 0 is required';
+    }
     if (String(formData.basePrice || '').trim() !== '' && Number.isNaN(Number(formData.basePrice))) {
       newErrors.basePrice = 'Valid price is required';
     }
@@ -817,7 +906,7 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
         name: formData.name,
         description: formData.description,
         category: formData.category,
-        ...(String(formData.basePrice || '').trim() !== '' ? { basePrice: String(formData.basePrice) } : {}),
+        basePrice: String(formData.basePrice),
         features,
         faqs,
         specifications,
@@ -866,6 +955,16 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
             {submitError}
           </div>
         )}
+
+        {!product ? (
+          <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            Products added here are in-house catalogue items. They appear in the shop with your fixed pricing and orders stay on your system — not Tradeprint.
+          </div>
+        ) : product?.source === 'third-party' ? (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            This is a Tradeprint-synced product. Pricing and fulfilment are handled through Tradeprint.
+          </div>
+        ) : null}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -949,6 +1048,7 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
                   ))
                 )}
               </select>
+              {errors.category && <p className="mt-1 text-xs text-red-600">{errors.category}</p>}
             </div>
 
             <div>
@@ -1380,6 +1480,15 @@ const OrderDetailModal = ({ order, onClose }) => {
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Order details</p>
             <h3 id="order-detail-title" className="text-lg font-bold text-gray-900 mt-0.5">
               {orderIdShort(order)}
+              <span
+                className={`ml-2 text-xs font-semibold align-middle px-2 py-0.5 rounded-full ${
+                  isThirdPartyOrder(order)
+                    ? 'bg-amber-100 text-amber-800'
+                    : 'bg-blue-100 text-blue-800'
+                }`}
+              >
+                {orderFulfillmentTypeLabel(order)}
+              </span>
               {isCheckout ? (
                 <span className="ml-2 text-xs font-semibold align-middle px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
                   Paid · Worldpay
@@ -1674,15 +1783,17 @@ const OrdersTab = ({ orders, onStatusUpdate }) => {
         Orders Management
       </h2>
       <p className="text-sm text-gray-600 max-w-3xl">
-        Includes shop orders and successful Worldpay checkouts. Open <strong>View</strong> for full customer, payment reference, and line details.
-        Third-party print orders show partner status as read-only (not editable here).
+        Includes shop orders and successful Worldpay checkouts. <strong>Type</strong> shows whether fulfilment is in-house or via a 3rd-party print partner.
+        Open <strong>View</strong> for full customer, payment reference, and line details.
+        3rd-party orders show partner status as read-only (not editable here).
       </p>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
+      <div className="bg-white rounded-lg shadow overflow-hidden overflow-x-auto" data-tour="admin-orders-list">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order ID</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Source</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
@@ -1695,13 +1806,14 @@ const OrdersTab = ({ orders, onStatusUpdate }) => {
           <tbody className="bg-white divide-y divide-gray-200">
             {orders.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-6 py-12 text-center text-sm text-gray-500">
+                <td colSpan={9} className="px-6 py-12 text-center text-sm text-gray-500">
                   No orders yet. Successful checkouts will appear here after payment.
                 </td>
               </tr>
             ) : (
               orders.map((order) => {
                 const isCheckout = order.orderKind === 'checkout';
+                const isThirdParty = isThirdPartyOrder(order);
                 const custName = isCheckout ? order.customer?.name : order.user?.name;
                 const custEmail = isCheckout ? order.customer?.email : order.user?.email;
                 const projectLabel =
@@ -1722,6 +1834,17 @@ const OrdersTab = ({ orders, onStatusUpdate }) => {
                       {order.trackingNumber ? (
                         <div className="text-[11px] text-gray-500 font-mono mt-0.5">{order.trackingNumber}</div>
                       ) : null}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`px-2 py-1 text-xs rounded-full font-medium ${
+                          isThirdParty
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-blue-100 text-blue-800'
+                        }`}
+                      >
+                        {orderFulfillmentTypeLabel(order)}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {isCheckout ? (
@@ -1755,7 +1878,7 @@ const OrdersTab = ({ orders, onStatusUpdate }) => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {isThirdPartyOrder(order) ? (
+                      {isThirdParty ? (
                         <span
                           className={`inline-flex items-center px-3 py-1 text-xs rounded-full font-medium capitalize ${statusColors[order.status] || 'bg-sky-100 text-sky-800'}`}
                           title="Status is synced from the print partner API"
@@ -2002,7 +2125,7 @@ const QuotesTab = ({ quotes, onResponse }) => {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-2 gap-6" data-tour="admin-quotes-list">
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="divide-y divide-gray-200">
             {filteredQuotes.map((quote) => (
@@ -2325,6 +2448,7 @@ const CategoriesTab = ({ categories, onRefresh }) => {
             setEditingCategory(null);
             setShowAddModal(true);
           }}
+          data-tour="admin-categories-add"
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           style={{ fontFamily: 'Lexend Deca, sans-serif' }}
         >
@@ -2332,7 +2456,7 @@ const CategoriesTab = ({ categories, onRefresh }) => {
         </button>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-hidden" data-tour="admin-categories-list">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -2661,15 +2785,21 @@ const SettingsTab = () => {
   const [galleryModalOpen, setGalleryModalOpen] = useState(false);
   const [editingGalleryProject, setEditingGalleryProject] = useState(null);
   const [gallerySaving, setGallerySaving] = useState(false);
+  const [faqs, setFaqs] = useState([]);
+  const [faqLoading, setFaqLoading] = useState(true);
+  const [faqModalOpen, setFaqModalOpen] = useState(false);
+  const [editingFaq, setEditingFaq] = useState(null);
+  const [faqSaving, setFaqSaving] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
-        const [data, designPrice, galleryData] = await Promise.all([
+        const [data, designPrice, galleryData, faqData] = await Promise.all([
           adminService.getTopAnnouncement(),
           adminService.getDesignServicePrice(),
           adminService.listGalleryProjectsAdmin(),
+          adminService.listFaqsAdmin(),
         ]);
         if (data) {
           setFormData({
@@ -2685,15 +2815,29 @@ const SettingsTab = () => {
           });
         }
         setGalleryProjects(Array.isArray(galleryData?.projects) ? galleryData.projects : []);
+        setFaqs(Array.isArray(faqData?.faqs) ? faqData.faqs : []);
       } catch (e) {
         setError(e?.message || 'Failed to load settings');
       } finally {
         setLoading(false);
         setGalleryLoading(false);
+        setFaqLoading(false);
       }
     };
     load();
   }, []);
+
+  const loadFaqs = async () => {
+    try {
+      setFaqLoading(true);
+      const faqData = await adminService.listFaqsAdmin();
+      setFaqs(Array.isArray(faqData?.faqs) ? faqData.faqs : []);
+    } catch (e) {
+      setError(e?.message || 'Failed to load FAQs');
+    } finally {
+      setFaqLoading(false);
+    }
+  };
 
   const loadGalleryProjects = async () => {
     try {
@@ -2801,6 +2945,47 @@ const SettingsTab = () => {
     }
   };
 
+  const handleFaqCreateClick = () => {
+    setEditingFaq(null);
+    setFaqModalOpen(true);
+  };
+
+  const handleFaqEditClick = (faq) => {
+    setEditingFaq(faq);
+    setFaqModalOpen(true);
+  };
+
+  const handleFaqDelete = async (faqId) => {
+    const ok = window.confirm('Delete this FAQ? This cannot be undone.');
+    if (!ok) return;
+    try {
+      await adminService.deleteFaq(faqId);
+      await loadFaqs();
+      setNotice('FAQ deleted.');
+    } catch (e) {
+      setError(e?.message || 'Failed to delete FAQ');
+    }
+  };
+
+  const handleFaqSave = async ({ payload, faqId }) => {
+    try {
+      setFaqSaving(true);
+      if (faqId) {
+        await adminService.updateFaq(faqId, payload);
+      } else {
+        await adminService.createFaq(payload);
+      }
+      await loadFaqs();
+      setFaqModalOpen(false);
+      setEditingFaq(null);
+      setNotice(faqId ? 'FAQ updated.' : 'FAQ created.');
+    } catch (e) {
+      setError(e?.message || 'Failed to save FAQ');
+    } finally {
+      setFaqSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="text-center py-12">
@@ -2813,7 +2998,7 @@ const SettingsTab = () => {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-900">Site Settings</h2>
 
-      <div className="bg-white rounded-xl shadow p-6 max-w-3xl">
+      <div className="bg-white rounded-xl shadow p-6 max-w-3xl" data-tour="admin-settings-announcement">
         <h3 className="text-lg font-bold text-gray-900 mb-2">Top Announcement Bar</h3>
         <p className="text-sm text-gray-600 mb-6" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
           Control the message displayed directly below the main header.
@@ -2934,7 +3119,7 @@ const SettingsTab = () => {
         </form>
       </div>
 
-      <div className="bg-white rounded-xl shadow p-6">
+      <div className="bg-white rounded-xl shadow p-6" data-tour="admin-settings-gallery">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h3 className="text-lg font-bold text-gray-900 mb-1">Gallery Projects</h3>
@@ -3001,7 +3186,72 @@ const SettingsTab = () => {
         ) : null}
       </div>
 
-      <div className="bg-white rounded-xl shadow p-6 max-w-3xl">
+      <div className="bg-white rounded-xl shadow p-6" data-tour="admin-settings-faqs">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900 mb-1">FAQs</h3>
+            <p className="text-sm text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              Manage frequently asked questions shown on the public FAQs page.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleFaqCreateClick}
+            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold"
+            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+          >
+            Add FAQ
+          </button>
+        </div>
+
+        {faqLoading ? (
+          <div className="text-center py-8">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        ) : null}
+
+        {!faqLoading && faqs.length === 0 ? (
+          <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-6 text-sm text-gray-600 text-center">
+            No FAQs added yet.
+          </div>
+        ) : null}
+
+        {!faqLoading && faqs.length > 0 ? (
+          <div className="mt-5 space-y-3">
+            {faqs.map((faq) => (
+              <div key={faq._id} className="rounded-xl border border-gray-200 p-4 bg-white">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-base font-semibold text-gray-900">{faq.question}</h4>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Order {faq.displayOrder || 0} · {faq.isActive ? 'Active' : 'Hidden'}
+                    </p>
+                    <p className="text-sm text-gray-600 mt-2 line-clamp-3 whitespace-pre-line">{faq.answer}</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleFaqEditClick(faq)}
+                      className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleFaqDelete(faq._id)}
+                      className="px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 text-sm font-medium"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="bg-white rounded-xl shadow p-6 max-w-3xl" data-tour="admin-settings-sync">
         <h3 className="text-lg font-bold text-gray-900 mb-2">Third-Party Product Sync</h3>
         <p className="text-sm text-gray-600 mb-6" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
           Click to fetch selected third-party products and store/update them in your product database.
@@ -3036,6 +3286,135 @@ const SettingsTab = () => {
           onSave={handleGallerySave}
         />
       ) : null}
+
+      {faqModalOpen ? (
+        <FaqModal
+          faq={editingFaq}
+          isSaving={faqSaving}
+          onClose={() => {
+            if (faqSaving) return;
+            setFaqModalOpen(false);
+            setEditingFaq(null);
+          }}
+          onSave={handleFaqSave}
+        />
+      ) : null}
+    </div>
+  );
+};
+
+const FaqModal = ({ faq, onClose, onSave, isSaving }) => {
+  const [question, setQuestion] = useState(faq?.question || '');
+  const [answer, setAnswer] = useState(faq?.answer || '');
+  const [displayOrder, setDisplayOrder] = useState(faq?.displayOrder ?? 0);
+  const [isActive, setIsActive] = useState(faq?.isActive !== false);
+  const [validationError, setValidationError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setValidationError('');
+
+    if (!String(question || '').trim()) {
+      setValidationError('Question is required.');
+      return;
+    }
+    if (!String(answer || '').trim()) {
+      setValidationError('Answer is required.');
+      return;
+    }
+
+    await onSave({
+      faqId: faq?._id,
+      payload: {
+        question: String(question || '').trim(),
+        answer: String(answer || '').trim(),
+        displayOrder: Number(displayOrder) || 0,
+        isActive: Boolean(isActive),
+      },
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+            {faq ? 'Edit FAQ' : 'Add FAQ'}
+          </h3>
+          <button type="button" onClick={onClose} className="text-gray-500 hover:text-gray-800 text-xl" aria-label="Close">
+            ×
+          </button>
+        </div>
+
+        {validationError ? (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {validationError}
+          </div>
+        ) : null}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Question</label>
+            <input
+              type="text"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="What is your turnaround time?"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Answer</label>
+            <textarea
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              rows={6}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              placeholder="Most standard orders are completed within 5–7 working days."
+            />
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Display Order</label>
+              <input
+                type="number"
+                value={displayOrder}
+                onChange={(e) => setDisplayOrder(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm text-gray-700 mt-7">
+              <input
+                type="checkbox"
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
+                className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+              />
+              Show on public FAQs page
+            </label>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSaving}
+              className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold disabled:opacity-50"
+            >
+              {isSaving ? 'Saving...' : faq ? 'Update FAQ' : 'Create FAQ'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };

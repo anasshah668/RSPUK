@@ -4,6 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useNeonPreviewExit } from '../context/NeonPreviewExitContext';
 import { payableFromNet, SUMMARY_LINES_EXCLUDE_FROM_CHECKOUT_NAV } from '../utils/vatUtils';
+import {
+  TRADEPRINT_CATEGORY_SLUGS,
+  TRADEPRINT_CATEGORY_LABELS,
+  isTradeprintCategory,
+} from '../utils/tradeprintCategories';
 
 const Header = () => {
   const navigate = useNavigate();
@@ -61,6 +66,13 @@ const Header = () => {
         { label: 'Fibre Laser Welding', category: 'fibre-laser-welding' },
       ],
     },
+    {
+      title: 'Print Products',
+      items: TRADEPRINT_CATEGORY_SLUGS.map((category) => ({
+        label: TRADEPRINT_CATEGORY_LABELS[category],
+        category,
+      })),
+    },
    
   ];
 
@@ -109,6 +121,20 @@ const Header = () => {
       'fibre-laser-cutting': '/featured/fibre-laser-cutting',
       'fibre-laser-welding': '/featured/fibre-laser-welding',
     };
+
+    // Tradeprint categories open the homepage shop section filtered by category.
+    if (isTradeprintCategory(categorySlug)) {
+      navigate(`/?category=${encodeURIComponent(categorySlug)}`);
+      setTimeout(() => {
+        const productsSection = document.getElementById('products');
+        if (productsSection) {
+          productsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 150);
+      setMobileMenuOpen(false);
+      setShopOpen(false);
+      return;
+    }
 
     // Navigate featured categories to their dedicated pages, fallback to generic category route.
     navigate(featuredRouteMap[categorySlug] || `/category/${categorySlug}`);

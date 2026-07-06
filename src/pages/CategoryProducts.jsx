@@ -5,6 +5,7 @@ import { encryptId, createSlug } from '../utils/encryption';
 import { getRoutePath } from '../config/routes.config';
 import WavyUnderline from '../components/WavyUnderline';
 import { getFeaturedSignageBySlug } from '../data/featuredSignageData';
+import { isTradeprintCategory } from '../utils/tradeprintCategories';
 
 const CategoryProducts = ({ categorySlugOverride } = {}) => {
   const params = useParams();
@@ -167,6 +168,7 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
   const featuredSignageItem = getFeaturedSignageBySlug(categorySlug);
   const featuredCategoryHeroImage =
     featuredSignageItem?.images?.[0] || `${import.meta.env.BASE_URL}threeD.png`;
+  const isTradeprintShop = isTradeprintCategory(categorySlug);
 
   useEffect(() => {
     fetchProducts();
@@ -176,24 +178,24 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const data = await productService.list();
-      
-      if (data.products && data.products.length > 0) {
-        const filtered = data.products
-          .filter(product => product.category?.toLowerCase() === categorySlug?.toLowerCase())
-          .map(product => ({
-            id: product._id,
-            name: product.name,
-            category: product.category,
-            price: product.basePrice || product.variants?.[0]?.price || 0,
-            image: product.images?.[0]?.url || '',
-            _id: product._id,
-            productData: product,
-          }));
-        setProducts(filtered);
-      } else {
-        setProducts([]);
-      }
+      const data = await productService.getByCategory(categorySlug);
+      const categoryProducts = Array.isArray(data) ? data : Array.isArray(data?.products) ? data.products : [];
+
+      const mapped = categoryProducts.map((product) => ({
+        id: product._id,
+        name: product.name,
+        description: String(product.description || '')
+          .replace(/<[^>]*>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim(),
+        category: product.category,
+        price: product.basePrice || product.variants?.[0]?.price || 0,
+        image: product.productImage?.url || product.images?.[0]?.url || '',
+        _id: product._id,
+        productData: product,
+        source: product.source || 'local',
+      }));
+      setProducts(mapped);
     } catch (error) {
       console.error('Error fetching products:', error);
       setProducts([]);
@@ -206,7 +208,6 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
     try {
       setRecommendedLoading(true);
       
-      // Fetch recommended products from API
       const apiData = await productService.getRecommended({ 
         limit: 6,
         category: categorySlug 
@@ -217,11 +218,16 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
         name: product.name,
         category: product.category,
         price: product.basePrice || product.variants?.[0]?.price || 0,
-        image: product.images?.[0]?.url || '',
+        image: product.productImage?.url || product.images?.[0]?.url || '',
         _id: product._id,
         productData: product,
         source: 'api',
       }));
+
+      if (isTradeprintCategory(categorySlug)) {
+        setRecommendedProducts(apiProducts);
+        return;
+      }
       
       // Static recommended products (curated picks)
       const staticRecommended = [
@@ -427,7 +433,82 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
         </div>
       </section>
 
+      {isTradeprintShop && (
+        <section className="py-16 bg-gray-50">
+          <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
+            <div className="text-center mb-10">
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
+                Browse <WavyUnderline>{categoryInfo.label}</WavyUnderline>
+              </h2>
+              <p className="text-gray-600 max-w-2xl mx-auto" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                Choose a product to configure options and get live pricing.
+              </p>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+                <p className="mt-4 text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  Loading products...
+                </p>
+              </div>
+            ) : products.length === 0 ? (
+              <div className="text-center py-12">
+                <h3 className="text-lg font-semibold text-gray-900">No products available yet</h3>
+                <p className="mt-2 text-gray-500" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  Ask your admin to sync Tradeprint products from the dashboard.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {products.map((product) => (
+                  <div
+                    key={product.id}
+                    className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer group"
+                    onClick={() => handleProductClick(product)}
+                  >
+                    <div className="relative h-56 bg-gray-100 overflow-hidden">
+                      <img
+                        src={
+                          imageErrors[product.id]
+                            ? getImagePlaceholder(product.name)
+                            : product.image || getImagePlaceholder(product.name)
+                        }
+                        alt={product.name}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        onError={() => {
+                          if (!imageErrors[product.id]) {
+                            setImageErrors((prev) => ({ ...prev, [product.id]: true }));
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="p-5">
+                      <h3 className="text-lg font-bold text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                        {product.name}
+                      </h3>
+                      {product.description && (
+                        <p
+                          className="mt-2 text-sm text-gray-600 line-clamp-3"
+                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                        >
+                          {product.description}
+                        </p>
+                      )}
+                      <p className="mt-3 text-sm font-semibold text-blue-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        View product →
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* Light Toggle Section (if applicable) */}
+      {!isTradeprintShop && (
       <section className="py-12 md:py-14 bg-white">
       <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-10 items-center">
@@ -556,6 +637,8 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
       </div>
 
     </section>
+      )}
+
       {/* {categoryInfo.hasLightToggle && (
         <section className="bg-white py-16 md:py-24">
           <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
@@ -619,6 +702,8 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
         </section>
       )} */}
 
+      {!isTradeprintShop && (
+      <>
       {/* CTA Section */}
       <section className="bg-slate-900 py-12 md:py-16 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10">
@@ -678,8 +763,10 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
           </div>
         </section>
       )}
+      </>
+      )}
 
-      {/* Recommended Products Section */}
+      {!isTradeprintShop && (
       <section className="bg-gray-50 py-12 md:py-16">
         <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
           <div className="mb-6">
@@ -801,6 +888,7 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
           )}
         </div>
       </section>
+      )}
     </div>
   );
 };

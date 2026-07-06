@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { quoteService } from '../services/quoteService';
 import { featuredSignagePricingService } from '../services/featuredSignagePricingService';
@@ -109,12 +109,20 @@ const getInitialFormState = (productType) => ({
 
 const FeaturedQuoteRequestPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { categorySlug } = useParams();
   const signageItem = getFeaturedSignageBySlug(categorySlug);
+  const presetDimensions = location.state?.presetDimensions;
   const [step, setStep] = useState('form'); // form | preview | success
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [artwork, setArtwork] = useState(null);
-  const [formData, setFormData] = useState(() => getInitialFormState(signageItem?.title || ''));
+  const [formData, setFormData] = useState(() => ({
+    ...getInitialFormState(signageItem?.title || ''),
+    ...(presetDimensions?.width ? { width: String(presetDimensions.width) } : {}),
+    ...(presetDimensions?.height ? { height: String(presetDimensions.height) } : {}),
+    ...(presetDimensions?.unit ? { unit: presetDimensions.unit } : {}),
+    ...(presetDimensions?.quantity ? { quantity: String(presetDimensions.quantity) } : {}),
+  }));
 
   const heading = signageItem?.heading || signageItem?.title || 'Featured Signage';
   const heroImage = signageItem?.images?.[0] || `${import.meta.env.BASE_URL}hero.jpg`;

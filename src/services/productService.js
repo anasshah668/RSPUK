@@ -8,6 +8,26 @@ const list = (params = {}) => {
   );
 };
 
+const listAll = async (params = {}) => {
+  const pageSize = 100;
+  let page = 1;
+  let allProducts = [];
+  let totalPages = 1;
+
+  do {
+    const data = await list({ ...params, page, limit: pageSize });
+    const batch = Array.isArray(data?.products) ? data.products : [];
+    allProducts = allProducts.concat(batch);
+    totalPages = Number(data?.totalPages) || 1;
+    page += 1;
+  } while (page <= totalPages);
+
+  return {
+    products: allProducts,
+    total: allProducts.length,
+  };
+};
+
 const getById = (productId) => {
   return httpClient.get(
     `${apiRoutes.products.getById}/${productId}`
@@ -71,6 +91,7 @@ const deleteProduct = (productId) => {
 
 export const productService = {
   list,
+  listAll,
   getById,
   getByCategory,
   getRecommended,

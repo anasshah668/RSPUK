@@ -52,6 +52,9 @@
     "galleryProjectsAdmin": "settings/gallery-projects/admin",
     "galleryProjects": "settings/gallery-projects",
     "galleryProjectById": "settings/gallery-projects",
+    "faqsAdmin": "settings/faqs/admin",
+    "faqs": "settings/faqs",
+    "faqById": "settings/faqs",
     "neonPricing": "admin/neon-pricing",
     "featuredSignagePricing": "admin/featured-signage-pricing",
     "ordersFromCheckout": "admin/orders-from-checkout"
@@ -65,7 +68,8 @@
   "settings": {
     "topAnnouncement": "settings/top-announcement",
     "designServicePrice": "settings/design-service-price",
-    "galleryProjects": "settings/gallery-projects"
+    "galleryProjects": "settings/gallery-projects",
+    "faqs": "settings/faqs"
   },
   "thirdParty": {
     "authLogin": "third-party/auth/login",

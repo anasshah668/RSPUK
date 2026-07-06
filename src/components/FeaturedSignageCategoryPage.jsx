@@ -8,6 +8,7 @@ import { encryptId, createSlug } from '../utils/encryption';
 import { getRoutePath } from '../config/routes.config';
 import { getFeaturedSignageBySlug } from '../data/featuredSignageData';
 import FeaturedPriceSummary from './FeaturedPriceSummary';
+import FeaturedHeroPriceCalculator from './FeaturedHeroPriceCalculator';
 import { useFeaturedSignagePrice } from '../hooks/useFeaturedSignagePrice';
 import { buildFeaturedPricingInput } from '../utils/featuredSignagePricing';
 import { readVatInclusiveFromStorage, payableFromNet } from '../utils/vatUtils';
@@ -182,7 +183,20 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
   };
 
   const openOrderForm = () => {
-    navigate(`/featured/${categorySlug}/requirements`);
+    if (!String(formData.width || '').trim() || !String(formData.height || '').trim()) {
+      toast.error('Please enter width and height first.');
+      return;
+    }
+    navigate(`/featured/${categorySlug}/requirements`, {
+      state: {
+        presetDimensions: {
+          width: formData.width,
+          height: formData.height,
+          unit: formData.unit || 'mm',
+          quantity: formData.quantity || '1',
+        },
+      },
+    });
   };
 
   const closeOrderForm = () => {
@@ -459,7 +473,20 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
                   ))}
                 </div>
               )}
-              <div className="mt-6 flex flex-col sm:flex-row gap-3">
+
+              <FeaturedHeroPriceCalculator
+                formData={formData}
+                setFormData={setFormData}
+                pricing={pricing}
+                pricingLoading={pricingLoading}
+                pricingError={pricingError}
+                displayTotal={displayTotal}
+                vatInclusive={vatInclusive}
+                productName={pageCopy.heading}
+                onStartProject={openOrderForm}
+              />
+
+              <div className="mt-4 flex flex-col sm:flex-row gap-3">
                 <button
                   type="button"
                   onClick={() => navigate('/get-free-quote')}

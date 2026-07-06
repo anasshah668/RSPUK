@@ -1,10 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import WavyUnderline from '../components/WavyUnderline';
+
+const font = { fontFamily: 'Lexend Deca, sans-serif' };
 
 const CountUp = ({ end, suffix = '', duration = 2000 }) => {
   const [count, setCount] = useState(0);
   const countRef = useRef(null);
-  const observerRef = useRef(null);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -15,394 +17,437 @@ const CountUp = ({ end, suffix = '', duration = 2000 }) => {
             const animate = (currentTime) => {
               if (startTime === null) startTime = currentTime;
               const progress = Math.min((currentTime - startTime) / duration, 1);
-              
-              const easeOutQuart = 1 - Math.pow(1 - progress, 4);
-              const currentCount = Math.floor(easeOutQuart * end);
-              
-              setCount(currentCount);
-              
-              if (progress < 1) {
-                requestAnimationFrame(animate);
-              } else {
-                setCount(end);
-              }
+              const easeOutQuart = 1 - (1 - progress) ** 4;
+              setCount(Math.floor(easeOutQuart * end));
+              if (progress < 1) requestAnimationFrame(animate);
+              else setCount(end);
             };
             requestAnimationFrame(animate);
             observer.disconnect();
           }
         });
       },
-      { threshold: 0.5 }
+      { threshold: 0.5 },
     );
 
-    if (countRef.current) {
-      observer.observe(countRef.current);
-      observerRef.current = observer;
-    }
-
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
-    };
+    if (countRef.current) observer.observe(countRef.current);
+    return () => observer.disconnect();
   }, [end, count, duration]);
 
   return (
     <span ref={countRef}>
-      {count.toLocaleString()}{suffix}
+      {count.toLocaleString()}
+      {suffix}
     </span>
   );
 };
 
+const values = [
+  {
+    title: 'Quality First',
+    description:
+      'Every sign and print job is produced with precision materials, careful finishing, and rigorous quality checks.',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M9 12l2 2 4-4" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Innovation',
+    description:
+      'From online design tools to modern fabrication methods, we invest in smarter ways to deliver better results.',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Customer Focus',
+    description:
+      'We work closely with trade clients and businesses to understand the brief and deliver signage that performs.',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Reliability',
+    description:
+      'Consistent lead times, clear communication, and dependable delivery — so your projects stay on track.',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  },
+];
+
+const milestones = [
+  { year: '1994', label: 'Founded in the North East with a focus on trade signage.' },
+  { year: '2005', label: 'Expanded in-house manufacturing and large-format print capabilities.' },
+  { year: '2015', label: 'Launched illuminated signage, neon, and bespoke fabrication services.' },
+  { year: 'Today', label: 'Serving clients UK-wide from our Middlesbrough production facility.' },
+];
+
+const processSteps = [
+  {
+    step: '01',
+    title: 'Consult & Design',
+    description: 'Share your brief, dimensions, and brand requirements. We advise on materials, finishes, and illumination.',
+  },
+  {
+    step: '02',
+    title: 'Manufacture',
+    description: 'Your signage is produced in-house using premium materials, CNC, laser, and print technologies.',
+  },
+  {
+    step: '03',
+    title: 'Deliver & Install',
+    description: 'We coordinate dispatch and installation support so your project lands on time and on spec.',
+  },
+];
+
+const capabilities = [
+  {
+    title: 'End-to-End Solutions',
+    description: 'Design, production, and installation support under one roof — fewer handoffs, faster delivery.',
+  },
+  {
+    title: 'Bespoke Fabrication',
+    description: '3D letters, lightboxes, flex face, window graphics, and custom neon built to your specification.',
+  },
+  {
+    title: 'Trade-Focused Service',
+    description: 'Discreet, dependable support for installers, agencies, and businesses across the UK.',
+  },
+];
+
+const stats = [
+  { number: 30, suffix: '+', label: 'Years of experience' },
+  { number: 5000, suffix: '+', label: 'Projects completed' },
+  { number: 2000, suffix: '+', label: 'Happy customers' },
+  { number: 50000, suffix: '', label: 'ft² production facility' },
+];
+
 const AboutUs = () => {
   const navigate = useNavigate();
-  const stats = [
-    { 
-      number: 30, 
-      suffix: '+', 
-      label: 'Years Experience', 
-      icon: (
-        <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="3" y="4" width="18" height="18" rx="2" stroke="#ef4444" strokeWidth="2" fill="white"/>
-          <line x1="8" y1="2" x2="8" y2="6" stroke="#ef4444" strokeWidth="2" strokeLinecap="round"/>
-          <line x1="16" y1="2" x2="16" y2="6" stroke="#ef4444" strokeWidth="2" strokeLinecap="round"/>
-          <line x1="3" y1="10" x2="21" y2="10" stroke="#ef4444" strokeWidth="2"/>
-          <rect x="9" y="13" width="2" height="2" fill="#ef4444" rx="0.5"/>
-          <rect x="13" y="13" width="2" height="2" fill="#ef4444" rx="0.5"/>
-          <rect x="17" y="13" width="2" height="2" fill="#ef4444" rx="0.5"/>
-          <rect x="9" y="17" width="2" height="2" fill="#ef4444" rx="0.5"/>
-          <rect x="13" y="17" width="2" height="2" fill="#ef4444" rx="0.5"/>
-        </svg>
-      )
-    },
-    { 
-      number: 5000, 
-      suffix: '+', 
-      label: 'Projects Completed', 
-      icon: (
-        <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="3" y="3" width="18" height="18" rx="2" fill="#22c55e"/>
-          <path d="M9 12l2 2 4-4" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      )
-    },
-    { 
-      number: 2000, 
-      suffix: '+', 
-      label: 'Happy Customers', 
-      icon: (
-        <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="12" cy="12" r="10" fill="#fbbf24"/>
-          <circle cx="9" cy="9" r="1.5" fill="#ef4444"/>
-          <circle cx="15" cy="9" r="1.5" fill="#ef4444"/>
-          <path d="M8 14c1.5 2 4.5 2 6 0" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" fill="none"/>
-        </svg>
-      )
-    },
-    { 
-      number: 50000, 
-      suffix: '', 
-      label: 'ft² Facilities', 
-      icon: (
-        <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M3 21h18" stroke="#6b7280" strokeWidth="2" strokeLinecap="round"/>
-          <path d="M5 21V7l8-4v18" fill="#fbbf24"/>
-          <path d="M5 7l8-4 8 4v14H5z" stroke="#ef4444" strokeWidth="2" fill="none"/>
-          <rect x="9" y="11" width="2" height="2" fill="#3b82f6"/>
-          <rect x="13" y="11" width="2" height="2" fill="#3b82f6"/>
-          <rect x="9" y="15" width="2" height="2" fill="#3b82f6"/>
-          <rect x="13" y="15" width="2" height="2" fill="#3b82f6"/>
-          <path d="M19 21v-4h2v4" stroke="#6b7280" strokeWidth="2" strokeLinecap="round"/>
-          <circle cx="20" cy="17" r="1" fill="#6b7280"/>
-        </svg>
-      )
-    },
-  ];
-
-  const values = [
-    {
-      title: 'Quality First',
-      description: 'We never compromise on quality. Every product is crafted with precision and attention to detail.',
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      )
-    },
-    {
-      title: 'Innovation',
-      description: 'We stay ahead of the curve with cutting-edge technology and creative solutions.',
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-        </svg>
-      )
-    },
-    {
-      title: 'Customer Focus',
-      description: 'Your satisfaction is our priority. We work closely with you to bring your vision to life.',
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-      )
-    },
-    {
-      title: 'Reliability',
-      description: 'Count on us for timely delivery and consistent results, every single time.',
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      )
-    }
-  ];
-
-  const services = [
-    {
-      title: 'End-to-End Solutions',
-      description: 'From design to manufacture and installation, we handle everything.'
-    },
-    {
-      title: 'Bespoke Service',
-      description: 'Limitless options for design and illumination tailored to your needs.'
-    },
-    {
-      title: 'Trade-Focused',
-      description: 'Discreet and secure service, ensuring your clients remain your clients.'
-    }
-  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-white py-10 md:py-12 px-4">
-        {/* Subtle background accents */}
-        <div className="absolute inset-0 opacity-30">
-          <div className="absolute -top-24 -left-24 w-80 h-80 bg-blue-600/30 blur-3xl rounded-full"></div>
-          <div className="absolute -bottom-24 -right-24 w-80 h-80 bg-cyan-500/20 blur-3xl rounded-full"></div>
+      {/* Hero */}
+      <section className="relative overflow-hidden bg-slate-900 text-white">
+        <div className="absolute inset-0 opacity-40">
+          <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-blue-600/30 blur-3xl" />
+          <div className="absolute -bottom-32 -right-32 h-96 w-96 rounded-full bg-cyan-500/20 blur-3xl" />
         </div>
+        <div
+          className="absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage:
+              'repeating-linear-gradient(45deg, transparent, transparent 12px, rgba(255,255,255,0.15) 12px, rgba(255,255,255,0.15) 24px)',
+          }}
+        />
 
-        <div className="container mx-auto max-w-6xl relative z-10">
-          <button
-            onClick={() => navigate('/')}
-            className="text-white/80 hover:text-white font-medium flex items-center gap-2 transition-colors text-sm mb-8"
-            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back
-          </button>
-          
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-xs font-semibold tracking-wide mb-4"
-                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-              River Signs & Print
-              <span className="h-1 w-1 rounded-full bg-white/50"></span>
-              About Us
-            </div>
-
-            <h1 className="text-3xl md:text-4xl font-bold mb-3 leading-tight tracking-tight">
-              About Us
-            </h1>
-            <p className="text-base md:text-lg text-slate-200 leading-relaxed" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-              Signage. Simplified.
-            </p>
-            <p className="text-sm md:text-base text-slate-300 mt-2 leading-relaxed" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-              We turn complex signage needs into simple, seamless solutions.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Our Story Section */}
-      <section className="py-16 px-4 bg-white">
-        <div className="container mx-auto max-w-6xl">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
+        <div className="container relative z-10 mx-auto max-w-7xl px-4 py-16 lg:px-8 lg:py-24">
+          <div className="grid items-center gap-12 lg:grid-cols-2">
             <div>
-              <h2 className="text-blue-600 text-xs font-black uppercase tracking-[0.2em] mb-3">
-                OUR STORY
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300" style={font}>
+                River Signs &amp; Print
+              </p>
+              <h1 className="mt-4 text-4xl font-bold leading-tight tracking-tight md:text-5xl lg:text-[3.25rem]">
+                Signage.{' '}
+                <span className="text-blue-400">
+                  <WavyUnderline thick> Simplified.</WavyUnderline>
+                </span>
+              </h1>
+              <p className="mt-6 max-w-xl text-base leading-relaxed text-slate-300 md:text-lg" style={font}>
+                For over three decades we&apos;ve helped trade clients and businesses across the UK turn complex signage
+                requirements into clear, high-quality solutions — manufactured in Middlesbrough and delivered with care.
+              </p>
+
+              <div className="mt-8 flex flex-wrap gap-3">
+                {['3D Signage', 'Lightboxes', 'Large Format Print', 'Custom Neon', 'Window Graphics'].map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-medium text-white/90"
+                    style={font}
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+
+              <div className="mt-10 flex flex-wrap gap-4">
+                <button
+                  type="button"
+                  onClick={() => navigate('/get-free-quote')}
+                  className="rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
+                  style={font}
+                >
+                  Get a Free Quote
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/gallery')}
+                  className="rounded-lg border border-white/25 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+                  style={font}
+                >
+                  View Our Work
+                </button>
+              </div>
+            </div>
+
+            <div className="relative">
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-sm">
+                <div className="grid grid-cols-2 gap-4">
+                  {stats.map((stat) => (
+                    <div
+                      key={stat.label}
+                      className="rounded-2xl border border-white/10 bg-slate-800/60 p-5 text-center"
+                    >
+                      <p className="text-3xl font-bold text-white md:text-4xl" style={font}>
+                        <CountUp end={stat.number} suffix={stat.suffix} />
+                      </p>
+                      <p className="mt-2 text-xs text-slate-400 md:text-sm" style={font}>
+                        {stat.label}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 flex items-center gap-3 rounded-2xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-yellow-400 text-sm font-bold text-slate-900">
+                    UK
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-white" style={font}>
+                      Manufactured in Middlesbrough
+                    </p>
+                    <p className="text-xs text-slate-400" style={font}>
+                      Serving clients nationwide
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Mission */}
+      <section className="py-14 md:py-20">
+        <div className="container mx-auto max-w-7xl px-4 lg:px-8">
+          <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm md:p-12">
+            <div className="mx-auto max-w-3xl text-center">
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-blue-700" style={font}>
+                Our Mission
+              </p>
+              <h2 className="mt-3 text-3xl font-bold text-gray-900 md:text-4xl">
+                Making signage <WavyUnderline>simple</WavyUnderline> for every project
               </h2>
-              <div className="h-1 bg-blue-600 w-28 mb-6"></div>
-              <h3 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6 leading-tight">
-                Decades of Excellence in Signage
+              <p className="mt-5 text-base leading-relaxed text-gray-600 md:text-lg" style={font}>
+                We combine the widest range of signage and illumination options with user-friendly online tools, so you
+                can price, design, and order with confidence. Our team supports you from first enquiry through to
+                production and delivery.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Story + Timeline */}
+      <section className="pb-14 md:pb-20">
+        <div className="container mx-auto max-w-7xl px-4 lg:px-8">
+          <div className="grid items-start gap-10 lg:grid-cols-2 lg:gap-16">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-blue-700" style={font}>
+                Our Story
+              </p>
+              <h2 className="mt-3 text-3xl font-bold text-gray-900 md:text-4xl">
+                Decades of excellence in <WavyUnderline>signage</WavyUnderline>
+              </h2>
+              <div className="mt-6 space-y-4 text-base leading-relaxed text-gray-600" style={font}>
+                <p>
+                  What began as a small family business has grown into one of the UK&apos;s most trusted trade signage
+                  manufacturers. We&apos;ve built our reputation on quality craftsmanship, innovative production, and
+                  genuine partnership with our clients.
+                </p>
+                <p>
+                  Today our facility brings together design support, CNC routing, fibre laser cutting, large-format
+                  printing, and illuminated signage production — giving you a single source for projects of every
+                  scale.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
+              <h3 className="text-lg font-bold text-gray-900" style={font}>
+                Our journey
               </h3>
-              <div className="space-y-4 text-gray-700 leading-relaxed" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                <p>
-                  For over 30 years, we've been at the forefront of the signage industry, delivering exceptional quality and service to trade clients across the UK. What started as a small family business has grown into one of the most trusted names in signage manufacturing.
-                </p>
-                <p>
-                  Our journey began with a simple mission: to make professional signage accessible, affordable, and easy to order. Today, we've expanded our capabilities to include everything from custom neon signs to large format printing, all manufactured at our state-of-the-art facility in the North East.
-                </p>
-                <p>
-                  We've built our reputation on three core principles: quality craftsmanship, innovative solutions, and unwavering commitment to our customers. Every project we undertake is a testament to these values.
-                </p>
-              </div>
-            </div>
-            <div className="bg-gradient-to-br from-blue-50 to-gray-100 rounded-2xl p-8 h-full flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-32 h-32 bg-blue-600 rounded-full mx-auto mb-6 flex items-center justify-center">
-                  <svg className="w-16 h-16 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                </div>
-                <p className="text-gray-600 font-medium" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  Manufacturing Excellence Since 1994
-                </p>
-              </div>
+              <ol className="mt-6 space-y-0">
+                {milestones.map((item, index) => (
+                  <li key={item.year} className="relative flex gap-5 pb-8 last:pb-0">
+                    {index < milestones.length - 1 ? (
+                      <span className="absolute left-[1.125rem] top-10 h-full w-px bg-gray-200" aria-hidden />
+                    ) : null}
+                    <span className="relative z-10 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
+                      {index + 1}
+                    </span>
+                    <div className="pt-0.5">
+                      <p className="text-sm font-bold text-blue-700" style={font}>
+                        {item.year}
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed text-gray-600" style={font}>
+                        {item.label}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Mission Section */}
-      <section className="py-16 px-4 bg-gray-50">
-        <div className="container mx-auto max-w-6xl">
-          <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-blue-600 text-xs font-black uppercase tracking-[0.2em] mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-              OUR MISSION
+      {/* Values */}
+      <section className="bg-white py-14 md:py-20">
+        <div className="container mx-auto max-w-7xl px-4 lg:px-8">
+          <div className="mb-10 text-center">
+            <h2 className="text-3xl font-bold text-gray-900 md:text-4xl">
+              What <WavyUnderline>drives us</WavyUnderline>
             </h2>
-            <div className="h-1 bg-blue-600 w-28 mx-auto mb-8"></div>
-            <h3 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6 leading-tight" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-              Making Signage Simple
-            </h3>
-            <p className="text-lg text-gray-700 leading-relaxed mb-8" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-              At River Signs & Print, we're committed to simplifying the signage process. With the widest range of signage and illumination options — all manufactured at our base in the North East — our offerings are tailored for trade clients who demand excellence.
-            </p>
-            <p className="text-lg text-gray-700 leading-relaxed" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-              We've developed user-friendly online tools to streamline the pricing process and help you cost your projects quickly, clearly, and accurately. Our dedicated team of signage experts are always on hand to ensure a smooth journey from design to installation.
+            <p className="mx-auto mt-3 max-w-2xl text-sm text-gray-600 md:text-base" style={font}>
+              The principles behind every project we manufacture and every relationship we build.
             </p>
           </div>
-        </div>
-      </section>
 
-      {/* Stats Section */}
-      <section className="py-16 px-4 bg-blue-600 text-white">
-        <div className="container mx-auto max-w-6xl">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {stats.map((stat, index) => (
-              <div key={index} className="text-center">
-                <div 
-                  className="text-4xl md:text-5xl font-bold mb-2"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  <CountUp end={stat.number} suffix={stat.suffix} duration={2000} />
-                </div>
-                <div 
-                  className="text-blue-100 text-sm md:text-base"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  {stat.label}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Values Section */}
-      <section className="py-16 px-4 bg-white">
-        <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-12">
-            <h2 className="text-blue-600 text-xs font-black uppercase tracking-[0.2em] mb-3">
-              OUR VALUES
-            </h2>
-            <div className="h-1 bg-blue-600 w-28 mx-auto mb-6"></div>
-            <h3 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              What Drives Us
-            </h3>
-          </div>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {values.map((value, index) => (
-              <div key={index} className="bg-gray-50 rounded-xl p-6 hover:shadow-lg transition-shadow duration-200">
-                <div className="w-16 h-16 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 mb-4">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {values.map((value) => (
+              <article
+                key={value.title}
+                className="rounded-xl border border-gray-100 bg-gray-50 p-6 transition-shadow hover:shadow-md"
+              >
+                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-white text-slate-700 ring-1 ring-slate-200">
                   {value.icon}
                 </div>
-                <h4 className="text-xl font-bold text-gray-900 mb-3">
-                  {value.title}
-                </h4>
-                <p className="text-gray-600 leading-relaxed" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                <h3 className="text-lg font-bold text-gray-900">{value.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-gray-600" style={font}>
                   {value.description}
                 </p>
-              </div>
+              </article>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Services Overview */}
-      <section className="py-14 px-4 bg-gray-50">
-        <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-10">
-            <h2 className="text-blue-600 text-xs font-black uppercase tracking-[0.2em] mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-              WHAT WE OFFER
+      {/* Process */}
+      <section className="py-14 md:py-20">
+        <div className="container mx-auto max-w-7xl px-4 lg:px-8">
+          <div className="mb-10 text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-blue-700" style={font}>
+              How We Work
+            </p>
+            <h2 className="mt-3 text-3xl font-bold text-gray-900 md:text-4xl">
+              A clear path from brief to <WavyUnderline>installation</WavyUnderline>
             </h2>
-            <div className="h-0.5 bg-blue-600 w-20 mx-auto mb-5"></div>
-            <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3 tracking-tight" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-              Comprehensive Signage Solutions
-            </h3>
-            <p className="text-sm md:text-base text-gray-600 max-w-3xl mx-auto" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-              Trade-focused production, fast turnaround, and consistent quality — built to make your ordering process simple.
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-3">
+            {processSteps.map((step) => (
+              <article
+                key={step.step}
+                className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-7 shadow-sm"
+              >
+                <span className="text-5xl font-bold text-blue-100">{step.step}</span>
+                <h3 className="mt-2 text-xl font-bold text-gray-900">{step.title}</h3>
+                <p className="mt-3 text-sm leading-relaxed text-gray-600" style={font}>
+                  {step.description}
+                </p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Capabilities */}
+      <section className="bg-slate-900 py-14 text-white md:py-20">
+        <div className="container mx-auto max-w-7xl px-4 lg:px-8">
+          <div className="mb-10 max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-blue-300" style={font}>
+              What We Offer
+            </p>
+            <h2 className="mt-3 text-3xl font-bold md:text-4xl">
+              Comprehensive signage <WavyUnderline thick>solutions</WavyUnderline>
+            </h2>
+            <p className="mt-4 text-sm leading-relaxed text-slate-300 md:text-base" style={font}>
+              Trade-focused production, fast turnaround, and consistent quality — built to make your ordering process
+              simple.
             </p>
           </div>
-          
-          <div className="grid md:grid-cols-3 gap-6">
-            {services.map((service, index) => (
-              <div
-                key={index}
-                className="bg-white rounded-2xl p-7 border border-gray-200 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
+
+          <div className="grid gap-6 md:grid-cols-3">
+            {capabilities.map((item) => (
+              <article
+                key={item.title}
+                className="rounded-2xl border border-white/10 bg-white/5 p-7 backdrop-blur-sm"
               >
-                <div className="w-11 h-11 bg-blue-50 rounded-xl flex items-center justify-center mb-4 border border-blue-100">
-                  <svg className="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600/30 text-blue-300">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <h4 className="text-xl font-bold text-gray-900 mb-3">
-                  {service.title}
-                </h4>
-                <p className="text-gray-600 leading-relaxed" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  {service.description}
+                <h3 className="text-lg font-bold">{item.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-300" style={font}>
+                  {item.description}
                 </p>
-              </div>
+              </article>
             ))}
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-16 px-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-        <div className="container mx-auto max-w-4xl text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Ready to Get Started?
-          </h2>
-          <p className="text-xl text-blue-100 mb-8" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-            Let's bring your vision to life. Get in touch with us today.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button
-              onClick={() => navigate('/get-free-quote')}
-              className="px-8 py-4 bg-white text-blue-600 rounded-lg font-semibold text-lg hover:bg-gray-100 transition-colors duration-200"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              Get a Free Quote
-            </button>
-            <button
-              onClick={() => {
-                navigate('/');
-                setTimeout(() => {
-                  const element = document.getElementById('contact');
-                  if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }
-                }, 100);
-              }}
-              className="px-8 py-4 bg-transparent border-2 border-white text-white rounded-lg font-semibold text-lg hover:bg-white/10 transition-colors duration-200"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              Contact Us
-            </button>
+      {/* CTA */}
+      <section className="py-14 md:py-20">
+        <div className="container mx-auto max-w-7xl px-4 lg:px-8">
+          <div className="relative overflow-hidden rounded-2xl bg-slate-900 px-8 py-12 text-center md:px-16 md:py-16">
+            <div className="absolute inset-0 opacity-10">
+              <div
+                className="absolute inset-0"
+                style={{
+                  backgroundImage:
+                    'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.12) 10px, rgba(255,255,255,0.12) 20px)',
+                }}
+              />
+            </div>
+            <div className="relative z-10">
+              <h2 className="text-2xl font-bold text-white md:text-3xl">
+                Ready to start your next project?
+              </h2>
+              <p className="mx-auto mt-3 max-w-xl text-sm text-slate-300 md:text-base" style={font}>
+                Get a free quote, explore our gallery, or speak with our team about your signage requirements.
+              </p>
+              <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => navigate('/get-free-quote')}
+                  className="rounded-lg bg-yellow-400 px-8 py-3 text-sm font-bold text-slate-900 transition-colors hover:bg-yellow-300"
+                  style={font}
+                >
+                  Get a Free Quote
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/gallery')}
+                  className="rounded-lg border border-white/25 px-8 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+                  style={font}
+                >
+                  View Gallery
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </section>

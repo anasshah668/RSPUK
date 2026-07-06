@@ -48,9 +48,6 @@ const FeaturedPriceSummary = ({ pricing, loading, error, displayTotal, vatInclus
           ))}
         </ul>
       ) : null}
-      <p className="text-[10px] text-gray-500 mt-3 leading-snug">
-        Estimate based on admin pricing rules. Final quote may vary after design review.
-      </p>
     </div>
   );
 };

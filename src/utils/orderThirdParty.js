@@ -43,3 +43,7 @@ export function thirdPartyOrderStatusLabel(order) {
   }
   return order?.status || 'pending';
 }
+
+export function orderFulfillmentTypeLabel(order) {
+  return isThirdPartyOrder(order) ? '3rd party' : 'In-house';
+}

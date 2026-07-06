@@ -11,6 +11,7 @@ import EndBenefitsStrip from '../components/EndBenefitsStrip';
 import { saveProductDetailDraft } from '../store/designerSessionSlice';
 import { useAuth } from '../context/AuthContext';
 import DesignerAuthModal from '../components/DesignerAuthModal';
+import { isTradeprintProduct, normalizeProductSource } from '../utils/productSource';
 
 const FALLBACK_QUANTITY_OPTIONS = [1, 10, 25, 50, 100, 250, 500, 1000];
 
@@ -160,8 +161,8 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         uiOptions: product.uiOptions || {},
         sizeOptions: product.sizeOptions || {},
         pricingTable: product.pricingTable || {},
-        source: product.source || 'in-house',
-        thirdPartyProductKey: product.thirdPartyProductKey || null,
+        source: normalizeProductSource(product),
+        thirdPartyProductKey: isTradeprintProduct(product) ? product.thirdPartyProductKey : null,
       };
     }
     // If we have productProp passed from parent, use it (this prevents image flash)
@@ -184,8 +185,8 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         uiOptions: productProp.uiOptions || {},
         sizeOptions: productProp.sizeOptions || {},
         pricingTable: productProp.pricingTable || {},
-        source: productProp.source || 'in-house',
-        thirdPartyProductKey: productProp.thirdPartyProductKey || null,
+        source: normalizeProductSource(productProp),
+        thirdPartyProductKey: isTradeprintProduct(productProp) ? productProp.thirdPartyProductKey : null,
       };
     }
     // Otherwise use hardcoded data based on productType (only if not loading from backend)
@@ -198,7 +199,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const productImages = Array.isArray(displayProduct?.images) && displayProduct.images.length > 0
     ? displayProduct.images
     : (displayProduct?.image ? [displayProduct.image] : []);
-  const source = displayProduct?.source || 'in-house';
+  const source = normalizeProductSource(product || productProp || displayProduct);
   const selectedImage = productImages[selectedImageIndex] || productImages[0] || '';
 
   // Check if this is a business card product
@@ -214,8 +215,12 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   console.log('[ProductDetail] displayProduct', displayProduct);
   const dynamicAttributes = product?.thirdPartyAttributes || productProp?.thirdPartyAttributes || {};
   const hasDynamicAttributes = Object.keys(dynamicAttributes).length > 0;
-  const thirdPartyProductKey = product?.thirdPartyProductKey || productProp?.thirdPartyProductKey || null;
-  const hasThirdPartyPricing = Boolean(thirdPartyProductKey);
+  const thirdPartyProductKey =
+    isTradeprintProduct(product || productProp) &&
+    (product?.thirdPartyProductKey || productProp?.thirdPartyProductKey)
+      ? product?.thirdPartyProductKey || productProp?.thirdPartyProductKey
+      : null;
+  const hasThirdPartyPricing = isTradeprintProduct(product || productProp);
   const availableQuantityOptions = buildAvailableQuantityOptions(
     quantitiesOptions,
     quantity,
@@ -787,8 +792,8 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         linePriceExVat: getPriceExVat(),
         linePriceIncVat: applyVatMode(getPriceExVat()),
         isVatInclusive,
-        source: displayProduct?.source || 'in-house',
-        thirdPartyProductKey: displayProduct?.thirdPartyProductKey || null,
+        source,
+        thirdPartyProductKey: hasThirdPartyPricing ? thirdPartyProductKey : null,
         hasDeliveryPricing,
       })
     );
@@ -863,8 +868,8 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         price: finalPrice,
         image: imageForCart,
         quantity: qtyToAdd,
-        source: source,
-        thirdPartyProductKey,
+        source,
+        thirdPartyProductKey: hasThirdPartyPricing ? thirdPartyProductKey : null,
         designOption: effectiveDesignOption,
         withoutArtwork,
         ...(hasUploadedArtwork && {

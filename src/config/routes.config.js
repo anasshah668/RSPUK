@@ -6,6 +6,7 @@ const AboutUs = lazy(() => import("../pages/AboutUs"));
 const GetQuote = lazy(() => import("../pages/GetQuote"));
 const DesignServicePage = lazy(() => import("../pages/DesignServicePage"));
 const GalleryPage = lazy(() => import("../pages/GalleryPage"));
+const FaqPage = lazy(() => import("../pages/FaqPage"));
 const Login = lazy(() => import("../pages/Login"));
 const Register = lazy(() => import("../pages/Register"));
 const OAuthCallback = lazy(() => import("../pages/OAuthCallback"));
@@ -106,6 +107,11 @@ export const routes = [
   {
     path: "/gallery",
     component: GalleryPage,
+    layout: "default",
+  },
+  {
+    path: "/faqs",
+    component: FaqPage,
     layout: "default",
   },
   {
@@ -309,6 +315,7 @@ export const getRoutePath = (routeName, params = {}) => {
     getQuote: "/get-free-quote",
     designService: "/design-service",
     gallery: "/gallery",
+    faqs: "/faqs",
     login: "/login",
     register: "/register",
     account: "/account",
