@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { toast } from 'react-toastify';
 import WavyUnderline from './WavyUnderline';
+import { COMPANY_CONTACT } from '../config/companyContact';
 
 const font = { fontFamily: 'Lexend Deca, sans-serif' };
 
@@ -97,10 +98,10 @@ const Contact = () => {
                   }
                 >
                   <a
-                    href="mailto:enquiries@tradeonlysigns.co.uk"
+                    href={`mailto:${COMPANY_CONTACT.email}`}
                     className="break-all text-blue-300 transition-colors hover:text-white"
                   >
-                    enquiries@tradeonlysigns.co.uk
+                    {COMPANY_CONTACT.email}
                   </a>
                 </ContactChannel>
 
@@ -112,8 +113,8 @@ const Contact = () => {
                     </svg>
                   }
                 >
-                  <a href="tel:01914882011" className="text-blue-300 transition-colors hover:text-white">
-                    0191 488 2011
+                  <a href={COMPANY_CONTACT.phoneTel} className="text-blue-300 transition-colors hover:text-white">
+                    {COMPANY_CONTACT.phoneDisplay}
                   </a>
                 </ContactChannel>
 
@@ -157,16 +158,14 @@ const Contact = () => {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">London office</h3>
+                  <h3 className="text-lg font-bold text-slate-900">{COMPANY_CONTACT.officeLabel}</h3>
                   <address className="mt-2 not-italic text-sm leading-relaxed text-slate-600" style={font}>
-                    20-22 Wenlock Road
-                    <br />
-                    Islington, London N1 7GU
-                    <br />
-                    United Kingdom
+                    {COMPANY_CONTACT.addressLines.map((line) => (
+                      <span key={line} className="block">{line}</span>
+                    ))}
                   </address>
                   <a
-                    href="https://maps.google.com/?q=20-22+Wenlock+Road+London+N1+7GU"
+                    href={COMPANY_CONTACT.mapsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 transition-colors hover:text-blue-700"

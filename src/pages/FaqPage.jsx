@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { faqService } from '../services/faqService';
+import { COMPANY_CONTACT } from '../config/companyContact';
 import WavyUnderline from '../components/WavyUnderline';
 
 const FaqPage = () => {
@@ -143,6 +144,15 @@ const FaqPage = () => {
             >
               Contact Us
             </button>
+            <div className="mt-5 flex flex-col items-center justify-center gap-2 text-sm text-gray-600 sm:flex-row sm:gap-6" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+              <a href={`mailto:${COMPANY_CONTACT.email}`} className="font-medium text-blue-600 hover:text-blue-700">
+                {COMPANY_CONTACT.email}
+              </a>
+              <span className="hidden sm:inline text-gray-300">|</span>
+              <a href={COMPANY_CONTACT.phoneTel} className="font-medium text-blue-600 hover:text-blue-700">
+                {COMPANY_CONTACT.phoneDisplay}
+              </a>
+            </div>
           </div>
         ) : null}
       </div>

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { galleryService } from '../services/galleryService';
+import { COMPANY_CONTACT } from '../config/companyContact';
 
 const GalleryPage = () => {
   const [projects, setProjects] = useState([]);
@@ -255,18 +256,18 @@ const GalleryPage = () => {
               </p>
 
               <div className="grid gap-3">
-                <a href="mailto:hello@rspuk.co.uk" className="rounded-xl border border-gray-200 px-4 py-3 bg-white hover:border-blue-200 hover:bg-blue-50/40 transition-colors">
+                <a href={`mailto:${COMPANY_CONTACT.email}`} className="rounded-xl border border-gray-200 px-4 py-3 bg-white hover:border-blue-200 hover:bg-blue-50/40 transition-colors">
                   <p className="text-xs uppercase tracking-wide text-gray-500 flex items-center gap-1.5">
                     <span>✉</span><span>Email</span>
                   </p>
-                  <p className="text-sm font-semibold text-gray-900 mt-1">hello@rspuk.co.uk</p>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">{COMPANY_CONTACT.email}</p>
                 </a>
 
-                <a href="tel:+441234567890" className="rounded-xl border border-gray-200 px-4 py-3 bg-white hover:border-blue-200 hover:bg-blue-50/40 transition-colors">
+                <a href={COMPANY_CONTACT.phoneTel} className="rounded-xl border border-gray-200 px-4 py-3 bg-white hover:border-blue-200 hover:bg-blue-50/40 transition-colors">
                   <p className="text-xs uppercase tracking-wide text-gray-500 flex items-center gap-1.5">
                     <span>☎</span><span>Phone</span>
                   </p>
-                  <p className="text-sm font-semibold text-gray-900 mt-1">+44 1234 567 890</p>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">{COMPANY_CONTACT.phoneDisplay}</p>
                 </a>
 
                 <div className="rounded-xl border border-gray-200 px-4 py-3 bg-gray-50/60">
@@ -279,7 +280,7 @@ const GalleryPage = () => {
                     </span>
                     <span>Address</span>
                   </p>
-                  <p className="text-sm font-semibold text-gray-900 mt-1">RSPUK, United Kingdom</p>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">{COMPANY_CONTACT.addressSingleLine}</p>
                 </div>
               </div>
             </div>

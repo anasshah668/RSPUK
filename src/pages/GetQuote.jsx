@@ -10,6 +10,7 @@ import {
   inputClass,
   labelClass,
 } from '../components/AuthLayout';
+import { COMPANY_CONTACT } from '../config/companyContact';
 
 const PROJECT_TYPES = [
   'Neon Signs',
@@ -306,7 +307,7 @@ const GetQuote = () => {
                       value={formData.phone}
                       onChange={handleChange}
                       className={`${inputClass} ${errors.phone ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : ''}`}
-                      placeholder="0191 488 2011"
+                      placeholder={COMPANY_CONTACT.phoneDisplay}
                       style={font}
                     />
                     <AuthFieldError message={errors.phone} />
@@ -471,11 +472,11 @@ const GetQuote = () => {
                     Call us directly and we&apos;ll prioritise your project.
                   </p>
                   <a
-                    href="tel:01914882011"
+                    href={COMPANY_CONTACT.phoneTel}
                     className="mt-3 inline-flex text-sm font-bold text-blue-700 transition hover:text-blue-800"
                     style={font}
                   >
-                    0191 488 2011
+                    {COMPANY_CONTACT.phoneDisplay}
                   </a>
                 </div>
               </div>

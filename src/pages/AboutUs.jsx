@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import WavyUnderline from '../components/WavyUnderline';
+import { COMPANY_CONTACT } from '../config/companyContact';
 
 const font = { fontFamily: 'Lexend Deca, sans-serif' };
 
@@ -428,6 +429,15 @@ const AboutUs = () => {
               </h2>
               <p className="mx-auto mt-3 max-w-xl text-sm text-slate-300 md:text-base" style={font}>
                 Get a free quote, explore our gallery, or speak with our team about your signage requirements.
+              </p>
+              <p className="mx-auto mt-4 max-w-xl text-sm text-slate-400" style={font}>
+                <a href={`mailto:${COMPANY_CONTACT.email}`} className="text-blue-300 hover:text-white transition-colors">
+                  {COMPANY_CONTACT.email}
+                </a>
+                {' · '}
+                <a href={COMPANY_CONTACT.phoneTel} className="text-blue-300 hover:text-white transition-colors">
+                  {COMPANY_CONTACT.phoneDisplay}
+                </a>
               </p>
               <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
                 <button
