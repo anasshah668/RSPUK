@@ -22,27 +22,32 @@ const Hero = () => {
               <h1
                 className="text-[30px] md:text-[38px] lg:text-[46px] font-bold leading-[1.12] tracking-tight"
               >
-                <span className="text-gray-900 animate-slide-in-left lg:whitespace-nowrap">Custom Signs & Shopfront</span>
+                <span className="text-gray-900 animate-slide-in-left">Custom Signage, Printing</span>
                 <br />
                 <span className="text-blue-600 relative inline-block animate-slide-in-left-delay">
-                Branding in 
+                &amp; Fabrication Company in
                   <span className="absolute -inset-0.5 bg-blue-600/10 blur-md animate-pulse-slow"></span>
                 </span>
                 <br />
                 <span className="text-gray-900 relative inline-block animate-slide-in-left-delay-2">
-                Middlesbrough,{' '}
                   <WavyUnderline thick={true}>
-                    UK
+                    Middlesbrough
                   </WavyUnderline>
                 </span>
               </h1>
-              
+
               {/* Subheading */}
+              <p
+                className="text-sm md:text-base font-semibold text-gray-800 max-w-lg animate-fade-in-up-delay-1"
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+              >
+                Your Trusted Partner for Professional Business Branding
+              </p>
               <p
                 className="text-sm md:text-base text-gray-600 leading-relaxed max-w-lg animate-fade-in-up-delay-2"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
-              We specialise in 3D signs, lightboxes, custom neon signs, window graphics and complete business branding solutions.
+                Transform your business with custom signage, commercial printing, window graphics and precision fabrication from RSP UK. Based in Middlesbrough, we help businesses across Teesside and the UK create impactful brand experiences through expertly designed, professionally manufactured, high-quality visual solutions.
               </p>
 
               <div
@@ -65,6 +70,26 @@ const Hero = () => {
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2.5 pt-1 animate-fade-in-up-delay-3">
                 <button
+                  onClick={() => navigate(getRoutePath('getQuote'))}
+                  className="group bg-yellow-400 hover:bg-yellow-500 text-gray-900 px-4 md:px-5 py-2.5 rounded-lg transition-all duration-300 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  Get a Free Quote
+                  <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => navigate('/gallery')}
+                  className="group bg-gray-900 hover:bg-gray-800 text-white px-4 md:px-5 py-2.5 rounded-lg transition-all duration-300 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  View Our Work
+                  <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+                <button
                   onClick={() => navigate(getRoutePath('genericProductDesigner'))}
                   className="group bg-blue-600 hover:bg-blue-700 text-white px-4 md:px-5 py-2.5 rounded-lg transition-all duration-300 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm hover:shadow-md hover:shadow-blue-500/40 transform hover:-translate-y-0.5"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
@@ -76,7 +101,7 @@ const Hero = () => {
                 </button>
                 <button
                   onClick={() => navigate(getRoutePath('designService'))}
-                  className="group bg-gray-900 hover:bg-gray-800 text-white px-4 md:px-5 py-2.5 rounded-lg transition-all duration-300 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+                  className="group bg-white hover:bg-gray-50 border-2 border-blue-600 text-blue-600 hover:text-blue-700 px-4 md:px-5 py-2.5 rounded-lg transition-all duration-300 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
                   We Design For You
@@ -84,35 +109,6 @@ const Hero = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </button>
-                <button
-                  onClick={() => {
-                    navigate('/');
-                    setTimeout(() => {
-                      const element = document.getElementById('services');
-                      if (element) {
-                        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                      }
-                    }, 100);
-                  }}
-                  className="group bg-white hover:bg-gray-50 border-2 border-blue-600 text-blue-600 hover:text-blue-700 px-4 md:px-5 py-2.5 rounded-lg transition-all duration-300 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  Explore Signs
-                  <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => navigate(getRoutePath('getQuote'))}
-                  className="group bg-yellow-400 hover:bg-yellow-500 text-gray-900 px-4 md:px-5 py-2.5 rounded-lg transition-all duration-300 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  Get a Free Quote
-                  <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-               
               </div>
             </div>
             

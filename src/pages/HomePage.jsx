@@ -13,6 +13,10 @@ import TrustedBy from '../components/TrustedBy';
 import BuiltForResults from '../components/BuiltForResults';
 import Contact from '../components/Contact';
 import ReadyToLightUp from '../components/ReadyToLightUp';
+import TrustChecklist from '../components/TrustChecklist';
+import IndustriesWeSupport from '../components/IndustriesWeSupport';
+import SignageMatters from '../components/SignageMatters';
+import SolutionFinder from '../components/SolutionFinder';
 
 const HomePage = () => {
   useEffect(() => {
@@ -35,14 +39,18 @@ const HomePage = () => {
         <Hero />
       </div>
       <Services />
+      <TrustChecklist />
       <VideoShowcase />
       <FeaturedSignageProducts />
+      <IndustriesWeSupport />
       <Features />
       <CustomNeonPrinting />
       <Products />
       <WhyChooseUs />
+      <SignageMatters />
       <StartDesigningPrint />
       <Transformation />
+      <SolutionFinder />
       <TrustedBy />
       <BuiltForResults />
       <Contact />

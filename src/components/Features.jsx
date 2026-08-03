@@ -5,7 +5,8 @@ const Features = () => {
   const steps = [
     {
       number: '01',
-      title: 'Choose Your Service',
+      title: 'Consultation',
+      description: 'Share your ideas, branding requirements, dimensions and project goals. We recommend the best materials, finishes and solutions.',
       icon: (
         <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.025 4.718l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
@@ -14,7 +15,8 @@ const Features = () => {
     },
     {
       number: '02',
-      title: 'Design or Upload Artwork',
+      title: 'Design & Artwork',
+      description: 'Our designers create bespoke artwork or prepare your supplied files, ensuring every detail is print-ready.',
       icon: (
         <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -23,7 +25,8 @@ const Features = () => {
     },
     {
       number: '03',
-      title: 'We Manufacture in the UK',
+      title: 'Manufacturing',
+      description: 'Using advanced printing, CNC routing, fibre laser cutting and welding, we manufacture with premium materials.',
       icon: (
         <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -32,7 +35,8 @@ const Features = () => {
     },
     {
       number: '04',
-      title: 'Fast Delivery to Your Door',
+      title: 'Delivery or Installation',
+      description: 'Your completed products are quality-checked before being delivered or professionally installed, ready to make an impact.',
       icon: (
         <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
@@ -48,8 +52,14 @@ const Features = () => {
           <h2 
             className="text-3xl md:text-4xl font-bold text-gray-900 mb-3"
           >
-            How It <WavyUnderline>Works</WavyUnderline>
+            Our Simple <WavyUnderline>Process</WavyUnderline>
           </h2>
+          <p
+            className="text-sm md:text-base text-gray-600 max-w-2xl mx-auto"
+            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+          >
+            From your first enquiry to the final installation or delivery, our experienced team ensures every project is completed with precision, quality and attention to detail.
+          </p>
         </div>
 
         <div className="relative py-4">
@@ -84,6 +94,12 @@ const Features = () => {
                 >
                   {step.title}
                 </h3>
+                <p
+                  className="mt-2 text-xs md:text-sm text-gray-600 leading-relaxed max-w-[15rem]"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
+                  {step.description}
+                </p>
               </div>
             ))}
           </div>

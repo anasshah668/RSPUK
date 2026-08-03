@@ -719,9 +719,6 @@ ${orderPayload?.notes || ''}`,
                 Let&apos;s Start Your Project
               </button>
             </div>
-            <p className="text-gray-600 mt-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-              Browse uploaded category visuals and live products from your catalog.
-            </p>
           </div>
 
           {galleryImages.length > 0 && (

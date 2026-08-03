@@ -4,22 +4,9 @@ import WavyUnderline from './WavyUnderline';
 const WhyChooseUs = () => {
   const points = [
     {
-      title: 'Custom Designed for Your Business',
+      title: 'Premium Quality Materials',
       description:
-        'Every sign is tailored to your brand, dimensions, and installation requirements.',
-      iconWrap: 'bg-slate-50 ring-slate-200',
-      iconColor: 'text-slate-700',
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M4 20h8" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M14.5 4.5l5 5L9 20H4v-5l10.5-10.5z" />
-        </svg>
-      ),
-    },
-    {
-      title: 'High Quality Materials & Finishing',
-      description:
-        'Premium-grade materials and finishing standards ensure a clean, professional result.',
+        'We use carefully selected materials including acrylic, aluminium composite, Foamex, Correx, PVC, vinyl and precision-cut metals.',
       iconWrap: 'bg-slate-50 ring-slate-200',
       iconColor: 'text-slate-700',
       icon: (
@@ -30,9 +17,22 @@ const WhyChooseUs = () => {
       ),
     },
     {
-      title: 'Indoor & Outdoor Solutions',
+      title: 'Bespoke Design & Manufacturing',
       description:
-        'We provide fit-for-purpose signage options for both internal and external environments.',
+        'Every project is custom-designed to reflect your brand identity and manufactured to meet your exact requirements.',
+      iconWrap: 'bg-slate-50 ring-slate-200',
+      iconColor: 'text-slate-700',
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M4 20h8" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M14.5 4.5l5 5L9 20H4v-5l10.5-10.5z" />
+        </svg>
+      ),
+    },
+    {
+      title: 'Complete End-to-End Service',
+      description:
+        'From consultation and artwork to manufacturing, finishing, installation and after-sales support, we manage every stage.',
       iconWrap: 'bg-slate-50 ring-slate-200',
       iconColor: 'text-slate-700',
       icon: (
@@ -44,9 +44,21 @@ const WhyChooseUs = () => {
       ),
     },
     {
-      title: 'Built for Durability',
+      title: 'Fast Turnaround',
       description:
-        'Designed and manufactured to handle daily wear, weather exposure, and long-term use.',
+        'Efficient production processes help us deliver exceptional quality within agreed timescales.',
+      iconWrap: 'bg-slate-50 ring-slate-200',
+      iconColor: 'text-slate-700',
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.9} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+    },
+    {
+      title: 'Experienced Specialists',
+      description:
+        'Our designers, sign makers, printers and fabrication specialists combine years of experience with modern technology.',
       iconWrap: 'bg-slate-50 ring-slate-200',
       iconColor: 'text-slate-700',
       icon: (
@@ -57,7 +69,6 @@ const WhyChooseUs = () => {
         </svg>
       ),
     },
-   
   ];
 
   return (
@@ -65,14 +76,14 @@ const WhyChooseUs = () => {
       <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
         <div className="text-center mb-8">
           <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
-            Why <WavyUnderline>Choose Our Signs</WavyUnderline>
+            Why <WavyUnderline>Choose RSP UK</WavyUnderline>
           </h2>
           <p className="mt-2 text-gray-600 max-w-2xl mx-auto text-sm md:text-base" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-            Professional signage and print solutions delivered with quality, speed, and dependable service. Manufactured in Middlesbrough, UK
+            We combine creativity, craftsmanship and technical expertise to deliver signage solutions that help businesses grow. Manufactured in Middlesbrough, UK.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
           {points.map((point) => (
             <article key={point.title} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
               <div className={`w-11 h-11 rounded-full ${point.iconWrap} ring-1 flex items-center justify-center mb-3 ${point.iconColor}`}>

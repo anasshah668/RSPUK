@@ -4,8 +4,8 @@ import WavyUnderline from './WavyUnderline';
 const Services = () => {
   const services = [
     {
-      title: 'Sign',
-      description: 'Custom signage including 3D letters, lightboxes, flex face and neon signs.',
+      title: 'Custom Signage',
+      description: 'A powerful first impression with professionally manufactured signage designed to improve visibility and strengthen your brand.',
       icon: (
         <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 01.553-.894L9 2m0 18l6-3m-6 3V2m6 15l5.447-2.724A1 1 0 0021 13.382V2.618a1 1 0 00-.553-.894L15 0m0 17V0m0 0L9 2" />
@@ -13,8 +13,8 @@ const Services = () => {
       ),
     },
     {
-      title: 'Printing',
-      description: 'Large format printing for banners, posters and promotional displays.',
+      title: 'Professional Printing',
+      description: 'High-quality printing solutions for marketing, promotions, retail displays and business branding.',
       icon: (
         <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z" />
@@ -23,7 +23,7 @@ const Services = () => {
     },
     {
       title: 'Window Graphics',
-      description: 'Custom vinyl graphics, frosted films and branding for shopfront windows.',
+      description: 'Transform your windows into effective advertising and branding spaces while improving privacy and visual appeal.',
       icon: (
         <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18v16H3V4zm9 0v16M3 10h18" />
@@ -32,7 +32,7 @@ const Services = () => {
     },
     {
       title: 'Fabrication',
-      description: 'CNC routing, laser cutting and welding for bespoke signage and components.',
+      description: 'Precision manufacturing services using modern equipment for bespoke commercial projects.',
       icon: (
         <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5h2m-1-2v4m7 5h-4m-6 0H5m4.586 7.414a2 2 0 01-2.828 0l-1.172-1.172a2 2 0 010-2.828l1.172-1.172a2 2 0 012.828 0l1.172 1.172a2 2 0 010 2.828l-1.172 1.172zm8.828 0a2 2 0 01-2.828 0l-1.172-1.172a2 2 0 010-2.828l1.172-1.172a2 2 0 012.828 0l1.172 1.172a2 2 0 010 2.828l-1.172 1.172z" />
@@ -40,8 +40,8 @@ const Services = () => {
       ),
     },
     {
-      title: 'Small Print',
-      description: 'Business cards, flyers, brochures and marketing materials.',
+      title: 'Print Products',
+      description: 'Professional print products designed to strengthen your marketing and business communications.',
       icon: (
         <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 6h10M7 10h10M7 14h6m-8 6h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -57,14 +57,13 @@ const Services = () => {
           <h2 
             className="text-4xl md:text-5xl font-bold text-white mb-4"
           >
-            What We <WavyUnderline>Do</WavyUnderline>
+            Our Core <WavyUnderline>Services</WavyUnderline>
           </h2>
           <p 
             className="text-lg md:text-xl text-white max-w-3xl mx-auto"
             style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >
-           We provide complete signage and branding solutions, combining design, manufacturing and installation services for businesses of all sizes.
-
+            RSP UK provides custom signage, commercial printing, window graphics, fabrication and branded print products for businesses throughout Middlesbrough, Teesside and across the UK.
           </p>
         </div>
 

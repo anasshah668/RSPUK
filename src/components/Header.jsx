@@ -44,6 +44,7 @@ const Header = () => {
   const shopMenu = [
     {
       title: 'Signs',
+      iconPath: 'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 01.553-.894L9 2m0 18l6-3m-6 3V2m6 15l5.447-2.724A1 1 0 0021 13.382V2.618a1 1 0 00-.553-.894L15 0m0 17V0m0 0L9 2',
       items: [
         { label: 'Printed Board', category: 'printed-board' },
         { label: '2D Box Signage', category: '2d-box-signage' },
@@ -54,6 +55,7 @@ const Header = () => {
     },
     {
       title: 'Printing',
+      iconPath: 'M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z',
       items: [
         { label: 'Posters', category: 'posters' },
         { label: 'PVC Banners', category: 'pvc-banners' },
@@ -64,6 +66,7 @@ const Header = () => {
     },
     {
       title: 'Window Graphics',
+      iconPath: 'M3 4h18v16H3V4zm9 0v16M3 10h18',
       items: [
         { label: 'Printed Vinyl', category: 'printed-vinyl' },
         { label: 'Frosted Vinyl', category: 'frosted-vinyl' },
@@ -74,6 +77,8 @@ const Header = () => {
     },
     {
       title: 'Fabrication',
+      iconPath:
+        'M11 5h2m-1-2v4m7 5h-4m-6 0H5m4.586 7.414a2 2 0 01-2.828 0l-1.172-1.172a2 2 0 010-2.828l1.172-1.172a2 2 0 012.828 0l1.172 1.172a2 2 0 010 2.828l-1.172 1.172zm8.828 0a2 2 0 01-2.828 0l-1.172-1.172a2 2 0 010-2.828l1.172-1.172a2 2 0 012.828 0l1.172 1.172a2 2 0 010 2.828l-1.172 1.172z',
       items: [
         { label: 'CNC Router Cutting', category: 'cnc-router-cutting' },
         { label: 'Fibre Laser Cutting', category: 'fibre-laser-cutting' },
@@ -82,12 +87,12 @@ const Header = () => {
     },
     {
       title: 'Print Products',
+      iconPath: 'M7 6h10M7 10h10M7 14h6m-8 6h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
       items: TRADEPRINT_CATEGORY_SLUGS.map((category) => ({
         label: TRADEPRINT_CATEGORY_LABELS[category],
         category,
       })),
     },
-   
   ];
 
   // Map old section names to routes
@@ -707,16 +712,32 @@ const Header = () => {
                   </svg>
                 </button>
                 {shopOpen && (
-                  <div className="absolute top-full left-1/2 z-50 mt-3 w-[640px] -translate-x-1/2 overflow-hidden rounded-2xl border border-slate-200 bg-white py-5 shadow-xl shadow-slate-900/15">
-                    <div className="mb-3 px-6">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                        Browse products
+                  <div className="absolute top-full left-1/2 z-50 mt-3 w-[880px] max-w-[92vw] -translate-x-1/2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20 ring-1 ring-black/5">
+                    <div className="h-1 w-full bg-gradient-to-r from-blue-600 via-blue-500 to-yellow-400" />
+
+                    <div className="flex items-center justify-between px-7 pt-5 pb-1">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                        Browse Our Product Range
+                      </p>
+                      <p className="text-[11px] font-medium text-slate-400">
+                        {shopMenu.reduce((total, group) => total + group.items.length, 0)}+ products
                       </p>
                     </div>
-                    <div className="grid grid-cols-3 gap-5 px-6">
-                      {shopMenu.map((group) => (
-                        <div key={group.title} className="space-y-2">
-                          <h3 className="text-xs font-bold uppercase tracking-wide text-blue-600">
+
+                    <div className="grid grid-cols-5 gap-x-5 px-7 py-4">
+                      {shopMenu.map((group, groupIndex) => (
+                        <div
+                          key={group.title}
+                          className={`space-y-3 ${groupIndex > 0 ? 'border-l border-slate-100 pl-5' : ''}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                              <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d={group.iconPath} />
+                              </svg>
+                            </span>
+                          </div>
+                          <h3 className="text-xs font-bold uppercase tracking-wide text-slate-900">
                             {group.title}
                           </h3>
                           <ul className="space-y-0.5">
@@ -725,23 +746,33 @@ const Header = () => {
                                 <button
                                   type="button"
                                   onClick={() => goToShopCategory(item.category)}
-                                  className="group flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-slate-600 transition-colors hover:bg-slate-50 hover:text-blue-700"
+                                  className="group flex w-full items-start gap-1.5 rounded-lg py-1.5 text-left text-[13px] leading-snug text-slate-600 transition-colors hover:text-blue-700"
                                 >
-                                  <span className="truncate">{item.label}</span>
-                                  <svg
-                                    className="h-3.5 w-3.5 shrink-0 text-slate-300 opacity-0 transition group-hover:opacity-100 group-hover:text-blue-600"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                  </svg>
+                                  <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-slate-300 transition-colors group-hover:bg-blue-600" />
+                                  <span className="transition-colors group-hover:text-blue-700">{item.label}</span>
                                 </button>
                               </li>
                             ))}
                           </ul>
                         </div>
                       ))}
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4 border-t border-slate-100 bg-slate-50/80 px-7 py-4">
+                      <p className="text-xs text-slate-500">Not sure which product is right for you?</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShopOpen(false);
+                          handleNavClick('quote');
+                        }}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 transition-colors hover:text-blue-700"
+                      >
+                        Get a Free Quote
+                        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
                 )}
