@@ -102,8 +102,10 @@ const GetQuote = () => {
       newErrors.phone = 'Phone number is required';
     }
 
-    if (!formData.projectType) {
-      newErrors.projectType = 'Please select a project type';
+    if (!formData.projectType || !formData.projectType.trim()) {
+      newErrors.projectType = showOtherInput
+        ? 'Please enter your project type'
+        : 'Please select a project type';
     }
 
     setErrors(newErrors);
@@ -121,8 +123,18 @@ const GetQuote = () => {
     }
   };
 
+  const [showOtherInput, setShowOtherInput] = useState(false);
+  const [otherProjectType, setOtherProjectType] = useState('');
+
   const selectProjectType = (type) => {
-    setFormData((prev) => ({ ...prev, projectType: type }));
+    if (type === 'Other') {
+      setShowOtherInput(true);
+      setFormData((prev) => ({ ...prev, projectType: otherProjectType.trim() || '' }));
+    } else {
+      setShowOtherInput(false);
+      setOtherProjectType('');
+      setFormData((prev) => ({ ...prev, projectType: type }));
+    }
     if (errors.projectType) {
       setErrors((prev) => ({ ...prev, projectType: '' }));
     }
@@ -345,7 +357,10 @@ const GetQuote = () => {
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {PROJECT_TYPES.map((type) => {
-                      const selected = formData.projectType === type;
+                      const isOther = type === 'Other';
+                      const selected = isOther
+                        ? showOtherInput
+                        : !showOtherInput && formData.projectType === type;
                       return (
                         <button
                           key={type}
@@ -363,6 +378,23 @@ const GetQuote = () => {
                       );
                     })}
                   </div>
+                  {showOtherInput && (
+                    <input
+                      type="text"
+                      value={otherProjectType}
+                      onChange={(e) => {
+                        setOtherProjectType(e.target.value);
+                        setFormData((prev) => ({ ...prev, projectType: e.target.value.trim() }));
+                        if (errors.projectType) {
+                          setErrors((prev) => ({ ...prev, projectType: '' }));
+                        }
+                      }}
+                      placeholder="Please specify your project type"
+                      className={`${inputClass} mt-3`}
+                      style={font}
+                      autoFocus
+                    />
+                  )}
                   <AuthFieldError message={errors.projectType} />
                 </div>
 

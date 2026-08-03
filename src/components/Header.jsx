@@ -9,23 +9,37 @@ import {
   TRADEPRINT_CATEGORY_LABELS,
   isTradeprintCategory,
 } from '../utils/tradeprintCategories';
+import { basketTypeLabel, getBasketItemDetailLines } from '../utils/cartItemDisplay';
 
 const Header = () => {
   const navigate = useNavigate();
   const { confirmLeavePreview } = useNeonPreviewExit();
-  const { isAuthenticated, user, logout, getUserInitial } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { cartItems, getCartItemCount, removeFromCart, updateQuantity } = useCart();
   const [isVatInclusive, setIsVatInclusive] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [designOpen, setDesignOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [basketOpen, setBasketOpen] = useState(false);
   const [basketFlyoutStyle, setBasketFlyoutStyle] = useState(null);
+  const [basketHighlightId, setBasketHighlightId] = useState(null);
   const shopRef = useRef(null);
-  const userMenuRef = useRef(null);
+  const designRef = useRef(null);
+  const accountRef = useRef(null);
   const basketDesktopRef = useRef(null);
   const basketMobileRef = useRef(null);
   const basketFlyoutRef = useRef(null);
+  const basketScrollRef = useRef(null);
+
+  const accountMenu = [
+    { label: 'Overview', tab: 'profile' },
+    { label: 'Quotes', tab: 'quotes' },
+    { label: 'Design Orders', tab: 'design-orders' },
+    { label: 'Track Order', tab: 'track-order' },
+    { label: 'Cancel Order', tab: 'cancel-order' },
+    { label: 'Security', tab: 'change-password' },
+  ];
 
   const shopMenu = [
     {
@@ -133,6 +147,8 @@ const Header = () => {
       }, 150);
       setMobileMenuOpen(false);
       setShopOpen(false);
+      setDesignOpen(false);
+      setAccountOpen(false);
       return;
     }
 
@@ -140,6 +156,8 @@ const Header = () => {
     navigate(featuredRouteMap[categorySlug] || `/category/${categorySlug}`);
     setMobileMenuOpen(false);
     setShopOpen(false);
+    setDesignOpen(false);
+    setAccountOpen(false);
   };
 
   const handleNavClick = async (section) => {
@@ -159,6 +177,17 @@ const Header = () => {
     }
     setMobileMenuOpen(false);
     setShopOpen(false);
+    setDesignOpen(false);
+    setAccountOpen(false);
+  };
+
+  const goToAccountTab = async (tab) => {
+    if (!(await confirmLeavePreview())) return;
+    navigate(tab ? `/account?tab=${encodeURIComponent(tab)}` : '/account');
+    setMobileMenuOpen(false);
+    setShopOpen(false);
+    setDesignOpen(false);
+    setAccountOpen(false);
   };
 
   // Close dropdowns when clicking outside
@@ -167,8 +196,11 @@ const Header = () => {
       if (shopRef.current && !shopRef.current.contains(event.target)) {
         setShopOpen(false);
       }
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
-        setUserMenuOpen(false);
+      if (designRef.current && !designRef.current.contains(event.target)) {
+        setDesignOpen(false);
+      }
+      if (accountRef.current && !accountRef.current.contains(event.target)) {
+        setAccountOpen(false);
       }
       const inBasketUi =
         basketDesktopRef.current?.contains(event.target) ||
@@ -186,10 +218,27 @@ const Header = () => {
   }, []);
 
   useEffect(() => {
-    const openBasket = () => setBasketOpen(true);
+    const openBasket = (event) => {
+      const highlightId = event?.detail?.highlightId;
+      if (highlightId) setBasketHighlightId(String(highlightId));
+      setBasketOpen(true);
+    };
     window.addEventListener('rspuk-basket-open', openBasket);
     return () => window.removeEventListener('rspuk-basket-open', openBasket);
   }, []);
+
+  useEffect(() => {
+    if (!basketOpen || !basketHighlightId) return undefined;
+    const timer = window.setTimeout(() => {
+      const root = basketScrollRef.current;
+      if (!root) return;
+      const el = Array.from(root.querySelectorAll('[data-basket-item-id]')).find(
+        (node) => node.getAttribute('data-basket-item-id') === String(basketHighlightId),
+      );
+      el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [basketOpen, basketHighlightId, cartItems]);
 
   const getActiveBasketAnchor = useCallback(() => {
     const mobile = basketMobileRef.current;
@@ -203,14 +252,33 @@ const Header = () => {
     const anchor = getActiveBasketAnchor();
     if (!anchor) return;
     const rect = anchor.getBoundingClientRect();
-    const width = Math.min(window.innerWidth - 16, window.innerWidth < 1024 ? 320 : 352);
-    setBasketFlyoutStyle({
+    const width = Math.min(window.innerWidth - 16, window.innerWidth < 1024 ? 320 : 380);
+    const maxHeight = Math.max(
+      280,
+      Math.min(window.innerHeight - rect.bottom - 16, window.innerHeight * 0.78, 520),
+    );
+    const next = {
       position: 'fixed',
       top: rect.bottom + 8,
       right: Math.max(8, window.innerWidth - rect.right),
       width,
-      maxHeight: 'min(70vh, 26rem)',
+      maxHeight,
+      // Explicit height so the inner list can scroll instead of growing forever.
+      height: maxHeight,
       zIndex: 200,
+    };
+    setBasketFlyoutStyle((prev) => {
+      if (
+        prev &&
+        prev.top === next.top &&
+        prev.right === next.right &&
+        prev.width === next.width &&
+        prev.maxHeight === next.maxHeight &&
+        prev.height === next.height
+      ) {
+        return prev;
+      }
+      return next;
     });
   }, [getActiveBasketAnchor]);
 
@@ -220,11 +288,28 @@ const Header = () => {
       return undefined;
     }
     updateBasketFlyoutPosition();
-    window.addEventListener('resize', updateBasketFlyoutPosition);
-    window.addEventListener('scroll', updateBasketFlyoutPosition, true);
+
+    const onWindowChange = (event) => {
+      // Ignore scrolls inside the basket — repositioning remounted/reset scroll before.
+      if (event?.type === 'scroll') {
+        const target = event.target;
+        if (
+          target instanceof Node &&
+          (basketFlyoutRef.current?.contains(target) ||
+            basketScrollRef.current === target ||
+            basketFlyoutRef.current === target)
+        ) {
+          return;
+        }
+      }
+      updateBasketFlyoutPosition();
+    };
+
+    window.addEventListener('resize', onWindowChange);
+    window.addEventListener('scroll', onWindowChange, true);
     return () => {
-      window.removeEventListener('resize', updateBasketFlyoutPosition);
-      window.removeEventListener('scroll', updateBasketFlyoutPosition, true);
+      window.removeEventListener('resize', onWindowChange);
+      window.removeEventListener('scroll', onWindowChange, true);
     };
   }, [basketOpen, updateBasketFlyoutPosition]);
 
@@ -234,7 +319,9 @@ const Header = () => {
     const incomingPrice = Number(item?.price || 0);
     if (!Number.isFinite(incomingPrice)) return 0;
     if (item?.type === 'checkout-order') return incomingPrice;
-    if (item?.type === 'custom-neon') return payableFromNet(incomingPrice, isVatInclusive);
+    if (item?.type === 'custom-neon' || item?.amountBasis === 'net') {
+      return payableFromNet(incomingPrice, isVatInclusive);
+    }
     return incomingPrice;
   };
 
@@ -259,8 +346,10 @@ const Header = () => {
           title: item.title || 'Checkout',
           description: item.description || 'Complete your purchase securely.',
           amount: lineNet,
-          amountBasis: 'net',
-          summary: item?.summary,
+          amountBasis: item.type === 'custom-neon' ? 'net' : item.amountBasis || null,
+          type: item.type,
+          designServiceRequestId: item.designServiceRequestId,
+          summary,
           selectedAttributes: item?.selectedAttributes,
           selectionSnapshot: item?.selectionSnapshot,
           productOptions: item?.productOptions,
@@ -291,6 +380,7 @@ const Header = () => {
           price: item.price,
           amountBasis: item.amountBasis,
           paymentId: item.paymentId,
+          designServiceRequestId: item.designServiceRequestId,
           selectedAttributes: item?.selectedAttributes,
           selectionSnapshot: item?.selectionSnapshot,
           productOptions: item?.productOptions,
@@ -315,82 +405,130 @@ const Header = () => {
     !item.paymentId &&
     item.type !== 'checkout-order';
 
-  const BasketFlyout = () =>
+  // Keep as JSX (not a nested component) so re-renders don't remount and reset scroll.
+  const basketFlyout =
     basketOpen && basketFlyoutStyle ? (
       <div
         ref={basketFlyoutRef}
-        className="rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden flex flex-col"
-        style={{ ...basketFlyoutStyle, fontFamily: 'Lexend Deca, sans-serif' }}
+        className="rounded-xl border border-gray-200 bg-white shadow-2xl flex flex-col overflow-hidden"
+        style={{
+          ...basketFlyoutStyle,
+          fontFamily: 'Lexend Deca, sans-serif',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
         onMouseDown={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
       >
         <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 shrink-0">
           <p className="text-sm font-bold text-gray-900">Your basket</p>
           <p className="text-[11px] text-gray-500 mt-0.5">
-          Prices follow your selected VAT mode from the header, where applicable.
+            Prices follow your selected VAT mode from the header, where applicable.
           </p>
         </div>
-        <div className="overflow-y-auto flex-1 p-3 space-y-3 min-h-0">
+        <div
+          ref={basketScrollRef}
+          className="overflow-y-auto overscroll-contain p-3 space-y-3"
+          style={{
+            flex: '1 1 auto',
+            minHeight: 0,
+            WebkitOverflowScrolling: 'touch',
+          }}
+          onWheel={(e) => {
+            // Keep wheel scrolling on the list; don't let page/header handlers steal it.
+            e.stopPropagation();
+          }}
+        >
           {cartItems.length === 0 ? (
             <p className="text-sm text-gray-600 text-center py-8 px-2">Your basket is empty.</p>
           ) : (
-            cartItems.map((item) => (
-              <div key={item.lineId || item.id} className="rounded-lg border border-gray-100 p-3 text-sm bg-white">
-                <div className="flex justify-between gap-2 items-start">
-                  <p className="font-semibold text-gray-900 leading-snug">{item.title || item.name}</p>
-                  <button
-                    type="button"
-                    onClick={() => removeFromCart(item.lineId || item.id)}
-                    className="text-red-600 text-xs font-semibold shrink-0 hover:underline"
-                  >
-                    Remove
-                  </button>
-                </div>
-                {item.description ? (
-                  <p className="text-xs text-gray-600 mt-1 line-clamp-2">{item.description}</p>
-                ) : null}
-                <div className="flex items-center justify-between mt-2 gap-2">
-                  {/* <div className="flex items-center gap-1 border border-gray-200 rounded-lg">
+            cartItems.map((item) => {
+              const itemKey = String(item.id || item.lineId || '');
+              const typeLabel = basketTypeLabel(item.type);
+              const detailLines = getBasketItemDetailLines(item);
+              const isHighlighted = basketHighlightId && itemKey === String(basketHighlightId);
+              const projectOnly =
+                item.type === 'design-service' && item.description
+                  ? item.description
+                  : null;
+
+              return (
+                <div
+                  key={item.lineId || item.id}
+                  data-basket-item-id={itemKey}
+                  className={`rounded-lg border p-3 text-sm bg-white ${
+                    isHighlighted ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-100'
+                  }`}
+                >
+                  <div className="flex justify-between gap-2 items-start">
+                    <div className="min-w-0">
+                      {typeLabel ? (
+                        <span className="inline-block mb-1 text-[10px] font-semibold uppercase tracking-wide text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+                          {typeLabel}
+                        </span>
+                      ) : null}
+                      <p className="font-semibold text-gray-900 leading-snug">
+                        {item.title || item.name}
+                      </p>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => updateQuantity(item.lineId || item.id, item.quantity - 1)}
-                      className="px-2 py-1 text-gray-700 hover:bg-gray-50 rounded-l-lg text-sm font-bold"
-                      aria-label="Decrease quantity"
+                      onClick={() => removeFromCart(item.lineId || item.id)}
+                      className="text-red-600 text-xs font-semibold shrink-0 hover:underline"
                     >
-                      −
+                      Remove
                     </button>
-                    <span className="px-2 text-xs font-semibold tabular-nums min-w-[1.5rem] text-center">
-                      {item.quantity}
+                  </div>
+
+                  {projectOnly && detailLines.length === 0 ? (
+                    <p className="text-xs text-gray-600 mt-1">{projectOnly}</p>
+                  ) : null}
+
+                  {detailLines.length > 0 ? (
+                    <ul className="mt-2 space-y-1 text-xs text-gray-600 list-none pl-0">
+                      {detailLines.map((row, idx) => (
+                        <li key={`${row.label || 'd'}-${idx}`} className="leading-snug">
+                          {row.label ? (
+                            <>
+                              <span className="font-medium text-gray-700">{row.label}: </span>
+                              <span className="break-words">{row.value}</span>
+                            </>
+                          ) : (
+                            <span className="break-words">{row.value}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : item.description && item.type !== 'design-service' ? (
+                    <p className="text-xs text-gray-600 mt-1 line-clamp-2">{item.description}</p>
+                  ) : null}
+
+                  <div className="flex items-center justify-between mt-3 gap-2">
+                    <span className="font-bold text-gray-900 tabular-nums">
+                      £{lineBasketDisplayAmount(item).toFixed(2)}
                     </span>
+                  </div>
+                  {item.type === 'checkout-order' ? (
+                    <p className="text-xs text-emerald-700 mt-2 font-medium">
+                      Order placed — receipt in basket
+                    </p>
+                  ) : null}
+                  {showBasketCheckoutCta(item) ? (
                     <button
                       type="button"
-                      onClick={() => updateQuantity(item.lineId || item.id, item.quantity + 1)}
-                      className="px-2 py-1 text-gray-700 hover:bg-gray-50 rounded-r-lg text-sm font-bold"
-                      aria-label="Increase quantity"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        goToCheckoutForItem(item);
+                      }}
+                      className="mt-2 w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors"
                     >
-                      +
+                      Checkout this item
                     </button>
-                  </div> */}
-                  <span className="font-bold text-gray-900 tabular-nums">
-                    £{lineBasketDisplayAmount(item).toFixed(2)}
-                  </span>
+                  ) : null}
                 </div>
-                {item.type === 'checkout-order' ? (
-                  <p className="text-xs text-emerald-700 mt-2 font-medium">Order placed — receipt in basket</p>
-                ) : null}
-                {showBasketCheckoutCta(item) ? (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      goToCheckoutForItem(item);
-                    }}
-                    className="mt-2 w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors"
-                  >
-                    Checkout this item
-                  </button>
-                ) : null}
-              </div>
-            ))
+              );
+            })
           )}
         </div>
         {cartItems.length > 0 ? (
@@ -459,10 +597,23 @@ const Header = () => {
     window.dispatchEvent(new CustomEvent('vat-mode-changed', { detail: { mode: vatMode } }));
   }, [isVatInclusive]);
 
+  const navBtnClass = (active = false) =>
+    `inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold whitespace-nowrap transition-colors ${
+      active
+        ? 'bg-white/10 text-white'
+        : 'text-slate-300 hover:bg-white/5 hover:text-white'
+    }`;
+
   const VatToggle = ({ compact = false }) => (
-    <div className={`flex items-center gap-2 text-gray-300 ${compact ? 'gap-1.5' : ''}`}>
+    <div
+      className={`flex items-center gap-2 rounded-xl bg-white/5 px-2.5 py-1.5 ring-1 ring-white/10 ${
+        compact ? 'gap-1.5 px-2 py-1' : ''
+      }`}
+    >
       <span
-        className={`font-semibold uppercase ${compact ? 'text-[10px] text-gray-400' : 'text-xs text-white'}`}
+        className={`font-semibold uppercase tracking-wide text-slate-400 ${
+          compact ? 'text-[9px]' : 'text-[10px]'
+        }`}
         style={{ fontFamily: 'Lexend Deca, sans-serif' }}
       >
         VAT
@@ -470,20 +621,21 @@ const Header = () => {
       <button
         type="button"
         onClick={() => setIsVatInclusive((prev) => !prev)}
-        className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${
-          isVatInclusive ? 'bg-blue-600' : 'bg-gray-500'
+        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+          isVatInclusive ? 'bg-blue-600' : 'bg-slate-600'
         }`}
         aria-label="Toggle VAT mode"
         title={`Showing ${isVatInclusive ? 'Inc VAT' : 'Ex VAT'} prices`}
       >
         <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-            isVatInclusive ? 'translate-x-5' : 'translate-x-1'
-          }`}
+          className="inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform"
+          style={{ transform: isVatInclusive ? 'translateX(18px)' : 'translateX(3px)' }}
         />
       </button>
       <span
-        className={`font-semibold tabular-nums ${compact ? 'text-[10px] text-gray-400' : 'text-[11px] text-gray-400'}`}
+        className={`min-w-[1.5rem] font-semibold tabular-nums text-slate-200 ${
+          compact ? 'text-[10px]' : 'text-[11px]'
+        }`}
         style={{ fontFamily: 'Lexend Deca, sans-serif' }}
       >
         {isVatInclusive ? 'Inc' : 'Ex'}
@@ -491,219 +643,292 @@ const Header = () => {
     </div>
   );
 
-  const handleLogout = async () => {
-    if (!(await confirmLeavePreview())) return;
-    await logout();
-    setUserMenuOpen(false);
-    navigate('/');
-  };
+  const LogoMark = ({ className = 'h-11' }) => (
+    <button
+      type="button"
+      className="flex items-center gap-2 shrink-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+      onClick={() => handleNavClick('home')}
+      aria-label="River Signs home"
+    >
+      <img
+        src="/logo.png"
+        alt="River Signs"
+        className={`${className} w-auto max-w-[150px] object-contain`}
+        onError={(e) => {
+          e.target.style.display = 'none';
+          e.target.nextSibling.style.display = 'flex';
+        }}
+      />
+      <div
+        className="hidden items-center text-2xl font-bold tracking-tight"
+        style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+      >
+        <span className="text-blue-400">River</span>
+        <span className="text-white">Signs</span>
+      </div>
+    </button>
+  );
 
   return (
-    <header className="bg-gray-800 overflow-visible isolate">
-      <nav className="mx-auto max-w-[1440px] px-3 md:px-6 lg:px-8 xl:px-10 overflow-visible">
-        <div className="relative min-h-[5rem] h-20 overflow-visible">
-          {/* Desktop: left nav | logo | right nav | utilities */}
-          <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] items-center h-full gap-3 xl:gap-6 overflow-visible">
-            {/* Left Navigation */}
-            <div className="flex items-center gap-3 xl:gap-5 min-w-0 justify-end">
-            <button
-              onClick={() => handleNavClick('home')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              Home
-            </button>
-            
-            <div className="relative" ref={shopRef}>
-              <button
-                onClick={() => setShopOpen(!shopOpen)}
-                className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 flex items-center gap-1.5 whitespace-nowrap shrink-0"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-              >
-                Shop
-                <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${shopOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {shopOpen && (
-                <div
-                  className="absolute top-full left-0 mt-2 w-[600px] bg-white rounded-lg shadow-2xl py-4 border border-gray-100 z-50"
-                >
-                  <div className="grid grid-cols-3 gap-6 px-6">
-                    {shopMenu.map((group) => (
-                      <div key={group.title} className="space-y-2">
-                        <h3 className="text-blue-600 font-semibold text-sm">
-                          {group.title}
-                        </h3>
-                        <ul className="space-y-1">
-                          {group.items.map((item) => (
-                            <li key={`${group.title}-${item.category}`}>
-                              <button
-                                onClick={() => goToShopCategory(item.category)}
-                                className="group w-full flex items-center justify-between gap-3 text-left text-gray-600 hover:text-blue-600 transition-colors text-sm"
-                                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                              >
-                                <span className="flex items-center gap-2 min-w-0">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-gray-300 group-hover:bg-blue-600 transition-colors flex-shrink-0" />
-                                  <span className="truncate">{item.label}</span>
-                                </span>
-                                <svg className="w-4 h-4 text-gray-300 group-hover:text-blue-600 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                </svg>
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            <button
-              onClick={() => handleNavClick('product-designer')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              Design Tool
-            </button>
-            
-            <button
-              onClick={() => handleNavClick('custom-neon-builder')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              Design Custom Neon
-            </button>
-            <button
-              onClick={() => handleNavClick('gallery')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              Gallery
-            </button>
-          </div>
+    <header
+      className="overflow-visible isolate border-b border-slate-700/80 bg-slate-900 shadow-sm"
+      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+    >
+      <nav className="mx-auto max-w-[1440px] px-3 md:px-6 lg:px-8 overflow-visible">
+        <div className="relative flex h-[4.5rem] items-center gap-3 overflow-visible lg:h-18 lg:min-h-[4.75rem]">
+          {/* Desktop */}
+          <div className="hidden lg:flex w-full items-center gap-4 xl:gap-6 overflow-visible">
+            <LogoMark className="h-12" />
 
-            {/* Center Logo */}
-            <div
-              className="flex items-center justify-center shrink-0 px-2 cursor-pointer"
-              onClick={() => handleNavClick('home')}
-            >
-              <img
-                src="/logo.png"
-                alt="RER Logo"
-                className="h-12 w-auto max-w-[140px] xl:max-w-none object-contain"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'flex';
-                }}
-              />
-              <div className="hidden text-3xl font-bold items-center" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                <span className="text-blue-500">R</span>
-                <span className="text-white">ER</span>
+            <div className="flex flex-1 items-center justify-center gap-0.5 xl:gap-1 min-w-0">
+              <button type="button" onClick={() => handleNavClick('home')} className={navBtnClass()}>
+                Home
+              </button>
+
+              <div className="relative" ref={shopRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShopOpen(!shopOpen);
+                    setDesignOpen(false);
+                    setAccountOpen(false);
+                  }}
+                  className={navBtnClass(shopOpen)}
+                  aria-expanded={shopOpen}
+                >
+                  Shop
+                  <svg
+                    className={`h-3.5 w-3.5 opacity-70 transition-transform ${shopOpen ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {shopOpen && (
+                  <div className="absolute top-full left-1/2 z-50 mt-3 w-[640px] -translate-x-1/2 overflow-hidden rounded-2xl border border-slate-200 bg-white py-5 shadow-xl shadow-slate-900/15">
+                    <div className="mb-3 px-6">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                        Browse products
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-5 px-6">
+                      {shopMenu.map((group) => (
+                        <div key={group.title} className="space-y-2">
+                          <h3 className="text-xs font-bold uppercase tracking-wide text-blue-600">
+                            {group.title}
+                          </h3>
+                          <ul className="space-y-0.5">
+                            {group.items.map((item) => (
+                              <li key={`${group.title}-${item.category}`}>
+                                <button
+                                  type="button"
+                                  onClick={() => goToShopCategory(item.category)}
+                                  className="group flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-slate-600 transition-colors hover:bg-slate-50 hover:text-blue-700"
+                                >
+                                  <span className="truncate">{item.label}</span>
+                                  <svg
+                                    className="h-3.5 w-3.5 shrink-0 text-slate-300 opacity-0 transition group-hover:opacity-100 group-hover:text-blue-600"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="relative" ref={designRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDesignOpen(!designOpen);
+                    setShopOpen(false);
+                    setAccountOpen(false);
+                  }}
+                  className={navBtnClass(designOpen)}
+                  aria-expanded={designOpen}
+                >
+                  Design
+                  <svg
+                    className={`h-3.5 w-3.5 opacity-70 transition-transform ${designOpen ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {designOpen && (
+                  <div className="absolute top-full left-0 z-50 mt-3 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white py-2 shadow-xl shadow-slate-900/15">
+                    <button
+                      type="button"
+                      onClick={() => handleNavClick('product-designer')}
+                      className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-slate-50"
+                    >
+                      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </span>
+                      <span>
+                        <span className="block text-sm font-semibold text-slate-900">Design Tool</span>
+                        <span className="block text-xs text-slate-500">Online product designer</span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleNavClick('custom-neon-builder')}
+                      className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-slate-50"
+                    >
+                      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                      </span>
+                      <span>
+                        <span className="block text-sm font-semibold text-slate-900">Custom Neon</span>
+                        <span className="block text-xs text-slate-500">Build your neon sign</span>
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <button type="button" onClick={() => handleNavClick('gallery')} className={navBtnClass()}>
+                Gallery
+              </button>
+            </div>
+
+            <div className="relative z-[110] flex items-center gap-2 xl:gap-3 shrink-0 overflow-visible">
+              <div className="relative" ref={accountRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAccountOpen(!accountOpen);
+                    setShopOpen(false);
+                    setDesignOpen(false);
+                  }}
+                  className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+                    accountOpen
+                      ? 'bg-white/10 text-white'
+                      : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                  }`}
+                  aria-expanded={accountOpen}
+                  aria-haspopup="menu"
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600/20 text-blue-300 ring-1 ring-blue-400/30">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                      />
+                    </svg>
+                  </span>
+                  <span className="hidden xl:inline max-w-[7rem] truncate">
+                    {isAuthenticated() ? user?.name?.split(' ')[0] || 'Account' : 'Account'}
+                  </span>
+                  <svg
+                    className={`h-3.5 w-3.5 opacity-70 transition-transform ${accountOpen ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {accountOpen && (
+                  <div className="absolute top-full right-0 z-50 mt-3 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white py-2 shadow-xl shadow-slate-900/15">
+                    {isAuthenticated() ? (
+                      <>
+                        <div className="border-b border-slate-100 px-4 py-3">
+                          <p className="truncate text-sm font-semibold text-slate-900">
+                            {user?.name || 'My Account'}
+                          </p>
+                          {user?.email ? (
+                            <p className="mt-0.5 truncate text-xs text-slate-500">{user.email}</p>
+                          ) : null}
+                        </div>
+                        {accountMenu.map((item) => (
+                          <button
+                            key={item.tab}
+                            type="button"
+                            onClick={() => goToAccountTab(item.tab)}
+                            className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm text-slate-600 transition hover:bg-slate-50 hover:text-blue-700"
+                          >
+                            <span>{item.label}</span>
+                            <svg className="h-3.5 w-3.5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </button>
+                        ))}
+                      </>
+                    ) : (
+                      <>
+                        <div className="border-b border-slate-100 px-4 py-3">
+                          <p className="text-sm font-semibold text-slate-900">Welcome</p>
+                          <p className="mt-0.5 text-xs text-slate-500">Sign in to manage orders &amp; quotes</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleNavClick('login')}
+                          className="flex w-full px-4 py-2.5 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                        >
+                          Login
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleNavClick('register')}
+                          className="mx-3 mb-2 mt-1 w-[calc(100%-1.5rem)] rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+                        >
+                          Sign Up
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="h-8 w-px bg-white/10" aria-hidden />
+
+              <div className="flex items-center gap-2" ref={basketDesktopRef}>
+                <VatToggle />
+                <BasketIconButton />
               </div>
             </div>
+          </div>
 
-            {/* Right Navigation */}
-            <div className="flex items-center gap-2 xl:gap-4 min-w-0 justify-start overflow-visible">
-            <button
-              onClick={() => handleNavClick('quote')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              Get a Free Quote
-            </button>
-
-
-            <button
-              onClick={() => handleNavClick('about-us')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              About Us
-            </button>
-
-            <button
-              onClick={() => handleNavClick('contact')}
-              className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              Contact
-            </button>
-
-            {/* Auth Buttons / My Account */}
-            {!isAuthenticated() ? (
-              <>
-                <button
-                  onClick={() => handleNavClick('login')}
-                  className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  Login
-                </button>
-                <button
-                  onClick={() => handleNavClick('register')}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 xl:px-4 py-2 rounded-lg font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  Sign Up
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => handleNavClick('account')}
-                  className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  My Account
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="text-gray-300 hover:text-blue-400 font-semibold text-sm transition-colors duration-200 whitespace-nowrap shrink-0"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  Logout
-                </button>
-              </>
-            )}
-            </div>
-
-            {/* Extreme right: VAT + Basket */}
-            <div
-              className="relative z-[110] flex items-center gap-2 xl:gap-3 pl-2 xl:pl-3 border-l border-gray-600 shrink-0 overflow-visible"
-              ref={basketDesktopRef}
-            >
-              <VatToggle />
+          {/* Mobile */}
+          <div className="flex w-full items-center gap-2 lg:hidden">
+            <LogoMark className="h-9" />
+            <div className="flex-1" />
+            <div className="relative z-[110] flex items-center gap-2" ref={basketMobileRef}>
+              <VatToggle compact />
               <BasketIconButton />
             </div>
-          </div>
-
-          {/* Mobile: Logo | Menu | VAT + Basket */}
-          <div className="lg:hidden flex items-center h-full gap-2">
-            <div
-              className="flex flex-1 items-center cursor-pointer min-w-0"
-              onClick={() => handleNavClick('home')}
-            >
-              <img
-                src="/logo.png"
-                alt="RER Logo"
-                className="h-10 w-auto max-w-[120px] object-contain"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'flex';
-                }}
-              />
-              <div className="hidden text-2xl font-bold items-center" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                <span className="text-blue-500">R</span>
-                <span className="text-white">ER</span>
-              </div>
-            </div>
             <button
-              className="text-white p-2 hover:bg-gray-700 rounded-lg transition-colors shrink-0"
+              type="button"
+              className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${
+                mobileMenuOpen
+                  ? 'bg-white/10 text-white'
+                  : 'bg-white/5 text-slate-300 ring-1 ring-white/10 hover:bg-white/10 hover:text-white'
+              }`}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={mobileMenuOpen}
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {mobileMenuOpen ? (
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 ) : (
@@ -711,62 +936,56 @@ const Header = () => {
                 )}
               </svg>
             </button>
-            <div
-              className="relative z-[110] flex items-center gap-2 shrink-0 overflow-visible pl-2 border-l border-gray-600"
-              ref={basketMobileRef}
-            >
-              <VatToggle compact />
-              <BasketIconButton />
-            </div>
           </div>
         </div>
 
-        <BasketFlyout />
+        {basketFlyout}
 
-        {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="lg:hidden py-4 space-y-1 border-t border-gray-700 animate-in slide-in-from-top duration-200">
+          <div className="space-y-1 border-t border-slate-700/80 py-3 lg:hidden">
             <button
+              type="button"
               onClick={() => handleNavClick('home')}
-              className="block w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gray-100 rounded-lg transition-all duration-150 text-sm font-medium"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+              className="block w-full rounded-xl px-4 py-3 text-left text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white"
             >
               Home
             </button>
-            
-            <div className="px-4">
+
+            <div className="px-2">
               <button
-                onClick={() => setShopOpen(!shopOpen)}
-                className="w-full text-left py-3 text-gray-300 hover:text-blue-300 rounded-lg transition-all duration-150 text-sm font-medium flex items-center justify-between"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                type="button"
+                onClick={() => {
+                  setShopOpen(!shopOpen);
+                  setDesignOpen(false);
+                }}
+                className="flex w-full items-center justify-between rounded-xl px-2 py-3 text-left text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white"
               >
                 Shop
-                <svg className={`w-4 h-4 transition-transform duration-200 ${shopOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className={`h-4 w-4 transition-transform ${shopOpen ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
               {shopOpen && (
-                <div className="pl-4 space-y-4 mt-2">
+                <div className="mt-1 space-y-3 rounded-xl bg-white/5 px-2 py-3">
                   {shopMenu.map((group) => (
                     <div key={group.title}>
-                      <h3 className="text-blue-400 font-semibold text-sm mb-2 px-4">
+                      <h3 className="mb-1 px-2 text-[11px] font-bold uppercase tracking-wide text-blue-300">
                         {group.title}
                       </h3>
-                      <div className="space-y-1">
+                      <div className="space-y-0.5">
                         {group.items.map((item) => (
                           <button
                             key={`${group.title}-${item.category}`}
+                            type="button"
                             onClick={() => goToShopCategory(item.category)}
-                            className="group w-full flex items-center justify-between gap-3 text-left px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-all duration-150 text-sm"
-                            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                            className="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-300 transition hover:bg-white/10 hover:text-white"
                           >
-                            <span className="flex items-center gap-2 min-w-0">
-                              <span className="w-1.5 h-1.5 rounded-full bg-gray-500 group-hover:bg-blue-400 transition-colors flex-shrink-0" />
-                              <span className="truncate">{item.label}</span>
-                            </span>
-                            <svg className="w-4 h-4 text-gray-400 group-hover:text-gray-200 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
+                            {item.label}
                           </button>
                         ))}
                       </div>
@@ -776,100 +995,93 @@ const Header = () => {
               )}
             </div>
 
-            <button
-              onClick={() => handleNavClick('custom-neon-builder')}
-              className="block w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gray-100 rounded-lg transition-all duration-150 text-sm font-medium"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              Design Custom Neon
-            </button>
+            <div className="px-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDesignOpen(!designOpen);
+                  setShopOpen(false);
+                }}
+                className="flex w-full items-center justify-between rounded-xl px-2 py-3 text-left text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white"
+              >
+                Design
+                <svg
+                  className={`h-4 w-4 transition-transform ${designOpen ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {designOpen && (
+                <div className="mt-1 space-y-0.5 rounded-xl bg-white/5 px-2 py-2">
+                  <button
+                    type="button"
+                    onClick={() => handleNavClick('product-designer')}
+                    className="block w-full rounded-lg px-3 py-2.5 text-left text-sm text-slate-300 transition hover:bg-white/10 hover:text-white"
+                  >
+                    Design Tool
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleNavClick('custom-neon-builder')}
+                    className="block w-full rounded-lg px-3 py-2.5 text-left text-sm text-slate-300 transition hover:bg-white/10 hover:text-white"
+                  >
+                    Custom Neon
+                  </button>
+                </div>
+              )}
+            </div>
 
             <button
-              onClick={() => handleNavClick('product-designer')}
-              className="block w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gray-100 rounded-lg transition-all duration-150 text-sm font-medium"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              Design Tool
-            </button>
-
-            <button
-              onClick={() => handleNavClick('quote')}
-              className="block w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gray-100 rounded-lg transition-all duration-150 text-sm font-medium"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              Get a Free Quote
-            </button>
-
-            <button
+              type="button"
               onClick={() => handleNavClick('gallery')}
-              className="block w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gray-100 rounded-lg transition-all duration-150 text-sm font-medium"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+              className="block w-full rounded-xl px-4 py-3 text-left text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white"
             >
               Gallery
             </button>
 
-            <button
-              onClick={() => handleNavClick('about-us')}
-              className="block w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gray-100 rounded-lg transition-all duration-150 text-sm font-medium"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              About Us
-            </button>
-
-            <button
-              onClick={() => handleNavClick('contact')}
-              className="block w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gray-100 rounded-lg transition-all duration-150 text-sm font-medium"
-              style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-            >
-              Contact
-            </button>
-
-            {/* Auth Buttons / User Icon - Mobile */}
-            {!isAuthenticated() ? (
-              <>
-                <button
-                  onClick={() => handleNavClick('login')}
-                  className="block w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gray-100 rounded-lg transition-all duration-150 text-sm font-medium"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  Login
-                </button>
-                <button
-                  onClick={() => handleNavClick('register')}
-                  className="block w-full text-left px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-150 text-sm font-medium"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  Sign Up
-                </button>
-              </>
-            ) : (
-              <>
-                <div className="px-4 py-3 border-t border-gray-700">
-                  <p className="text-sm font-semibold text-white" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                    {user?.name || user?.email || 'User'}
-                  </p>
-                  {user?.email && (
-                    <p className="text-xs text-gray-400 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {user.email}
-                    </p>
-                  )}
+            <div className="mt-2 border-t border-slate-700/80 pt-3">
+              <p className="px-4 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Account
+              </p>
+              {isAuthenticated() ? (
+                <>
+                  <div className="px-4 pb-2">
+                    <p className="text-sm font-semibold text-white">{user?.name || user?.email || 'User'}</p>
+                    {user?.email ? <p className="mt-0.5 text-xs text-slate-400">{user.email}</p> : null}
+                  </div>
+                  {accountMenu.map((item) => (
+                    <button
+                      key={item.tab}
+                      type="button"
+                      onClick={() => goToAccountTab(item.tab)}
+                      className="block w-full rounded-xl px-4 py-3 text-left text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white"
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </>
+              ) : (
+                <div className="space-y-2 px-3 pb-1">
+                  <button
+                    type="button"
+                    onClick={() => handleNavClick('login')}
+                    className="block w-full rounded-xl px-4 py-3 text-left text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white"
+                  >
+                    Login
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleNavClick('register')}
+                    className="block w-full rounded-xl bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-blue-500"
+                  >
+                    Sign Up
+                  </button>
                 </div>
-                <button
-                  onClick={() => { handleNavClick('account'); }}
-                  className="block w-full text-left px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gray-100 rounded-lg transition-all duration-150 text-sm font-medium"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  My Account
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="block w-full text-left px-4 py-3 text-white hover:bg-gray-700 hover:text-gray-300 rounded-lg transition-all duration-150 text-sm font-medium"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                >
-                  Logout
-                </button>
-              </>
-            )}
+              )}
+            </div>
           </div>
         )}
       </nav>

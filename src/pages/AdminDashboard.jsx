@@ -11,6 +11,7 @@ import { thirdPartyService } from '../services/thirdPartyService';
 import { neonPricingService } from '../services/neonPricingService';
 import AdminNeonPricingTab from '../components/AdminNeonPricingTab';
 import AdminFeaturedSignagePricingTab from '../components/AdminFeaturedSignagePricingTab';
+import AdminFeaturedProductsTab from '../components/AdminFeaturedProductsTab';
 import AdminDesignServiceTab from '../components/AdminDesignServiceTab';
 import AdminActivityFeed from '../components/AdminActivityFeed';
 import { FileViewerLink, isHttpUrl, linkLabelForUrl, openFileViewer } from '../components/FileDocViewer';
@@ -316,16 +317,18 @@ const AdminDashboard = () => {
       <div className="bg-white border-b" data-tour="admin-tabs">
         <div className="container mx-auto px-4">
           <div className="flex gap-1 overflow-x-auto">
-            {['overview', 'products', 'categories', 'orders', 'quotes', 'design-service', 'neon-pricing', 'featured-pricing', 'settings'].map((tab) => {
+            {['overview', 'products', 'categories', 'orders', 'quotes', 'design-service', 'neon-pricing', 'featured-pricing', 'featured-products', 'settings'].map((tab) => {
               const badgeCount = getAdminTabBadgeCount(tab, tabBadges);
               const tabLabel =
                 tab === 'neon-pricing'
                   ? 'Neon pricing'
                   : tab === 'featured-pricing'
                     ? 'Featured pricing'
-                    : tab === 'design-service'
-                      ? 'Design service'
-                      : tab;
+                    : tab === 'featured-products'
+                      ? 'Featured products'
+                      : tab === 'design-service'
+                        ? 'Design service'
+                        : tab;
 
               return (
               <button
@@ -408,6 +411,11 @@ const AdminDashboard = () => {
             {activeTab === 'featured-pricing' && (
               <div data-tour="admin-featured-pricing">
                 <AdminFeaturedSignagePricingTab />
+              </div>
+            )}
+            {activeTab === 'featured-products' && (
+              <div data-tour="admin-featured-products-tab">
+                <AdminFeaturedProductsTab />
               </div>
             )}
             {activeTab === 'settings' && <SettingsTab />}

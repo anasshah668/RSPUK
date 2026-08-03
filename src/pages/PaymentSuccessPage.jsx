@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { downloadSaleReceiptPdf } from '../utils/saleReceiptPdf';
 
 const font = { fontFamily: 'Lexend Deca, sans-serif' };
 
@@ -44,11 +45,14 @@ const PaymentSuccessPage = () => {
     currency = 'GBP',
     email,
     customerName,
+    customerAddressLines,
     orderTitle,
     designServiceSuccess,
     receiptEmailSent,
     tradeprintOrderReference,
     tradeprintStatus,
+    receiptLineItems,
+    amountBasis,
   } = s;
 
   const amountLabel =
@@ -67,66 +71,19 @@ const PaymentSuccessPage = () => {
     if (downloadingReceipt) return;
     setDownloadingReceipt(true);
     try {
-      const { jsPDF } = await import('jspdf');
-      const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const margin = 18;
-      let y = 22;
-
-      const addRow = (label, value, boldValue = false) => {
-        pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(10);
-        pdf.setTextColor(107, 114, 128);
-        pdf.text(String(label), margin, y);
-        pdf.setTextColor(17, 24, 39);
-        pdf.setFont('helvetica', boldValue ? 'bold' : 'normal');
-        const lines = pdf.splitTextToSize(String(value || '—'), pageWidth - margin * 2 - 52);
-        pdf.text(lines, pageWidth - margin, y, { align: 'right' });
-        y += Math.max(7, lines.length * 5);
-      };
-
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(18);
-      pdf.setTextColor(5, 150, 105);
-      pdf.text('Payment receipt', margin, y);
-      y += 10;
-
-      if (orderTitle) {
-        pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(11);
-        pdf.setTextColor(55, 65, 81);
-        pdf.text(`Order: ${orderTitle}`, margin, y);
-        y += 8;
-      }
-
-      pdf.setDrawColor(229, 231, 235);
-      pdf.line(margin, y, pageWidth - margin, y);
-      y += 8;
-
-      addRow('Order reference', orderReference || '—', true);
-      addRow('Payment reference', paymentId || '—');
-      addRow('Tracking ID', trackingId || '—');
-      addRow('Amount paid', amountLabel, true);
-      addRow('Customer', customerName || 'Customer');
-      addRow('Email', email || '—');
-
-      y += 4;
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(9);
-      pdf.setTextColor(29, 78, 216);
-      const trackText = trackingId
-        ? `Track your order in My Account using Tracking ID ${trackingId}.`
-        : 'Keep this receipt for your records.';
-      const trackLines = pdf.splitTextToSize(trackText, pageWidth - margin * 2);
-      pdf.text(trackLines, margin, y);
-
-      y += trackLines.length * 5 + 8;
-      pdf.setFontSize(8);
-      pdf.setTextColor(107, 114, 128);
-      pdf.text('Thank you for your payment.', margin, y);
-
-      const safeRef = String(orderReference || paymentId || 'receipt').replace(/[^\w-]+/g, '_');
-      pdf.save(`Receipt_${safeRef}.pdf`);
+      await downloadSaleReceiptPdf({
+        orderReference,
+        paymentId,
+        trackingId,
+        amountPaid: typeof amount === 'number' ? amount : Number(amount),
+        currency,
+        customerName,
+        email,
+        customerAddressLines: Array.isArray(customerAddressLines) ? customerAddressLines : [],
+        orderTitle,
+        lineItems: Array.isArray(receiptLineItems) ? receiptLineItems : [],
+        amountBasis,
+      });
     } catch (error) {
       console.error('[receipt-pdf] download failed', error);
     } finally {

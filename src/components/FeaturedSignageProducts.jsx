@@ -1,30 +1,55 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import WavyUnderline from './WavyUnderline';
 import { featuredSignageItems } from '../data/featuredSignageData';
+import { featuredSignageMediaService } from '../services/featuredSignageMediaService';
+import { mergeFeaturedItemsWithMedia } from '../utils/featuredSignageMedia';
 
 const FeaturedSignageProducts = () => {
   const navigate = useNavigate();
+  const [items, setItems] = useState(() =>
+    featuredSignageItems.map((item) => ({
+      ...item,
+      image: item.images?.[0] || '',
+    })),
+  );
 
-  const items = featuredSignageItems.map((item) => ({
-    ...item,
-    image: item.images?.[0] || '',
-  }));
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await featuredSignageMediaService.listPublic();
+        if (cancelled) return;
+        const merged = mergeFeaturedItemsWithMedia(data?.items);
+        setItems(
+          merged.map((item) => ({
+            ...item,
+            image: item.images?.[0] || '',
+          })),
+        );
+      } catch {
+        // Keep static public-folder images if media API is unavailable.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <section className="py-12 md:py-14 bg-gray-50">
       <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
         <div className="text-center mb-8">
           <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
-         
-          Our Signage <WavyUnderline>Solutions</WavyUnderline>
+            Our Signage <WavyUnderline>Solutions</WavyUnderline>
           </h2>
           <p
             className="mt-2 text-sm md:text-base text-gray-600 max-w-2xl mx-auto"
             style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >
-           We design, manufacture and supply high-quality signage solutions in Middlesbrough and across the UK. Our signs are built to attract attention, increase visibility and strengthen your brand presence.
-
+            We design, manufacture and supply high-quality signage solutions in Middlesbrough and
+            across the UK. Our signs are built to attract attention, increase visibility and
+            strengthen your brand presence.
           </p>
         </div>
 
@@ -45,7 +70,10 @@ const FeaturedSignageProducts = () => {
               </div>
               <div className="p-4">
                 <h3 className="text-sm md:text-base font-bold text-gray-900 mb-2">{item.title}</h3>
-                <p className="text-xs text-gray-600 leading-relaxed mb-3" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                <p
+                  className="text-xs text-gray-600 leading-relaxed mb-3"
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                >
                   {item.description}
                 </p>
                 <span className="text-blue-600 text-sm font-semibold inline-flex items-center gap-1">
@@ -64,4 +92,3 @@ const FeaturedSignageProducts = () => {
 };
 
 export default FeaturedSignageProducts;
-

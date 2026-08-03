@@ -5,6 +5,9 @@ const HomePage = lazy(() => import("../pages/HomePage"));
 const AboutUs = lazy(() => import("../pages/AboutUs"));
 const GetQuote = lazy(() => import("../pages/GetQuote"));
 const DesignServicePage = lazy(() => import("../pages/DesignServicePage"));
+const ProfessionalDesignRequestPage = lazy(
+  () => import("../pages/ProfessionalDesignRequestPage"),
+);
 const GalleryPage = lazy(() => import("../pages/GalleryPage"));
 const FaqPage = lazy(() => import("../pages/FaqPage"));
 const Login = lazy(() => import("../pages/Login"));
@@ -102,6 +105,11 @@ export const routes = [
   {
     path: "/design-service",
     component: DesignServicePage,
+    layout: "default",
+  },
+  {
+    path: "/professional-design-request",
+    component: ProfessionalDesignRequestPage,
     layout: "default",
   },
   {
@@ -314,6 +322,7 @@ export const getRoutePath = (routeName, params = {}) => {
     aboutUs: "/about-us",
     getQuote: "/get-free-quote",
     designService: "/design-service",
+    professionalDesignRequest: "/professional-design-request",
     gallery: "/gallery",
     faqs: "/faqs",
     login: "/login",

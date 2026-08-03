@@ -4,6 +4,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import Header from '../components/Header';
 import TopAnnouncementBar from '../components/TopAnnouncementBar';
 import ScrollToTopButton from '../components/ScrollToTopButton';
+import FloatingHelpMenu from '../components/FloatingHelpMenu';
 import GoogleReviewsBadge from '../components/GoogleReviewsBadge';
 import CookieConsentModal from '../components/CookieConsentModal';
 import Footer from '../components/Footer';
@@ -42,6 +43,7 @@ const DefaultLayout = ({ children }) => {
         <Footer />
       </div>
       <ScrollToTopButton />
+      <FloatingHelpMenu />
       <GoogleReviewsBadge />
       <CookieConsentModal />
       <ToastContainer position="top-right" autoClose={2500} hideProgressBar={false} newestOnTop closeOnClick pauseOnHover />

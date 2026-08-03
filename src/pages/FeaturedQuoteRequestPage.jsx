@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { quoteService } from '../services/quoteService';
@@ -9,6 +9,9 @@ import { useFeaturedSignagePrice } from '../hooks/useFeaturedSignagePrice';
 import { buildFeaturedPricingInput } from '../utils/featuredSignagePricing';
 import { readVatInclusiveFromStorage, payableFromNet } from '../utils/vatUtils';
 import { getRoutePath } from '../config/routes.config';
+import { useCart } from '../context/CartContext';
+import { featuredSignageMediaService } from '../services/featuredSignageMediaService';
+import { mergeFeaturedItemWithMedia } from '../utils/featuredSignageMedia';
 
 const font = { fontFamily: 'Lexend Deca, system-ui, sans-serif' };
 
@@ -111,10 +114,12 @@ const FeaturedQuoteRequestPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { categorySlug } = useParams();
-  const signageItem = getFeaturedSignageBySlug(categorySlug);
+  const { addToCart } = useCart();
+  const [signageItem, setSignageItem] = useState(() => getFeaturedSignageBySlug(categorySlug));
   const presetDimensions = location.state?.presetDimensions;
   const [step, setStep] = useState('form'); // form | preview | success
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [addingToBasket, setAddingToBasket] = useState(false);
   const [artwork, setArtwork] = useState(null);
   const [formData, setFormData] = useState(() => ({
     ...getInitialFormState(signageItem?.title || ''),
@@ -123,6 +128,23 @@ const FeaturedQuoteRequestPage = () => {
     ...(presetDimensions?.unit ? { unit: presetDimensions.unit } : {}),
     ...(presetDimensions?.quantity ? { quantity: String(presetDimensions.quantity) } : {}),
   }));
+
+  useEffect(() => {
+    let cancelled = false;
+    setSignageItem(getFeaturedSignageBySlug(categorySlug));
+    (async () => {
+      try {
+        const data = await featuredSignageMediaService.getPublicBySlug(categorySlug);
+        if (cancelled) return;
+        setSignageItem(mergeFeaturedItemWithMedia(categorySlug, data?.images || data?.imageObjects));
+      } catch {
+        /* keep static */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [categorySlug]);
 
   const heading = signageItem?.heading || signageItem?.title || 'Featured Signage';
   const heroImage = signageItem?.images?.[0] || `${import.meta.env.BASE_URL}hero.jpg`;
@@ -372,6 +394,61 @@ const FeaturedQuoteRequestPage = () => {
         },
       },
     });
+  };
+
+  const buildFeaturedBasketLine = () => {
+    const totalNet = orderPayload.pricing?.totalNet ?? 0;
+    const g = orderPayload.globalInputs || {};
+    const sizeLabel =
+      g.width && g.height
+        ? `${g.width} × ${g.height} ${g.unit || ''}`.trim()
+        : '';
+    return {
+      id: `featured-signage-${categorySlug}-${Date.now()}`,
+      type: 'featured-signage',
+      title: `${heading} — Custom order`,
+      name: heading,
+      description: sizeLabel || `Featured signage for ${formData.customerName || 'customer'}`,
+      price: totalNet,
+      amountBasis: 'net',
+      quantity: 1,
+      source: 'featured-signage-order',
+      summary: buildCheckoutSummary(orderPayload),
+      artworkPreviewUrl: heroImage,
+      selectedAttributes: {
+        category: categorySlug,
+        globalInputs: orderPayload.globalInputs,
+        productSpecificInputs: orderPayload.productSpecificInputs,
+      },
+    };
+  };
+
+  const handleAddToBasket = async () => {
+    const totalNet = orderPayload.pricing?.totalNet ?? 0;
+    if (!(totalNet > 0)) {
+      toast.error('Unable to add to basket — price is not available.');
+      return;
+    }
+    if (!formData.customerName || !formData.customerEmail || !formData.customerPhone) {
+      toast.error('Please complete your contact details before adding to basket.');
+      setStep('form');
+      return;
+    }
+    setAddingToBasket(true);
+    try {
+      const line = buildFeaturedBasketLine();
+      await addToCart(line, 1);
+      toast.success('Added to basket');
+      window.dispatchEvent(
+        new CustomEvent('rspuk-basket-open', {
+          detail: { highlightId: line.id },
+        }),
+      );
+    } catch (err) {
+      toast.error(err?.message || 'Could not add to basket.');
+    } finally {
+      setAddingToBasket(false);
+    }
   };
 
   const handleBookServices = () => {
@@ -831,6 +908,33 @@ ${(orderPayload?.notes || '').trim()}`.trim(),
                           <span className="block text-sm font-bold">Pay now</span>
                           <span className="block text-xs text-emerald-100">
                             Secure checkout — £{orderPayload.pricing?.totalDisplay?.toFixed(2) ?? '—'}
+                          </span>
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleAddToBasket}
+                        disabled={addingToBasket || !(orderPayload.pricing?.totalNet > 0)}
+                        className="flex w-full items-center gap-3 rounded-xl border-2 border-blue-600 bg-white px-4 py-3 text-left transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
+                            />
+                          </svg>
+                        </span>
+                        <span>
+                          <span className="block text-sm font-bold text-blue-800">
+                            {addingToBasket ? 'Adding…' : 'Add to basket'}
+                          </span>
+                          <span className="block text-xs text-slate-500">
+                            Save this order and checkout later — £
+                            {orderPayload.pricing?.totalDisplay?.toFixed(2) ?? '—'}
                           </span>
                         </span>
                       </button>

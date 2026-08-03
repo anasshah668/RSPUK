@@ -63,7 +63,93 @@ import {
 } from '../utils/designerIconify';
 
 const DESIGN_CANVAS_DPI = 96;
-const CANVAS_SIZE_UNITS = ['mm', 'cm', 'in', 'px'];
+const CANVAS_SIZE_UNITS = ['mm', 'cm', 'in'];
+
+/** Known paper sizes used for exact mm labels (leaflets, cards, flyers). */
+const PAPER_SIZE_TEMPLATES = [
+  { id: 'a5-landscape', label: 'A5 Landscape (210 × 148mm)', widthMm: 210, heightMm: 148 },
+  { id: 'a4-portrait', label: 'A4 Portrait (210 × 297mm)', widthMm: 210, heightMm: 297 },
+  { id: 'a4-landscape', label: 'A4 Landscape (297 × 210mm)', widthMm: 297, heightMm: 210 },
+  { id: 'a3-landscape', label: 'A3 Landscape (420 × 297mm)', widthMm: 420, heightMm: 297 },
+  { id: 'a2-landscape', label: 'A2 (594 × 420mm)', widthMm: 594, heightMm: 420 },
+  { id: 'custom-210x198', label: '210mm × 198mm', widthMm: 210, heightMm: 198 },
+  { id: 'bc-55x55', label: '55 × 55mm', widthMm: 55, heightMm: 55 },
+  { id: 'bc-85x55', label: '85 × 55mm', widthMm: 85, heightMm: 55 },
+  { id: 'flyer-dl', label: '1/3 A4 DL (99 × 210mm)', widthMm: 99, heightMm: 210 },
+  { id: 'flyer-a7', label: 'A7 (74 × 105mm)', widthMm: 74, heightMm: 105 },
+  { id: 'flyer-a6', label: 'A6 (105 × 148mm)', widthMm: 105, heightMm: 148 },
+  { id: 'flyer-a5', label: 'A5 (148 × 210mm)', widthMm: 148, heightMm: 210 },
+  { id: 'flyer-a3', label: 'A3 (297 × 420mm)', widthMm: 297, heightMm: 420 },
+  { id: 'poster-custom', label: 'Custom Size (420 × 594mm)', widthMm: 420, heightMm: 594 },
+];
+
+const mmToDesignPixels = (mm) => Math.max(1, Math.round((Number(mm) / 25.4) * DESIGN_CANVAS_DPI));
+
+const matchPaperSizeTemplate = (widthMm, heightMm) => {
+  const w = Number(widthMm);
+  const h = Number(heightMm);
+  if (!Number.isFinite(w) || !Number.isFinite(h)) return '';
+  return (
+    PAPER_SIZE_TEMPLATES.find(
+      (preset) => Math.abs(preset.widthMm - w) < 1.2 && Math.abs(preset.heightMm - h) < 1.2,
+    )?.id || ''
+  );
+};
+
+/** Map canvas pixel size → exact paper mm (never show 794×1123; show 210×297). */
+const resolveExactDisplaySizeMm = (widthPx, heightPx, widthMmHint, heightMmHint) => {
+  if (widthMmHint != null && heightMmHint != null) {
+    const matchedFromHint = matchPaperSizeTemplate(widthMmHint, heightMmHint);
+    if (matchedFromHint) {
+      const preset = PAPER_SIZE_TEMPLATES.find((item) => item.id === matchedFromHint);
+      return {
+        widthMm: preset.widthMm,
+        heightMm: preset.heightMm,
+        templateId: preset.id,
+      };
+    }
+    return {
+      widthMm: Math.round(Number(widthMmHint) * 10) / 10,
+      heightMm: Math.round(Number(heightMmHint) * 10) / 10,
+      templateId: '',
+    };
+  }
+
+  const wPx = Math.round(Number(widthPx) || 0);
+  const hPx = Math.round(Number(heightPx) || 0);
+
+  const matchedFromPixels = PAPER_SIZE_TEMPLATES.find((preset) => {
+    const presetW = mmToDesignPixels(preset.widthMm);
+    const presetH = mmToDesignPixels(preset.heightMm);
+    return Math.abs(presetW - wPx) <= 2 && Math.abs(presetH - hPx) <= 2;
+  });
+  if (matchedFromPixels) {
+    return {
+      widthMm: matchedFromPixels.widthMm,
+      heightMm: matchedFromPixels.heightMm,
+      templateId: matchedFromPixels.id,
+    };
+  }
+
+  const widthMm = Math.round(((wPx / DESIGN_CANVAS_DPI) * 25.4) * 10) / 10;
+  const heightMm = Math.round(((hPx / DESIGN_CANVAS_DPI) * 25.4) * 10) / 10;
+  const matchedFromMm = matchPaperSizeTemplate(widthMm, heightMm);
+  if (matchedFromMm) {
+    const preset = PAPER_SIZE_TEMPLATES.find((item) => item.id === matchedFromMm);
+    return {
+      widthMm: preset.widthMm,
+      heightMm: preset.heightMm,
+      templateId: preset.id,
+    };
+  }
+
+  return { widthMm, heightMm, templateId: '' };
+};
+
+const formatSizeLabelMm = (widthPx, heightPx, widthMmHint, heightMmHint) => {
+  const exact = resolveExactDisplaySizeMm(widthPx, heightPx, widthMmHint, heightMmHint);
+  return `${exact.widthMm} × ${exact.heightMm}mm`;
+};
 
 const pixelsToCanvasUnit = (pixels, unit) => {
   if (unit === 'px') return Number(pixels || 0);
@@ -549,6 +635,10 @@ const GenericProductDesigner = () => {
   const [canvasSizeUnit, setCanvasSizeUnit] = useState('mm');
   const [canvasWidthInput, setCanvasWidthInput] = useState(String(DEFAULT_CANVAS_SIZE_MM.width));
   const [canvasHeightInput, setCanvasHeightInput] = useState(String(DEFAULT_CANVAS_SIZE_MM.height));
+  const [activeTemplateCategory, setActiveTemplateCategory] = useState('');
+  const canvasSizeUnitRef = useRef('mm');
+  /** Keeps leaflet/brochure size inputs on exact mm labels (avoids px overwrite). */
+  const leafletSizeLockRef = useRef(null);
   const [iconResultsByCategory, setIconResultsByCategory] = useState({});
   const [iconLoadingByCategory, setIconLoadingByCategory] = useState({});
   const [iconErrorByCategory, setIconErrorByCategory] = useState({});
@@ -925,9 +1015,45 @@ const GenericProductDesigner = () => {
     }
   };
 
-  const syncCanvasSizeInputs = (widthPx, heightPx, unit = canvasSizeUnit) => {
-    setCanvasWidthInput(formatCanvasUnitValue(pixelsToCanvasUnit(widthPx, unit), unit));
-    setCanvasHeightInput(formatCanvasUnitValue(pixelsToCanvasUnit(heightPx, unit), unit));
+  const syncCanvasSizeInputs = (widthPx, heightPx, unit = 'mm', widthMmHint, heightMmHint) => {
+    // Always surface paper size in mm — never raw pixels like 794×1123.
+    const exact = resolveExactDisplaySizeMm(widthPx, heightPx, widthMmHint, heightMmHint);
+    const requestedUnit = unit === 'px' ? 'mm' : unit;
+
+    if (exact.templateId) {
+      leafletSizeLockRef.current = {
+        templateId: exact.templateId,
+        widthMm: exact.widthMm,
+        heightMm: exact.heightMm,
+      };
+      setCanvasSizeUnit('mm');
+      canvasSizeUnitRef.current = 'mm';
+      setCanvasWidthInput(String(exact.widthMm));
+      setCanvasHeightInput(String(exact.heightMm));
+      return;
+    }
+
+    if (leafletSizeLockRef.current) {
+      const lock = leafletSizeLockRef.current;
+      setCanvasSizeUnit('mm');
+      canvasSizeUnitRef.current = 'mm';
+      setCanvasWidthInput(String(lock.widthMm));
+      setCanvasHeightInput(String(lock.heightMm));
+      return;
+    }
+
+    if (requestedUnit === 'mm') {
+      setCanvasSizeUnit('mm');
+      canvasSizeUnitRef.current = 'mm';
+      setCanvasWidthInput(String(exact.widthMm));
+      setCanvasHeightInput(String(exact.heightMm));
+      return;
+    }
+
+    setCanvasSizeUnit(requestedUnit);
+    canvasSizeUnitRef.current = requestedUnit;
+    setCanvasWidthInput(formatCanvasUnitValue(pixelsToCanvasUnit(widthPx, requestedUnit), requestedUnit));
+    setCanvasHeightInput(formatCanvasUnitValue(pixelsToCanvasUnit(heightPx, requestedUnit), requestedUnit));
   };
 
   // Applies the current pan offset to the canvas card via CSS transform. Kept
@@ -1041,16 +1167,26 @@ const GenericProductDesigner = () => {
       return;
     }
 
+    leafletSizeLockRef.current = null;
+
     // Logical / export resolution only — on-screen size stays fixed to the
     // workspace via fitCanvasStable (never blow up the DOM element).
     setCanvasLogicalDimensions(canvas, width, height);
     canvas.renderAll();
     updatePagesFromRef((prev) =>
       prev.map((page, idx) =>
-        idx === currentPageIndexRef.current ? { ...page, width, height } : page,
+        idx === currentPageIndexRef.current
+          ? {
+              ...page,
+              width,
+              height,
+              widthMm: undefined,
+              heightMm: undefined,
+            }
+          : page,
       ),
     );
-    syncCanvasSizeInputs(width, height);
+    syncCanvasSizeInputs(width, height, canvasSizeUnitRef.current);
     userZoomedRef.current = false;
     fitCanvasStable();
     refreshCanvas();
@@ -1058,7 +1194,13 @@ const GenericProductDesigner = () => {
 
   const handleCanvasSizeUnitChange = (nextUnit) => {
     if (!CANVAS_SIZE_UNITS.includes(nextUnit)) return;
+    leafletSizeLockRef.current = null;
     setCanvasSizeUnit(nextUnit);
+    canvasSizeUnitRef.current = nextUnit;
+    const page = pagesRef.current[currentPageIndexRef.current];
+    if (page?.width && page?.height) {
+      syncCanvasSizeInputs(page.width, page.height, nextUnit);
+    }
   };
 
   const finalizeNewObject = (obj) => {
@@ -1650,14 +1792,29 @@ const GenericProductDesigner = () => {
       fitCanvasNow();
       prepareCanvasForInteraction(canvas);
       const defaultPx = getDefaultCanvasPixelSize();
-      if (pageData.width === defaultPx.width && pageData.height === defaultPx.height) {
-        setCanvasSizeUnit('mm');
-        syncCanvasSizeInputs(pageData.width, pageData.height, 'mm');
-      } else {
-        setCanvasSizeUnit('px');
-        setCanvasWidthInput(String(pageData.width));
-        setCanvasHeightInput(String(pageData.height));
-      }
+      const exact = resolveExactDisplaySizeMm(
+        pageData.width || defaultPx.width,
+        pageData.height || defaultPx.height,
+        pageData.widthMm,
+        pageData.heightMm,
+      );
+      leafletSizeLockRef.current = exact.templateId
+        ? {
+            templateId: exact.templateId,
+            widthMm: exact.widthMm,
+            heightMm: exact.heightMm,
+          }
+        : pageData.widthMm != null
+          ? {
+              templateId: '',
+              widthMm: exact.widthMm,
+              heightMm: exact.heightMm,
+            }
+          : null;
+      setCanvasSizeUnit('mm');
+      canvasSizeUnitRef.current = 'mm';
+      setCanvasWidthInput(String(exact.widthMm));
+      setCanvasHeightInput(String(exact.heightMm));
       refreshCanvas();
     } finally {
       // Only the most recent load is allowed to clear the guards.
@@ -1948,16 +2105,29 @@ const GenericProductDesigner = () => {
   useEffect(() => {
     if (!canvas) return;
     const page = pages[currentPageIndex];
-    // Page record is the source of truth (templates ship their own width/height).
     const widthPx = page?.width || canvas.getWidth() || getDefaultCanvasPixelSize().width;
     const heightPx = page?.height || canvas.getHeight() || getDefaultCanvasPixelSize().height;
-    syncCanvasSizeInputs(widthPx, heightPx, canvasSizeUnit);
+    const exact = resolveExactDisplaySizeMm(widthPx, heightPx, page?.widthMm, page?.heightMm);
+
+    if (exact.templateId || leafletSizeLockRef.current) {
+      leafletSizeLockRef.current = {
+        templateId: exact.templateId || leafletSizeLockRef.current?.templateId || '',
+        widthMm: exact.widthMm,
+        heightMm: exact.heightMm,
+      };
+    }
+
+    setCanvasSizeUnit('mm');
+    canvasSizeUnitRef.current = 'mm';
+    setCanvasWidthInput(String(exact.widthMm));
+    setCanvasHeightInput(String(exact.heightMm));
   }, [
     canvas,
     currentPageIndex,
-    canvasSizeUnit,
     pages[currentPageIndex]?.width,
     pages[currentPageIndex]?.height,
+    pages[currentPageIndex]?.widthMm,
+    pages[currentPageIndex]?.heightMm,
   ]);
 
   const switchToPage = (index) => {
@@ -3135,9 +3305,41 @@ const GenericProductDesigner = () => {
       if (canvas) {
         // Invalidate any in-flight page load so it can't overwrite the template.
         loadTokenRef.current += 1;
-        setCanvasSizeUnit('px');
-        setCanvasWidthInput(String(targetPage.width));
-        setCanvasHeightInput(String(targetPage.height));
+
+        const isSizedPrintTemplate =
+          template.category === 'Leaflets & Brochures' ||
+          template.category === 'Business Cards' ||
+          template.category === 'Flyers' ||
+          template.category === 'Posters';
+        const exact = resolveExactDisplaySizeMm(
+          targetPage.width,
+          targetPage.height,
+          targetPage.widthMm,
+          targetPage.heightMm,
+        );
+
+        leafletSizeLockRef.current = isSizedPrintTemplate || exact.templateId
+          ? {
+              templateId: exact.templateId,
+              widthMm: exact.widthMm,
+              heightMm: exact.heightMm,
+            }
+          : null;
+
+        setCanvasSizeUnit('mm');
+        canvasSizeUnitRef.current = 'mm';
+        setCanvasWidthInput(String(exact.widthMm));
+        setCanvasHeightInput(String(exact.heightMm));
+        targetPage.widthMm = exact.widthMm;
+        targetPage.heightMm = exact.heightMm;
+        nextPages = nextPages.map((page, idx) =>
+          idx === nextIndex
+            ? { ...page, widthMm: exact.widthMm, heightMm: exact.heightMm }
+            : page,
+        );
+        pagesRef.current = nextPages;
+        commitPagesState(nextPages);
+
         await loadPageOntoCanvas(canvas, clonePageRecord(targetPage));
 
         fitCanvasNow();
@@ -3170,6 +3372,7 @@ const GenericProductDesigner = () => {
       if (mode === 'replace-project') {
         activeTemplateIdRef.current = template.id;
       }
+      setActiveTemplateCategory(template.category || '');
 
       setIsLeftDrawerOpen(true);
 
@@ -4436,6 +4639,27 @@ const GenericProductDesigner = () => {
 
         <div className="hidden flex-1 sm:block" />
 
+        <button
+          type="button"
+          onClick={() => navigate(getRoutePath('professionalDesignRequest'))}
+          className="group inline-flex max-w-[min(100%,22rem)] items-center gap-2 rounded-xl border border-slate-800 bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 px-3 py-1.5 text-left shadow-sm transition hover:border-emerald-400/50 hover:shadow-md sm:px-3.5 sm:py-2"
+          title="Go to professional design service"
+        >
+          <span className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/30 sm:inline-flex">
+            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
+            </svg>
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-[11px] font-semibold leading-tight text-white sm:text-xs">
+              Want to design professionally?
+            </span>
+            <span className="hidden truncate text-[10px] leading-tight text-emerald-300/90 md:block">
+              Hire our design team →
+            </span>
+          </span>
+        </button>
+
         {!isLeftDrawerOpen ? (
           <button
             type="button"
@@ -4664,6 +4888,32 @@ const GenericProductDesigner = () => {
           <div ref={sidebarScrollRef} className="flex-1 overflow-y-auto px-4 py-4">
         {activeTab === 'templates' && (
           <div className="space-y-3">
+            <button
+              type="button"
+              onClick={() => navigate(getRoutePath('professionalDesignRequest'))}
+              className="group w-full rounded-xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 px-3.5 py-3.5 text-left shadow-sm transition hover:border-emerald-400/60 hover:shadow-md"
+            >
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/30">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
+                  </svg>
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-white">Want to design professionally?</p>
+                  <p className="mt-0.5 text-[11px] leading-snug text-slate-300">
+                    Let our in-house team create print-ready artwork for you.
+                  </p>
+                  <span className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-300 group-hover:text-emerald-200">
+                    Go to design service
+                    <svg className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </span>
+                </div>
+              </div>
+            </button>
+
             <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
               Tap a template to load a fully designed layout. Everything — text, colours, shapes — stays editable.
             </p>
@@ -4699,7 +4949,16 @@ const GenericProductDesigner = () => {
               <div className="grid grid-cols-2 gap-3">
                 {filteredTemplates.map((template) => {
                   const thumb = templateThumbnails[template.id];
-                  const ratio = template.pages[0].width / template.pages[0].height;
+                  const firstPage = template.pages[0];
+                  const ratio = firstPage.width / firstPage.height;
+                  const sizeLabel =
+                    template.paperSizeLabel ||
+                    formatSizeLabelMm(
+                      firstPage.width,
+                      firstPage.height,
+                      firstPage.widthMm,
+                      firstPage.heightMm,
+                    );
                   const isApplying = applyingTemplateId === template.id;
                   return (
                     <button
@@ -4734,9 +4993,7 @@ const GenericProductDesigner = () => {
                       </div>
                       <div className="px-2 py-1.5">
                         <div className="truncate text-xs font-semibold text-slate-900">{template.name}</div>
-                        <div className="truncate text-[10px] text-slate-500">
-                          {template.pages[0].width}×{template.pages[0].height}
-                        </div>
+                        <div className="truncate text-[10px] text-slate-500">{sizeLabel}</div>
                       </div>
                     </button>
                   );
@@ -5474,7 +5731,9 @@ const GenericProductDesigner = () => {
                   }`}
                 >
                   <div className="text-sm font-medium">{page.name}</div>
-                  <div className="text-xs text-gray-500">{page.width} x {page.height}</div>
+                  <div className="text-xs text-gray-500">
+                    {formatSizeLabelMm(page.width, page.height, page.widthMm, page.heightMm)}
+                  </div>
                 </button>
               ))}
             </div>
@@ -6176,7 +6435,7 @@ const GenericProductDesigner = () => {
           <div className="flex items-center gap-2 flex-wrap justify-end">
             <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Size</span>
             <select
-              value={canvasSizeUnit}
+              value={canvasSizeUnit === 'px' ? 'mm' : canvasSizeUnit}
               onChange={(e) => handleCanvasSizeUnitChange(e.target.value)}
               className="rounded-lg border border-gray-300 p-2 text-sm"
               title="Measurement unit"
@@ -6184,15 +6443,17 @@ const GenericProductDesigner = () => {
               <option value="mm">mm</option>
               <option value="cm">cm</option>
               <option value="in">in</option>
-              <option value="px">px</option>
             </select>
             <input
               type="number"
               min={canvasSizeUnit === 'in' ? '0.1' : '1'}
-              step={canvasSizeUnit === 'px' ? '1' : canvasSizeUnit === 'in' ? '0.01' : '0.1'}
+              step={canvasSizeUnit === 'in' ? '0.01' : '0.1'}
               value={canvasWidthInput}
-              onChange={(e) => setCanvasWidthInput(e.target.value)}
-              className="w-20 rounded-lg border border-gray-300 p-2 text-sm"
+              onChange={(e) => {
+                leafletSizeLockRef.current = null;
+                setCanvasWidthInput(e.target.value);
+              }}
+              className="w-24 rounded-lg border border-gray-300 p-2 text-sm"
               title="Width"
               aria-label="Canvas width"
             />
@@ -6200,13 +6461,19 @@ const GenericProductDesigner = () => {
             <input
               type="number"
               min={canvasSizeUnit === 'in' ? '0.1' : '1'}
-              step={canvasSizeUnit === 'px' ? '1' : canvasSizeUnit === 'in' ? '0.01' : '0.1'}
+              step={canvasSizeUnit === 'in' ? '0.01' : '0.1'}
               value={canvasHeightInput}
-              onChange={(e) => setCanvasHeightInput(e.target.value)}
-              className="w-20 rounded-lg border border-gray-300 p-2 text-sm"
+              onChange={(e) => {
+                leafletSizeLockRef.current = null;
+                setCanvasHeightInput(e.target.value);
+              }}
+              className="w-24 rounded-lg border border-gray-300 p-2 text-sm"
               title="Height"
               aria-label="Canvas height"
             />
+            <span className="text-xs font-semibold text-gray-500">
+              {canvasSizeUnit === 'px' ? 'mm' : canvasSizeUnit}
+            </span>
             <button
               type="button"
               onClick={applyCanvasSize}
@@ -6328,8 +6595,8 @@ const GenericProductDesigner = () => {
               style={{ transform: 'translate(-50%, -50%)' }}
             >
               <CanvasSizeGuides
-                widthLabel={`${canvasWidthInput} ${canvasSizeUnit}`}
-                heightLabel={`${canvasHeightInput} ${canvasSizeUnit}`}
+                widthLabel={`${canvasWidthInput} ${canvasSizeUnit === 'px' ? 'mm' : canvasSizeUnit}`}
+                heightLabel={`${canvasHeightInput} ${canvasSizeUnit === 'px' ? 'mm' : canvasSizeUnit}`}
                 displayWidth={getCanvasDisplaySize(canvas, zoom).width}
                 displayHeight={getCanvasDisplaySize(canvas, zoom).height}
               >
@@ -6531,7 +6798,9 @@ const GenericProductDesigner = () => {
                 )}
               </div>
               <div className="mt-1.5 text-[11px] font-medium text-gray-700 break-words">{page.name}</div>
-              <div className="text-[11px] text-gray-500">{page.width} x {page.height}</div>
+              <div className="text-[11px] text-gray-500">
+                {formatSizeLabelMm(page.width, page.height, page.widthMm, page.heightMm)}
+              </div>
             </button>
           ))}
         </div>

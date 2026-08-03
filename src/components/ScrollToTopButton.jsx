@@ -21,7 +21,7 @@ const ScrollToTopButton = () => {
       type="button"
       aria-label="Scroll to top"
       onClick={scrollToTop}
-      className={`fixed bottom-6 right-6 z-50 h-11 w-11 rounded-full bg-blue-600 text-white shadow-lg transition-all duration-300 hover:bg-blue-700 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 ${
+      className={`fixed bottom-[5.75rem] right-6 z-50 h-11 w-11 rounded-full bg-slate-800 text-white shadow-lg transition-all duration-300 hover:bg-slate-900 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 ${
         isVisible ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-3 pointer-events-none'
       }`}
     >

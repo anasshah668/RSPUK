@@ -1,12 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import CommonCheckout from '../components/CommonCheckout';
 import DesignerAuthModal from '../components/DesignerAuthModal';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 import { designService } from '../services/designService';
-import { paymentService } from '../services/paymentService';
-import { formatPaymentErrorForToast } from '../utils/formatPaymentChargeError';
+import { getRoutePath } from '../config/routes.config';
 
 const font = { fontFamily: 'Lexend Deca, sans-serif' };
 
@@ -20,6 +19,9 @@ const DESIGN_TYPES = [
   'Menus, brochures and marketing collateral',
   'Social media graphics and campaign assets',
 ];
+
+const PROJECT_TITLE_OPTIONS = [...DESIGN_TYPES, 'Other'];
+const OTHER_TITLE_VALUE = 'Other';
 
 const DESIGN_PROCESS = [
   {
@@ -65,25 +67,29 @@ const DESIGN_FAQS = [
 const DesignServicePage = () => {
   const navigate = useNavigate();
   const { user, authReady, isAuthenticated } = useAuth();
+  const { addToCart, clearCart, cartItems } = useCart();
 
   const [pricing, setPricing] = useState({ price: 50, currency: 'GBP', vatInclusive: true });
   const [step, setStep] = useState('form');
   const [submitting, setSubmitting] = useState(false);
-  const [paying, setPaying] = useState(false);
+  const [addingToBasket, setAddingToBasket] = useState(false);
   const [requestId, setRequestId] = useState('');
   const [requestDoc, setRequestDoc] = useState(null);
 
-  const [title, setTitle] = useState('');
+  const [titleOption, setTitleOption] = useState('');
+  const [customTitle, setCustomTitle] = useState('');
+  const [titleDropdownOpen, setTitleDropdownOpen] = useState(false);
   const [productType, setProductType] = useState('');
   const [brief, setBrief] = useState('');
   const [referenceFiles, setReferenceFiles] = useState([]);
+
+  const title = titleOption === OTHER_TITLE_VALUE ? customTitle : titleOption;
+  const titleDropdownRef = useRef(null);
 
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState('signup');
   const pendingSubmitRef = useRef(false);
 
-  const [paymentMethod, setPaymentMethod] = useState('worldpay-card');
-  const [acceptTerms, setAcceptTerms] = useState(false);
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
     email: '',
@@ -95,18 +101,36 @@ const DesignServicePage = () => {
 
   useEffect(() => {
     if (!authReady) return;
-    if (step === 'payment' && !isAuthenticated()) {
+    if (step === 'choose' && !isAuthenticated()) {
       setStep('form');
       setRequestId('');
       setRequestDoc(null);
       openAuthModal('signin');
-      toast.error('Please sign in to complete payment.');
+      toast.error('Please sign in to continue.');
     }
   }, [authReady, step, user]);
 
   useEffect(() => {
     designService.getPrice().then(setPricing).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!titleDropdownOpen) return undefined;
+    const handleClickOutside = (event) => {
+      if (titleDropdownRef.current && !titleDropdownRef.current.contains(event.target)) {
+        setTitleDropdownOpen(false);
+      }
+    };
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') setTitleDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [titleDropdownOpen]);
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -160,22 +184,6 @@ const DesignServicePage = () => {
     [totalAmount, requestDoc?.title],
   );
 
-  const orderSummary = useMemo(
-    () => (
-      <dl className="grid gap-2">
-        {orderSummaryRows.map((row) => (
-          <div key={row.label} className="flex justify-between gap-3 min-w-0">
-            <dt className="text-gray-500 shrink-0">{row.label}</dt>
-            <dd className="text-gray-900 font-medium text-right truncate" title={row.value}>
-              {row.value}
-            </dd>
-          </div>
-        ))}
-      </dl>
-    ),
-    [orderSummaryRows],
-  );
-
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files || []).slice(0, 5);
     setReferenceFiles(files);
@@ -193,7 +201,11 @@ const DesignServicePage = () => {
       return;
     }
     if (!title.trim() || !brief.trim()) {
-      toast.error('Please enter a project title and design brief.');
+      toast.error(
+        titleOption === OTHER_TITLE_VALUE && !customTitle.trim()
+          ? 'Please enter your project title.'
+          : 'Please select a project title and enter a design brief.',
+      );
       return;
     }
     if (!customerInfo.name.trim()) {
@@ -217,8 +229,8 @@ const DesignServicePage = () => {
       });
       setRequestId(created._id);
       setRequestDoc(created);
-      setStep('payment');
-      toast.success('Brief saved. Complete payment to submit your design job.');
+      setStep('choose');
+      toast.success('Brief saved. Add it to your basket or continue to checkout.');
     } catch (err) {
       toast.error(err?.message || 'Could not create design request.');
     } finally {
@@ -229,7 +241,11 @@ const DesignServicePage = () => {
   const handleCreateRequest = async (e) => {
     e.preventDefault();
     if (!title.trim() || !brief.trim()) {
-      toast.error('Please enter a project title and design brief.');
+      toast.error(
+        titleOption === OTHER_TITLE_VALUE && !customTitle.trim()
+          ? 'Please enter your project title.'
+          : 'Please select a project title and enter a design brief.',
+      );
       return;
     }
     if (!customerInfo.name.trim()) {
@@ -248,100 +264,87 @@ const DesignServicePage = () => {
     await performCreateRequest();
   };
 
-  const handleCustomerInfoChange = (next) => {
-    setCustomerInfo({
-      ...next,
-      email: user?.email || next.email || '',
-    });
+  const buildDesignServiceLine = () => {
+    const projectTitle = requestDoc?.title || title.trim();
+    const briefText = String(requestDoc?.brief || brief || '').trim();
+    const price = Number(requestDoc?.priceAmount) > 0 ? Number(requestDoc.priceAmount) : totalAmount;
+    const id = requestDoc?._id || requestId;
+    return {
+      id: `design-service-${id}`,
+      type: 'design-service',
+      title: 'Professional Design Service',
+      name: 'Professional Design Service',
+      description: projectTitle,
+      price,
+      quantity: 1,
+      designServiceRequestId: id,
+      summary: [
+        { label: 'Project', value: projectTitle },
+        { label: 'Product / format', value: requestDoc?.productType || productType.trim() || '—' },
+        {
+          label: 'Brief',
+          value: briefText.length > 180 ? `${briefText.slice(0, 177)}…` : briefText || '—',
+        },
+        { label: 'Price', value: `£${price.toFixed(2)}` },
+      ],
+    };
   };
 
-  const handlePayment = async ({ sessionState, sessionHref, provider }) => {
+  const handleAddToBasket = async () => {
     if (!isAuthenticated()) {
       openAuthModal('signin');
-      toast.error('Please sign in to complete payment.');
+      toast.error('Please sign in to add to basket.');
       return;
     }
-    if (!requestId) {
-      toast.error('Design request is missing. Please go back and submit your brief again.');
+    if (!requestDoc?._id && !requestId) {
+      toast.error('Design request is missing. Please submit your brief again.');
       return;
     }
-    if (provider !== 'worldpay') {
-      toast.info('Please use card payment for design service.');
-      return;
-    }
-    if (!acceptTerms) {
-      toast.error('Please accept the terms before paying.');
-      return;
-    }
-
-    const accountEmail = String(user?.email || customerInfo.email || '').trim();
-    if (!accountEmail) {
-      toast.error('Your account email is required for payment.');
-      return;
-    }
-
-    setPaying(true);
+    setAddingToBasket(true);
     try {
-      const orderReference = `DS-${Date.now()}`;
-      const result = await paymentService.chargeDesignServiceWorldpay({
-        sessionState,
-        sessionHref,
-        amount: totalAmount,
-        currency: pricing.currency || 'GBP',
-        orderReference,
-        customerInfo: {
-          name: customerInfo.name || user?.name || '',
-          email: accountEmail,
-          phone: customerInfo.phone,
-          address: customerInfo.address,
-          city: customerInfo.city,
-          postalCode: customerInfo.postalCode,
-        },
-        billingAddress: {
-          address1: customerInfo.address,
-          city: customerInfo.city,
-          postalCode: customerInfo.postalCode,
-          countryCode: 'GB',
-        },
-        orderDetails: {
-          title: requestDoc?.title || title,
-          description: 'Professional design service',
-          designServiceRequestId: requestId,
-          summary: orderSummaryRows,
-        },
-        lineItems: [
-          {
-            id: requestId,
-            name: 'Professional Design Service',
-            title: requestDoc?.title || title,
-            type: 'design-service',
-            quantity: 1,
-            price: totalAmount,
-          },
-        ],
-      });
-
-      navigate('/payment-success', {
-        state: {
-          paymentSuccess: true,
-          orderReference: result.orderReference,
-          paymentId: result.paymentId,
-          trackingId: result.trackingId,
-          amount: result.amount,
-          currency: result.currency || 'GBP',
-          email: customerInfo.email,
-          customerName: customerInfo.name,
-          orderTitle: 'Professional Design Service',
-          designServiceSuccess: true,
-          receiptEmailSent: result.receiptEmailSent,
-          receiptEmailReason: result.receiptEmailReason,
-        },
-      });
+      const line = buildDesignServiceLine();
+      // Design-service add should not keep leftover neon/products from earlier sessions.
+      if (cartItems.length > 0) {
+        await clearCart();
+      }
+      await addToCart(line, 1);
+      toast.success('Design service added to basket');
+      window.dispatchEvent(
+        new CustomEvent('rspuk-basket-open', {
+          detail: { highlightId: line.id },
+        }),
+      );
     } catch (err) {
-      toast.error(formatPaymentErrorForToast(err));
+      toast.error(err?.message || 'Could not add to basket.');
     } finally {
-      setPaying(false);
+      setAddingToBasket(false);
     }
+  };
+
+  const handleProceedToCheckout = () => {
+    if (!isAuthenticated()) {
+      openAuthModal('signin');
+      toast.error('Please sign in to checkout.');
+      return;
+    }
+    if (!requestDoc?._id && !requestId) {
+      toast.error('Design request is missing. Please submit your brief again.');
+      return;
+    }
+    const line = buildDesignServiceLine();
+    navigate(getRoutePath('checkout'), {
+      state: {
+        checkoutData: {
+          title: line.title,
+          description: line.description,
+          amount: line.price,
+          type: 'design-service',
+          designServiceRequestId: line.designServiceRequestId,
+          summary: line.summary,
+        },
+        checkoutItems: [line],
+      },
+    });
   };
 
   if (!authReady) {
@@ -373,16 +376,143 @@ const DesignServicePage = () => {
         <form onSubmit={handleCreateRequest} className="space-y-6">
           <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-800 mb-1" style={font}>
+              <label className="block text-sm font-semibold text-gray-800 mb-2" style={font}>
                 Project title *
               </label>
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. A5 leaflet for spring promotion"
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm"
-                required
-              />
+              <div className="relative" ref={titleDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setTitleDropdownOpen((open) => !open)}
+                  aria-haspopup="listbox"
+                  aria-expanded={titleDropdownOpen}
+                  className={`group flex w-full items-center justify-between gap-3 rounded-xl border bg-white px-4 py-3 text-left text-sm shadow-sm transition ${
+                    titleDropdownOpen
+                      ? 'border-blue-500 ring-2 ring-blue-100'
+                      : titleOption
+                        ? 'border-gray-300 hover:border-blue-300'
+                        : 'border-gray-300 hover:border-gray-400'
+                  }`}
+                  style={font}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className={`block truncate font-medium ${
+                        titleOption ? 'text-gray-900' : 'text-gray-400'
+                      }`}
+                    >
+                      {titleOption || 'Select a project title…'}
+                    </span>
+                    {titleOption && titleOption !== OTHER_TITLE_VALUE ? (
+                      <span className="mt-0.5 block truncate text-xs text-gray-500">
+                        Chosen for your design brief
+                      </span>
+                    ) : null}
+                    {titleOption === OTHER_TITLE_VALUE ? (
+                      <span className="mt-0.5 block truncate text-xs text-gray-500">
+                        Enter a custom title below
+                      </span>
+                    ) : null}
+                  </span>
+                  <span
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition ${
+                      titleDropdownOpen
+                        ? 'border-blue-200 bg-blue-50 text-blue-700'
+                        : 'border-gray-200 bg-gray-50 text-gray-500 group-hover:border-blue-100 group-hover:text-blue-600'
+                    }`}
+                  >
+                    <svg
+                      className={`h-4 w-4 transition-transform duration-200 ${titleDropdownOpen ? 'rotate-180' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </span>
+                </button>
+
+                {titleDropdownOpen && (
+                  <div
+                    role="listbox"
+                    aria-label="Project title options"
+                    className="absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl shadow-gray-200/70"
+                  >
+                    <div className="max-h-72 overflow-y-auto py-1.5">
+                      {PROJECT_TITLE_OPTIONS.map((option) => {
+                        const selected = titleOption === option;
+                        const isOther = option === OTHER_TITLE_VALUE;
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            role="option"
+                            aria-selected={selected}
+                            onClick={() => {
+                              setTitleOption(option);
+                              if (option !== OTHER_TITLE_VALUE) setCustomTitle('');
+                              setTitleDropdownOpen(false);
+                            }}
+                            className={`flex w-full items-start gap-3 px-4 py-2.5 text-left transition ${
+                              selected
+                                ? 'bg-blue-50 text-blue-900'
+                                : 'text-gray-700 hover:bg-gray-50'
+                            }`}
+                            style={font}
+                          >
+                            <span
+                              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                                selected
+                                  ? 'border-blue-600 bg-blue-600 text-white'
+                                  : 'border-gray-300 bg-white'
+                              }`}
+                            >
+                              {selected ? (
+                                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : null}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className={`block text-sm font-medium ${selected ? 'text-blue-900' : 'text-gray-900'}`}>
+                                {option}
+                              </span>
+                              {isOther ? (
+                                <span className="mt-0.5 block text-xs text-gray-500">
+                                  Not listed? Type your own project title
+                                </span>
+                              ) : null}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {titleOption === OTHER_TITLE_VALUE && (
+                <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/60 p-3">
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-blue-800" style={font}>
+                    Custom project title
+                  </label>
+                  <input
+                    value={customTitle}
+                    onChange={(e) => setCustomTitle(e.target.value)}
+                    placeholder="e.g. A5 leaflet for spring promotion"
+                    className="w-full rounded-lg border border-blue-200 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    style={font}
+                    required
+                    autoFocus
+                  />
+                </div>
+              )}
+
+              {!titleOption ? (
+                <p className="mt-2 text-xs text-gray-500" style={font}>
+                  Pick a type from the list, or choose Other to write your own.
+                </p>
+              ) : null}
             </div>
 
             <div>
@@ -537,53 +667,89 @@ const DesignServicePage = () => {
               className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold px-6 py-2.5 rounded-lg"
               style={font}
             >
-              {submitting ? 'Saving...' : 'Continue to payment'}
+              {submitting ? 'Saving…' : 'Continue'}
             </button>
           </div>
         </form>
       )}
 
-      {step === 'payment' && requestDoc && isAuthenticated() && (
-        <div className="space-y-4">
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900" style={font}>
-            Brief saved for <strong>{requestDoc.title}</strong>. Pay below to submit the job to our design team.
+      {step === 'choose' && requestDoc && isAuthenticated() && (
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-blue-50 p-5" style={font}>
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Brief saved</p>
+            <h2 className="mt-1 text-xl font-bold text-gray-900">{requestDoc.title}</h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Choose how you want to continue — add this design service to your basket, or go straight to checkout.
+            </p>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-4 text-sm text-gray-700" style={font}>
-            <p className="font-semibold text-gray-900 mb-2">Your brief</p>
-            <p className="whitespace-pre-wrap">{requestDoc.brief}</p>
-            {requestDoc.referenceFiles?.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {requestDoc.referenceFiles.map((file) => (
-                  <a
-                    key={file.url}
-                    href={file.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs text-blue-600 underline"
-                  >
-                    {file.originalName || 'Reference file'}
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm" style={font}>
+            <h3 className="text-sm font-bold text-gray-900 mb-3">Order summary</h3>
+            <dl className="divide-y divide-gray-100 rounded-xl border border-gray-200">
+              {orderSummaryRows.map((row) => (
+                <div key={row.label} className="flex justify-between gap-4 px-4 py-3 text-sm">
+                  <dt className="text-gray-500 shrink-0">{row.label}</dt>
+                  <dd className="text-gray-900 font-medium text-right">{row.value}</dd>
+                </div>
+              ))}
+            </dl>
 
-          <CommonCheckout
-            title="Pay for design service"
-            orderSummary={orderSummary}
-            totalAmount={totalAmount}
-            customerInfo={customerInfo}
-            onCustomerInfoChange={handleCustomerInfoChange}
-            paymentMethod={paymentMethod}
-            onPaymentMethodChange={setPaymentMethod}
-            acceptTerms={acceptTerms}
-            onAcceptTermsChange={setAcceptTerms}
-            onSubmit={handlePayment}
-            submitDisabled={paying || !acceptTerms}
-            isProcessingPayment={paying}
-            submitLabel={paying ? 'Processing...' : `Pay £${totalAmount.toFixed(2)}`}
-          />
+            <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Your brief</p>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap">{requestDoc.brief}</p>
+              {requestDoc.referenceFiles?.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {requestDoc.referenceFiles.map((file) => (
+                    <a
+                      key={file.url}
+                      href={file.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-blue-600 underline"
+                    >
+                      {file.originalName || 'Reference file'}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={handleAddToBasket}
+                disabled={addingToBasket}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border-2 border-blue-600 px-5 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 disabled:opacity-50"
+                style={font}
+              >
+                <svg className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
+                  />
+                </svg>
+                {addingToBasket ? 'Adding…' : 'Add to basket'}
+              </button>
+              <button
+                type="button"
+                onClick={handleProceedToCheckout}
+                disabled={addingToBasket}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+                style={font}
+              >
+                Proceed to checkout
+                <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+
+            <p className="mt-3 text-xs text-gray-500" style={font}>
+              Open the basket in the header anytime to review items. Payment is completed at checkout.
+            </p>
+          </div>
 
           <button
             type="button"
@@ -610,11 +776,11 @@ const DesignServicePage = () => {
           }
         }}
         title="Sign in to continue"
-        subtitle="Sign in or create an account to save your brief and proceed to payment."
+        subtitle="Sign in or create an account to save your brief, then add to basket or checkout."
         benefits={[
           'Save your design request to your account',
-          'Pay securely and track progress from My Account',
-          'Receive updates when your design is ready',
+          'Add to basket or checkout securely',
+          'Track progress from My Account',
         ]}
         verifyOtpButtonLabel="Verify & continue"
         signInButtonLabel="Sign in & continue"

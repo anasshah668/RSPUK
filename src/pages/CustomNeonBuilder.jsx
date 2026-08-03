@@ -35,10 +35,6 @@ const NEON_ABOUT_POINTS = [
     body: 'Your design is built with flexible LED neon-style tubing on a backing cut to your text or shape—bright, efficient, and ready to mount.',
   },
   {
-    title: 'Indoor and outdoor options',
-    body: 'Choose the environment that matches where you will install it. Outdoor builds use a weather-appropriate specification so your sign can cope with the elements.',
-  },
-  {
     title: 'Sized to your space',
     body: 'Pick a preset size or enter custom dimensions. The live preview helps you visualise layout; final production follows the specifications you confirm at checkout.',
   },
@@ -52,10 +48,6 @@ const NEON_BUILDER_FAQ = [
   {
     q: 'How accurate is the live preview?',
     a: 'The preview shows your text, font, colour, and approximate layout. Final appearance may vary slightly with manufacturing, ambient light, and how the sign is photographed. Colours especially can differ a little from screen to finished product.',
-  },
-  {
-    q: 'What is the difference between indoor and outdoor?',
-    a: 'Outdoor options are specified for exterior use (for example IP-rated builds where applicable). Indoor signs are intended for dry, interior spaces. Pick the option that matches where you will install your sign.',
   },
   {
     q: 'Do I get mounting hardware?',
@@ -96,16 +88,11 @@ const CustomNeonBuilder = () => {
     letterSpacing: 2,
     flicker: false,
 
-    // Build options — null until customer selects (single-choice fields defaulted below)
-    environment: null,
-    jacket: null,
+    // Build options
     backgroundStyle: 'cut-to-shape',
     backgroundColor: null,
     mountingOption: 'wall-mounting-screws',
-    addOnShape: 'none',
     tubeThickness: null,
-    remoteDimmer: null,
-    powerMode: null,
   });
   const [selectedSize, setSelectedSize] = useState(null);
   const [customSizeEnabled, setCustomSizeEnabled] = useState(false);
@@ -258,29 +245,18 @@ const CustomNeonBuilder = () => {
 
   const pricingSelectionComplete = useMemo(() => {
     const bg = neonConfig.backgroundColor;
-    const shape = neonConfig.addOnShape;
     return (
       Boolean(selectedSize?.width && selectedSize?.height) &&
-      (neonConfig.environment === 'indoor' || neonConfig.environment === 'outdoor') &&
-      (neonConfig.jacket === 'coloured' || neonConfig.jacket === 'white') &&
       ['white', 'black', 'silver', 'yellow'].includes(bg) &&
       neonConfig.mountingOption === 'wall-mounting-screws' &&
-      (shape === 'none' || shape === 'heart' || shape === 'star') &&
-      (neonConfig.tubeThickness === 'classic' || neonConfig.tubeThickness === 'bold') &&
-      (neonConfig.remoteDimmer === 'yes' || neonConfig.remoteDimmer === 'no') &&
-      (neonConfig.powerMode === 'battery-operated' || neonConfig.powerMode === 'power-adaptor')
+      (neonConfig.tubeThickness === 'classic' || neonConfig.tubeThickness === 'bold')
     );
   }, [
     selectedSize?.width,
     selectedSize?.height,
-    neonConfig.environment,
-    neonConfig.jacket,
     neonConfig.backgroundColor,
     neonConfig.mountingOption,
-    neonConfig.addOnShape,
     neonConfig.tubeThickness,
-    neonConfig.remoteDimmer,
-    neonConfig.powerMode,
   ]);
 
   const NEON_TEXT_PLACEHOLDER = 'Start Typing';
@@ -299,29 +275,14 @@ const CustomNeonBuilder = () => {
     const msgs = [];
     if (!isCustomNeonTextValid) msgs.push('enter your sign text (replace the placeholder)');
     if (!selectedSize?.width || !selectedSize?.height) msgs.push('select sign width and height');
-    if (!(neonConfig.environment === 'indoor' || neonConfig.environment === 'outdoor')) {
-      msgs.push('choose indoor or outdoor');
-    }
-    if (!(neonConfig.jacket === 'white' || neonConfig.jacket === 'coloured')) {
-      msgs.push('choose jacket colour');
-    }
     if (!['white', 'black', 'silver', 'yellow'].includes(neonConfig.backgroundColor)) {
       msgs.push('choose a background colour');
     }
     if (neonConfig.mountingOption !== 'wall-mounting-screws') {
       msgs.push('confirm wall mounting');
     }
-    if (!['none', 'heart', 'star'].includes(neonConfig.addOnShape)) {
-      msgs.push('choose an add-on shape (or none)');
-    }
     if (!(neonConfig.tubeThickness === 'classic' || neonConfig.tubeThickness === 'bold')) {
       msgs.push('choose tube thickness');
-    }
-    if (!(neonConfig.remoteDimmer === 'yes' || neonConfig.remoteDimmer === 'no')) {
-      msgs.push('choose remote dimmer');
-    }
-    if (!(neonConfig.powerMode === 'battery-operated' || neonConfig.powerMode === 'power-adaptor')) {
-      msgs.push('choose power mode');
     }
     return msgs;
   };
@@ -374,12 +335,7 @@ const CustomNeonBuilder = () => {
         const res = await neonPricingService.calculate({
           width: selectedSize?.width || '',
           height: selectedSize?.height || '',
-          environment: neonConfig.environment,
-          jacket: neonConfig.jacket,
           tubeThickness: neonConfig.tubeThickness,
-          remoteDimmer: neonConfig.remoteDimmer,
-          powerMode: neonConfig.powerMode,
-          addOnShape: neonConfig.addOnShape,
           backgroundColor: neonConfig.backgroundColor,
           presetPrice:
             selectedSize?.price != null && Number(selectedSize.price) > 0
@@ -411,18 +367,13 @@ const CustomNeonBuilder = () => {
     selectedSize?.width,
     selectedSize?.height,
     selectedSize?.price,
-    neonConfig.environment,
-    neonConfig.jacket,
     neonConfig.tubeThickness,
-    neonConfig.remoteDimmer,
-    neonConfig.powerMode,
-    neonConfig.addOnShape,
     neonConfig.backgroundColor,
   ]);
 
   const neonSpecSummaryRows = useMemo(() => {
     const textRaw = (neonConfig.text || '').trim();
-    const textDisplay = `${textRaw}${neonConfig.addOnShape === 'heart' ? ' ♡' : neonConfig.addOnShape === 'star' ? ' ☆' : ''}`;
+    const textDisplay = textRaw;
     const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Not selected');
     const dim = selectedSize
       ? `${selectedSize.width} × ${selectedSize.height}${
@@ -454,26 +405,6 @@ const CustomNeonBuilder = () => {
       { key: 'glow', label: 'Glow intensity', value: String(neonConfig.glowIntensity) },
       { key: 'spacing', label: 'Letter spacing', value: `${neonConfig.letterSpacing}px` },
       { key: 'flicker', label: 'Flicker effect', value: neonConfig.flicker ? 'On' : 'Off' },
-      {
-        key: 'env',
-        label: 'Environment',
-        value:
-          neonConfig.environment === 'outdoor'
-            ? 'Outdoor (IP67)'
-            : neonConfig.environment === 'indoor'
-              ? 'Indoor'
-              : 'Not selected',
-      },
-      {
-        key: 'jacket',
-        label: 'Jacket',
-        value:
-          neonConfig.jacket === 'white'
-            ? 'White'
-            : neonConfig.jacket === 'coloured'
-              ? 'Coloured'
-              : 'Not selected',
-      },
       { key: 'backing', label: 'Backing style', value: bgStyle },
       {
         key: 'bgcol',
@@ -491,26 +422,6 @@ const CustomNeonBuilder = () => {
               : 'Not selected',
       },
       {
-        key: 'dimmer',
-        label: 'Remote dimmer',
-        value:
-          neonConfig.remoteDimmer === 'yes'
-            ? 'Yes'
-            : neonConfig.remoteDimmer === 'no'
-              ? 'No'
-              : 'Not selected',
-      },
-      {
-        key: 'power',
-        label: 'Power mode',
-        value:
-          neonConfig.powerMode === 'battery-operated'
-            ? 'Battery operated'
-            : neonConfig.powerMode === 'power-adaptor'
-              ? 'Power adaptor'
-              : 'Not selected',
-      },
-      {
         key: 'mount',
         label: 'Mounting',
         value:
@@ -518,35 +429,18 @@ const CustomNeonBuilder = () => {
             ? 'Wall mounting screws'
             : 'Not selected',
       },
-      {
-        key: 'addon',
-        label: 'Add-on shape',
-        value:
-          neonConfig.addOnShape === 'heart'
-            ? 'Heart'
-            : neonConfig.addOnShape === 'star'
-              ? 'Star'
-              : neonConfig.addOnShape === 'none'
-                ? 'None'
-                : 'Not selected',
-      },
     ];
   }, [
     neonConfig.text,
-    neonConfig.addOnShape,
     neonConfig.font,
     neonConfig.color,
     neonConfig.size,
     neonConfig.glowIntensity,
     neonConfig.letterSpacing,
     neonConfig.flicker,
-    neonConfig.environment,
-    neonConfig.jacket,
     neonConfig.backgroundStyle,
     neonConfig.backgroundColor,
     neonConfig.tubeThickness,
-    neonConfig.remoteDimmer,
-    neonConfig.powerMode,
     neonConfig.mountingOption,
     selectedSize,
   ]);
@@ -862,7 +756,7 @@ const CustomNeonBuilder = () => {
                             </div>
                             <div className="min-w-0 flex flex-col items-stretch">
                               <NeonText
-                                text={`${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♡' : neonConfig.addOnShape === 'star' ? ' ☆' : ''}`}
+                                text={neonConfig.text}
                                 font={neonConfig.font}
                                 color={neonConfig.color}
                                 size={livePreviewTextSize}
@@ -896,7 +790,7 @@ const CustomNeonBuilder = () => {
                         </div>
                       ) : (
                         <NeonText
-                          text={`${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♡' : neonConfig.addOnShape === 'star' ? ' ☆' : ''}`}
+                          text={neonConfig.text}
                           font={neonConfig.font}
                           color={neonConfig.color}
                           size={livePreviewTextSize}
@@ -1349,83 +1243,13 @@ const CustomNeonBuilder = () => {
                     >
                       <div className="text-left">
                         <p className="text-sm font-bold text-gray-900">Build Options</p>
-                        <p className="text-xs text-gray-600 mt-0.5">Indoor/outdoor, jacket, background, dimmer…</p>
+                        <p className="text-xs text-gray-600 mt-0.5">Background, mounting, tube thickness…</p>
                       </div>
                       <span className="text-gray-500 text-sm">{showBuildOptions ? '−' : '+'}</span>
                     </button>
 
                     {showBuildOptions ? (
                       <div className="px-4 pb-4 space-y-4">
-
-                    {/* Indoor / Outdoor */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                        Indoor or Outdoor
-                      </label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setNeonConfig({ ...neonConfig, environment: 'indoor' })}
-                          className={`p-3 rounded-lg border text-left transition-colors ${
-                            neonConfig.environment === 'indoor'
-                              ? 'border-blue-600 bg-blue-50'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                        >
-                          <p className="text-sm font-semibold text-gray-900">Indoor</p>
-                          <p className="text-xs text-gray-600 mt-0.5">For indoor use only</p>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setNeonConfig({ ...neonConfig, environment: 'outdoor' })}
-                          className={`p-3 rounded-lg border text-left transition-colors ${
-                            neonConfig.environment === 'outdoor'
-                              ? 'border-blue-600 bg-blue-50'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                        >
-                          <p className="text-sm font-semibold text-gray-900">Outdoor</p>
-                          <p className="text-xs text-gray-600 mt-0.5">IP67 Waterproof technology</p>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Jacket */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                        Choose a Jacket
-                      </label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setNeonConfig({ ...neonConfig, jacket: 'coloured' })}
-                          className={`p-3 rounded-lg border text-left transition-colors ${
-                            neonConfig.jacket === 'coloured'
-                              ? 'border-blue-600 bg-blue-50'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                        >
-                          <p className="text-sm font-semibold text-gray-900">Coloured Jacket</p>
-                          <p className="text-xs text-gray-600 mt-0.5">Off-state matches selected color</p>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setNeonConfig({ ...neonConfig, jacket: 'white' })}
-                          className={`p-3 rounded-lg border text-left transition-colors ${
-                            neonConfig.jacket === 'white'
-                              ? 'border-blue-600 bg-blue-50'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                        >
-                          <p className="text-sm font-semibold text-gray-900">White Jacket</p>
-                          <p className="text-xs text-gray-600 mt-0.5">Off-state is white</p>
-                        </button>
-                      </div>
-                    </div>
 
                     {/* Background */}
                     <div>
@@ -1504,38 +1328,6 @@ const CustomNeonBuilder = () => {
                       </button>
                     </div>
 
-                    {/* Add a Heart or Star */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                        Add a Heart or Star (Optional)
-                      </label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {[
-                          { key: 'none', label: 'None', icon: '—' },
-                          { key: 'heart', label: 'Heart', icon: '♡' },
-                          { key: 'star', label: 'Star', icon: '☆' },
-                        ].map((opt) => (
-                          <button
-                            key={opt.key}
-                            type="button"
-                            onClick={() => setNeonConfig({ ...neonConfig, addOnShape: opt.key })}
-                            className={`p-2.5 rounded-lg border transition-colors ${
-                              neonConfig.addOnShape === opt.key
-                                ? 'border-blue-600 bg-blue-50'
-                                : 'border-gray-200 hover:border-gray-300 bg-white'
-                            }`}
-                            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                          >
-                            <div className="text-lg leading-none">{opt.icon}</div>
-                            <div className="text-[11px] font-semibold text-gray-700 mt-1">{opt.label}</div>
-                          </button>
-                        ))}
-                      </div>
-                      <p className="text-[11px] text-gray-500 mt-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                        Adds the selected symbol to the end of your text in the preview.
-                      </p>
-                    </div>
-
                     {/* Tube Thickness */}
                     <div>
                       <label className="block text-xs font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -1567,77 +1359,6 @@ const CustomNeonBuilder = () => {
                         >
                           <p className="text-sm font-semibold text-gray-900">Bold Tube</p>
                           <p className="text-xs text-gray-600 mt-0.5">8mm (free upgrade)</p>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Remote Dimmer */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                        Remote Dimmer
-                      </label>
-                      <div className="p-3 rounded-lg border border-gray-200 bg-gray-50">
-                        <p className="text-xs text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                          Set your sign to any brightness or turn it on/off at the touch of a button
-                        </p>
-                        <div className="mt-2 grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setNeonConfig({ ...neonConfig, remoteDimmer: 'yes' })}
-                            className={`p-2.5 rounded-lg border font-semibold text-sm transition-colors ${
-                              neonConfig.remoteDimmer === 'yes'
-                                ? 'border-blue-600 bg-blue-50 text-blue-700'
-                                : 'border-gray-200 bg-white text-gray-800 hover:border-gray-300'
-                            }`}
-                            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                          >
-                            Yes
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setNeonConfig({ ...neonConfig, remoteDimmer: 'no' })}
-                            className={`p-2.5 rounded-lg border font-semibold text-sm transition-colors ${
-                              neonConfig.remoteDimmer === 'no'
-                                ? 'border-blue-600 bg-blue-50 text-blue-700'
-                                : 'border-gray-200 bg-white text-gray-800 hover:border-gray-300'
-                            }`}
-                            style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                          >
-                            No
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Power Mode */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                        Power Mode
-                      </label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setNeonConfig({ ...neonConfig, powerMode: 'battery-operated' })}
-                          className={`p-3 rounded-lg border text-left transition-colors ${
-                            neonConfig.powerMode === 'battery-operated'
-                              ? 'border-blue-600 bg-blue-50'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                        >
-                          <p className="text-sm font-semibold text-gray-900">Battery operated</p>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setNeonConfig({ ...neonConfig, powerMode: 'power-adaptor' })}
-                          className={`p-3 rounded-lg border text-left transition-colors ${
-                            neonConfig.powerMode === 'power-adaptor'
-                              ? 'border-blue-600 bg-blue-50'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                          style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                        >
-                          <p className="text-sm font-semibold text-gray-900">Power adaptor</p>
                         </button>
                       </div>
                     </div>
@@ -1677,8 +1398,7 @@ const CustomNeonBuilder = () => {
                       <ul className="list-disc ml-4 space-y-1">
                         <li>Use <strong>Custom size</strong> for exact width/height; pick units in mm, cm, or ft.</li>
                         <li><strong>Wider width</strong> allows more letters per line; the preview updates live.</li>
-                        <li>Select <strong>Outdoor</strong> if the sign is outside (IP67 waterproof build).</li>
-                        <li>Add a <strong>Remote dimmer</strong> to control brightness from your sofa/bar.</li>
+                        <li>Choose <strong>background colour</strong> and <strong>tube thickness</strong> under Build Options.</li>
                         <li>Click <strong>Preview</strong> or <strong>Download</strong> to share your mockup.</li>
                       </ul>
                   </div>
@@ -1965,116 +1685,320 @@ const CustomNeonBuilder = () => {
         </div>
           </>
         ) : (
-          <div className="bg-white rounded-xl shadow-lg p-6 md:p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-              LOGO &amp; ARTWORK QUOTE
-            </h2>
-            <p className="text-gray-600 mb-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-              Fill in the form below, providing details about the sign that you'd like to create. Upload an image or logo to request a quote.
-            </p>
-            <p className="text-sm font-semibold text-blue-700 mb-6" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-              We Will Beat Any Price (GET A FREE QUOTE)
-            </p>
+          <div className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+            <div
+              className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full bg-blue-500/10 blur-3xl"
+              aria-hidden
+            />
+            <div
+              className="pointer-events-none absolute -bottom-24 -left-16 h-48 w-48 rounded-full bg-indigo-400/10 blur-3xl"
+              aria-hidden
+            />
 
-            <form onSubmit={handleLogoQuoteSubmit} className="grid md:grid-cols-2 gap-4">
-              <input
-                type="text"
-                placeholder="Name"
-                value={logoQuoteForm.name}
-                onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                required
-              />
-              <select
-                value={logoQuoteForm.country}
-                onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, country: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            <div className="relative border-b border-gray-100 bg-gradient-to-r from-slate-900 via-slate-800 to-blue-950 px-6 py-8 md:px-10 md:py-10">
+              <p
+                className="text-[11px] font-semibold uppercase tracking-[0.22em] text-blue-300/95 mb-2"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               >
-                {countries.map((country) => (
-                  <option key={country.code} value={country.name}>
-                    {country.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="tel"
-                placeholder="Phone"
-                value={logoQuoteForm.phone}
-                onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, phone: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                Custom neon from your file
+              </p>
+              <h2
+                className="text-2xl md:text-3xl font-bold text-white tracking-tight"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                required
-              />
-              <input
-                type="email"
-                placeholder="Email"
-                value={logoQuoteForm.email}
-                onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, email: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                Logo &amp; Artwork Quote
+              </h2>
+              <p
+                className="mt-3 max-w-2xl text-sm md:text-base text-slate-200/95 leading-relaxed"
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                required
-              />
-              <input
-                type="text"
-                placeholder="Ideal sign width (e.g. 120cm)"
-                value={logoQuoteForm.idealSignWidth}
-                onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, idealSignWidth: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-              />
-              <input
-                type="number"
-                min="1"
-                placeholder="Quantity"
-                value={logoQuoteForm.quantity}
-                onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, quantity: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-              />
-              <div className="md:col-span-2">
-                <textarea
-                  rows="4"
-                  placeholder="Any other information we should know before quoting?"
-                  value={logoQuoteForm.additionalInfo}
-                  onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, additionalInfo: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label
-                  className="block text-sm font-semibold text-gray-900 mb-2"
+              >
+                Share your logo or design file and tell us about the sign you want. We will review your artwork and send a tailored quote.
+              </p>
+              <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-500/15 px-3.5 py-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden />
+                <span
+                  className="text-xs font-semibold text-blue-100"
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
-                  Upload your logo / artwork / design
-                </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  ref={artworkInputRef}
-                  onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, artwork: e.target.files?.[0] || null })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
-                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                  required
-                />
-                {logoQuoteForm.artwork && (
-                  <p className="text-xs text-gray-600 mt-2" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                    Selected file: {logoQuoteForm.artwork.name}
-                  </p>
-                )}
+                  We will beat any price · Free quote
+                </span>
               </div>
-              <div className="md:col-span-2 pt-2">
+            </div>
+
+            <form onSubmit={handleLogoQuoteSubmit} className="relative px-6 py-8 md:px-10 md:py-10 space-y-8">
+              <section className="space-y-4">
+                <div>
+                  <h3
+                    className="text-sm font-bold uppercase tracking-wide text-gray-900"
+                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  >
+                    Your details
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    So we can contact you with the quote.
+                  </p>
+                </div>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="logo-quote-name"
+                      className="block text-xs font-semibold text-gray-700 mb-1.5"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    >
+                      Name <span className="text-blue-600">*</span>
+                    </label>
+                    <input
+                      id="logo-quote-name"
+                      type="text"
+                      placeholder="Your full name"
+                      value={logoQuoteForm.name}
+                      onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, name: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="logo-quote-country"
+                      className="block text-xs font-semibold text-gray-700 mb-1.5"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    >
+                      Country
+                    </label>
+                    <select
+                      id="logo-quote-country"
+                      value={logoQuoteForm.country}
+                      onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, country: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    >
+                      {countries.map((country) => (
+                        <option key={country.code} value={country.name}>
+                          {country.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="logo-quote-phone"
+                      className="block text-xs font-semibold text-gray-700 mb-1.5"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    >
+                      Phone <span className="text-blue-600">*</span>
+                    </label>
+                    <input
+                      id="logo-quote-phone"
+                      type="tel"
+                      placeholder="Best number to reach you"
+                      value={logoQuoteForm.phone}
+                      onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, phone: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="logo-quote-email"
+                      className="block text-xs font-semibold text-gray-700 mb-1.5"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    >
+                      Email <span className="text-blue-600">*</span>
+                    </label>
+                    <input
+                      id="logo-quote-email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={logoQuoteForm.email}
+                      onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, email: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                      required
+                    />
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-4">
+                <div>
+                  <h3
+                    className="text-sm font-bold uppercase tracking-wide text-gray-900"
+                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  >
+                    Sign details
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    Approximate size and quantity help us quote faster.
+                  </p>
+                </div>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="logo-quote-width"
+                      className="block text-xs font-semibold text-gray-700 mb-1.5"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    >
+                      Ideal sign width
+                    </label>
+                    <input
+                      id="logo-quote-width"
+                      type="text"
+                      placeholder="e.g. 120cm"
+                      value={logoQuoteForm.idealSignWidth}
+                      onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, idealSignWidth: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="logo-quote-quantity"
+                      className="block text-xs font-semibold text-gray-700 mb-1.5"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    >
+                      Quantity
+                    </label>
+                    <input
+                      id="logo-quote-quantity"
+                      type="number"
+                      min="1"
+                      placeholder="1"
+                      value={logoQuoteForm.quantity}
+                      onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, quantity: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label
+                      htmlFor="logo-quote-info"
+                      className="block text-xs font-semibold text-gray-700 mb-1.5"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    >
+                      Anything else we should know?
+                    </label>
+                    <textarea
+                      id="logo-quote-info"
+                      rows="4"
+                      placeholder="Colours, mounting, indoor/outdoor use, deadline, special requests…"
+                      value={logoQuoteForm.additionalInfo}
+                      onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, additionalInfo: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow resize-y min-h-[110px]"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    />
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-4">
+                <div>
+                  <h3
+                    className="text-sm font-bold uppercase tracking-wide text-gray-900"
+                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  >
+                    Artwork upload <span className="text-blue-600">*</span>
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                    PNG, JPG, SVG, PDF, or similar design files preferred.
+                  </p>
+                </div>
+                <label
+                  htmlFor="logo-quote-artwork"
+                  className={`group flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
+                    logoQuoteForm.artwork
+                      ? 'border-blue-500 bg-blue-50/70'
+                      : 'border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50/40'
+                  }`}
+                >
+                  <span
+                    className={`flex h-12 w-12 items-center justify-center rounded-full ${
+                      logoQuoteForm.artwork ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 shadow-sm border border-gray-200'
+                    }`}
+                  >
+                    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                      />
+                    </svg>
+                  </span>
+                  <span className="space-y-1">
+                    <span
+                      className="block text-sm font-semibold text-gray-900"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    >
+                      {logoQuoteForm.artwork ? 'File selected' : 'Click to upload your logo or artwork'}
+                    </span>
+                    <span
+                      className="block text-xs text-gray-500"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    >
+                      {logoQuoteForm.artwork
+                        ? logoQuoteForm.artwork.name
+                        : 'Choose a file from your device'}
+                    </span>
+                  </span>
+                  <input
+                    id="logo-quote-artwork"
+                    type="file"
+                    accept="image/*,.pdf,.ai,.eps,.svg"
+                    ref={artworkInputRef}
+                    onChange={(e) => setLogoQuoteForm({ ...logoQuoteForm, artwork: e.target.files?.[0] || null })}
+                    className="sr-only"
+                    required
+                  />
+                </label>
+                {logoQuoteForm.artwork ? (
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-emerald-900 truncate" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        {logoQuoteForm.artwork.name}
+                      </p>
+                      <p className="text-[11px] text-emerald-800/80" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        {((logoQuoteForm.artwork.size || 0) / 1024).toFixed(0)} KB ready to submit
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLogoQuoteForm({ ...logoQuoteForm, artwork: null });
+                        if (artworkInputRef.current) artworkInputRef.current.value = '';
+                      }}
+                      className="shrink-0 text-xs font-semibold text-emerald-900 underline underline-offset-2 hover:text-emerald-700"
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : null}
+              </section>
+
+              <div className="flex flex-col gap-4 border-t border-gray-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-gray-500 max-w-md" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                  We usually respond within 1–2 working days with a clear quote for your custom neon.
+                </p>
                 <button
                   type="submit"
                   disabled={quoteSubmitting}
-                  className={`px-6 py-3 rounded-lg font-semibold text-white transition-colors ${
+                  className={`inline-flex items-center justify-center gap-2 rounded-xl px-7 py-3.5 font-semibold text-white shadow-sm transition-colors ${
                     quoteSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
                   }`}
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 >
-                  {quoteSubmitting ? 'Submitting...' : 'Get a Tailored Quote'}
+                  {quoteSubmitting ? (
+                    'Submitting…'
+                  ) : (
+                    <>
+                      Get a tailored quote
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                      </svg>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -2222,7 +2146,7 @@ const CustomNeonBuilder = () => {
                 style={{ transform: `scale(${previewZoom})` }}
               >
                 <NeonText
-                  text={`${neonConfig.text}${neonConfig.addOnShape === 'heart' ? ' ♡' : neonConfig.addOnShape === 'star' ? ' ☆' : ''}`}
+                  text={neonConfig.text}
                   font={neonConfig.font}
                   color={neonConfig.color}
                   size={Math.round(neonConfig.size * 1.62)}

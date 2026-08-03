@@ -68,7 +68,7 @@ const decoration = (props) => ({
 
 const scene = (objects) => ({ version: '5.3.0', objects });
 
-export const ONLINE_DESIGN_TEMPLATES = [
+export const ONLINE_DESIGN_TEMPLATES_BASE = [
   // ---------------------------------------------------------------- SOCIAL
   {
     id: 'social-sunset-quote',
@@ -1627,17 +1627,248 @@ export const ONLINE_DESIGN_TEMPLATES = [
   ...PICTURE_BASED_TEMPLATES,
 ];
 
-export const TEMPLATE_CATEGORIES = [
-  'All',
+/** Categories hidden from the design-tool gallery. */
+const HIDDEN_TEMPLATE_CATEGORIES = new Set([
+  'Sale & Promo',
+  'Presentations',
+  'Print & Multi-Page',
+  'Social Media',
   'Picture Templates',
+  'Stories & Reels',
+]);
+
+/** Leaflet & brochure paper sizes offered as separate templates (mm). */
+export const LEAFLET_BROCHURE_PAPER_SIZES = [
+  { id: 'a5-landscape', label: 'A5 Landscape', widthMm: 210, heightMm: 148 },
+  { id: 'a4-portrait', label: 'A4 Portrait', widthMm: 210, heightMm: 297 },
+  { id: 'a4-landscape', label: 'A4 Landscape', widthMm: 297, heightMm: 210 },
+  { id: 'a3-landscape', label: 'A3 Landscape', widthMm: 420, heightMm: 297 },
+  { id: 'a2-landscape', label: 'A2', widthMm: 594, heightMm: 420 },
+  { id: 'custom-210x198', label: '210 × 198mm', widthMm: 210, heightMm: 198 },
+];
+
+/** Business card paper sizes offered as separate templates (mm). */
+export const BUSINESS_CARD_PAPER_SIZES = [
+  { id: 'bc-55x55', label: '55 × 55mm', widthMm: 55, heightMm: 55 },
+  { id: 'bc-85x55', label: '85 × 55mm', widthMm: 85, heightMm: 55 },
+];
+
+/** Classic flyer paper sizes offered as separate templates (mm). */
+export const FLYER_PAPER_SIZES = [
+  { id: 'flyer-dl', label: '1/3 A4 DL', widthMm: 99, heightMm: 210 },
+  { id: 'flyer-a7', label: 'A7', widthMm: 74, heightMm: 105 },
+  { id: 'flyer-a6', label: 'A6', widthMm: 105, heightMm: 148 },
+  { id: 'flyer-a5', label: 'A5', widthMm: 148, heightMm: 210 },
+  { id: 'flyer-a4', label: 'A4', widthMm: 210, heightMm: 297 },
+  { id: 'flyer-a3', label: 'A3', widthMm: 297, heightMm: 420 },
+];
+
+/** Poster paper sizes offered as separate templates (mm). */
+export const POSTER_PAPER_SIZES = [
+  { id: 'poster-a4', label: 'A4', widthMm: 210, heightMm: 297 },
+  { id: 'poster-a3', label: 'A3', widthMm: 297, heightMm: 420 },
+  { id: 'poster-custom', label: 'Custom Size', widthMm: 420, heightMm: 594 },
+];
+
+const DESIGN_CANVAS_DPI = 96;
+const mmToDesignPx = (mm) => Math.max(1, Math.round((Number(mm) / 25.4) * DESIGN_CANVAS_DPI));
+
+const scaleFabricNode = (node, sx, sy) => {
+  if (!node || typeof node !== 'object') return node;
+  if (Array.isArray(node)) return node.map((item) => scaleFabricNode(item, sx, sy));
+
+  const next = { ...node };
+  const uniform = Math.min(sx, sy);
+
+  if (typeof next.left === 'number') next.left *= sx;
+  if (typeof next.top === 'number') next.top *= sy;
+  if (typeof next.width === 'number') next.width *= sx;
+  if (typeof next.height === 'number') next.height *= sy;
+  if (typeof next.radius === 'number') next.radius *= uniform;
+  if (typeof next.rx === 'number') next.rx *= sx;
+  if (typeof next.ry === 'number') next.ry *= sy;
+  if (typeof next.fontSize === 'number') next.fontSize *= uniform;
+  if (typeof next.charSpacing === 'number') next.charSpacing *= uniform;
+  if (typeof next.strokeWidth === 'number') next.strokeWidth *= uniform;
+
+  if (next.fill && typeof next.fill === 'object') {
+    next.fill = { ...next.fill };
+    if (next.fill.coords && typeof next.fill.coords === 'object') {
+      const c = { ...next.fill.coords };
+      if (typeof c.x1 === 'number') c.x1 *= sx;
+      if (typeof c.y1 === 'number') c.y1 *= sy;
+      if (typeof c.x2 === 'number') c.x2 *= sx;
+      if (typeof c.y2 === 'number') c.y2 *= sy;
+      if (typeof c.r1 === 'number') c.r1 *= uniform;
+      if (typeof c.r2 === 'number') c.r2 *= uniform;
+      next.fill.coords = c;
+    }
+  }
+
+  if (Array.isArray(next.objects)) {
+    next.objects = next.objects.map((obj) => scaleFabricNode(obj, sx, sy));
+  }
+
+  return next;
+};
+
+const scaleTemplatePageToSize = (sourcePage, size) => {
+  const targetW = mmToDesignPx(size.widthMm);
+  const targetH = mmToDesignPx(size.heightMm);
+  const sourceW = Math.max(1, sourcePage.width || targetW);
+  const sourceH = Math.max(1, sourcePage.height || targetH);
+  const sx = targetW / sourceW;
+  const sy = targetH / sourceH;
+
+  let json = null;
+  if (sourcePage.json) {
+    try {
+      json = scaleFabricNode(JSON.parse(JSON.stringify(sourcePage.json)), sx, sy);
+    } catch {
+      json = sourcePage.json;
+    }
+  }
+
+  return {
+    ...sourcePage,
+    id: `${sourcePage.id || 'page'}-${size.id}`,
+    width: targetW,
+    height: targetH,
+    widthMm: size.widthMm,
+    heightMm: size.heightMm,
+    json,
+    thumbnail: null,
+  };
+};
+
+const shouldExpandLeafletBase = (template) => {
+  if (template.category !== 'Leaflets & Brochures') return false;
+  if (template.id?.startsWith('gen-leaflet-')) {
+    const n = Number.parseInt(String(template.id).replace('gen-leaflet-', ''), 10);
+    return Number.isFinite(n) && n <= 5;
+  }
+  if (template.id?.startsWith('photo-leaflet-')) {
+    const n = Number.parseInt(String(template.id).replace('photo-leaflet-', ''), 10);
+    return Number.isFinite(n) && n <= 3;
+  }
+  return true;
+};
+
+const shouldExpandBusinessCardBase = (template) => {
+  if (template.category !== 'Business Cards') return false;
+  if (template.id?.startsWith('gen-card-')) {
+    const n = Number.parseInt(String(template.id).replace('gen-card-', ''), 10);
+    return Number.isFinite(n) && n <= 5;
+  }
+  if (template.id?.startsWith('photo-card-')) {
+    const n = Number.parseInt(String(template.id).replace('photo-card-', ''), 10);
+    return Number.isFinite(n) && n <= 3;
+  }
+  return true;
+};
+
+const shouldExpandFlyerBase = (template) => {
+  if (template.category !== 'Flyers') return false;
+  if (template.id?.startsWith('gen-flyer-')) {
+    const n = Number.parseInt(String(template.id).replace('gen-flyer-', ''), 10);
+    return Number.isFinite(n) && n <= 5;
+  }
+  if (template.id?.startsWith('photo-flyer-')) {
+    const n = Number.parseInt(String(template.id).replace('photo-flyer-', ''), 10);
+    return Number.isFinite(n) && n <= 3;
+  }
+  return true;
+};
+
+const shouldExpandPosterBase = (template) => {
+  if (template.category !== 'Posters') return false;
+  if (template.id?.startsWith('gen-poster-')) {
+    const n = Number.parseInt(String(template.id).replace('gen-poster-', ''), 10);
+    return Number.isFinite(n) && n <= 5;
+  }
+  if (template.id?.startsWith('photo-poster-')) {
+    const n = Number.parseInt(String(template.id).replace('photo-poster-', ''), 10);
+    return Number.isFinite(n) && n <= 3;
+  }
+  return true;
+};
+
+const expandCategorySizeVariants = (templates, category, sizes, shouldExpand) => {
+  const result = [];
+
+  for (const template of templates) {
+    if (template.category !== category) {
+      result.push(template);
+      continue;
+    }
+
+    if (!shouldExpand(template)) {
+      result.push(template);
+      continue;
+    }
+
+    for (const size of sizes) {
+      result.push({
+        ...template,
+        id: `${template.id}__${size.id}`,
+        baseTemplateId: template.id,
+        sizeId: size.id,
+        name: `${template.name} · ${size.label}`,
+        description: `${size.label} (${size.widthMm} × ${size.heightMm}mm)`,
+        paperSizeLabel: `${size.widthMm} × ${size.heightMm}mm`,
+        pages: (template.pages || []).map((page) => scaleTemplatePageToSize(page, size)),
+      });
+    }
+  }
+
+  return result;
+};
+
+const expandPrintSizeVariants = (templates) => {
+  const withLeaflets = expandCategorySizeVariants(
+    templates,
+    'Leaflets & Brochures',
+    LEAFLET_BROCHURE_PAPER_SIZES,
+    shouldExpandLeafletBase,
+  );
+  const withCards = expandCategorySizeVariants(
+    withLeaflets,
+    'Business Cards',
+    BUSINESS_CARD_PAPER_SIZES,
+    shouldExpandBusinessCardBase,
+  );
+  const withFlyers = expandCategorySizeVariants(
+    withCards,
+    'Flyers',
+    FLYER_PAPER_SIZES,
+    shouldExpandFlyerBase,
+  );
+  return expandCategorySizeVariants(
+    withFlyers,
+    'Posters',
+    POSTER_PAPER_SIZES,
+    shouldExpandPosterBase,
+  );
+};
+
+export const ONLINE_DESIGN_TEMPLATES = expandPrintSizeVariants(
+  ONLINE_DESIGN_TEMPLATES_BASE.filter((t) => !HIDDEN_TEMPLATE_CATEGORIES.has(t.category)),
+);
+
+const PRIMARY_TEMPLATE_CATEGORIES = [
   'Business Cards',
   'Leaflets & Brochures',
   'Flyers',
   'Posters',
+];
+
+export const TEMPLATE_CATEGORIES = [
+  'All',
+  ...PRIMARY_TEMPLATE_CATEGORIES,
   ...Array.from(
     new Set(
       ONLINE_DESIGN_TEMPLATES.map((t) => t.category).filter(
-        (c) => !['Business Cards', 'Leaflets & Brochures', 'Flyers', 'Posters'].includes(c),
+        (c) => !PRIMARY_TEMPLATE_CATEGORIES.includes(c),
       ),
     ),
   ),

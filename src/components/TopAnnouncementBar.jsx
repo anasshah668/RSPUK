@@ -34,17 +34,17 @@ const TopAnnouncementBar = () => {
   const [part1 = '', part2 = ''] = String(announcement.message || '').split('|').map(s => s.trim());
 
   return (
-    <section className="bg-gradient-to-r from-slate-800 to-slate-700 border-b border-slate-600/60">
-      <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
-        <div className="py-2.5 text-center">
+    <section className="border-b border-slate-800 bg-slate-950">
+      <div className="mx-auto max-w-[1440px] px-4 lg:px-8">
+        <div className="py-2 text-center">
           <p
-            className="text-xs md:text-sm font-semibold text-white tracking-wide"
+            className="text-xs md:text-sm font-medium tracking-wide text-slate-300"
             style={{ fontFamily: 'Lexend Deca, sans-serif' }}
           >
-            <span className="text-yellow-400">{announcement.prefix}</span>
-            {part1 ? <span className="mx-2 text-slate-300">|</span> : null}
+            <span className="font-semibold text-amber-300">{announcement.prefix}</span>
+            {part1 ? <span className="mx-2 text-slate-600">·</span> : null}
             {part1}
-            {part2 ? <span className="mx-2 text-slate-300">|</span> : null}
+            {part2 ? <span className="mx-2 text-slate-600">·</span> : null}
             {part2}
           </p>
         </div>

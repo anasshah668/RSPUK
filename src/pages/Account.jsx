@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/authService';
 import { quoteService } from '../services/quoteService';
@@ -1236,8 +1236,20 @@ const TAB_META = {
 
 const Account = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { isAuthenticated, user, getUserInitial, logout, authReady } = useAuth();
-  const [tab, setTab] = React.useState('profile');
+  const tabFromUrl = searchParams.get('tab');
+  const validTab = NAV_ITEMS.some((item) => item.key === tabFromUrl) ? tabFromUrl : 'profile';
+  const [tab, setTab] = React.useState(validTab);
+
+  React.useEffect(() => {
+    setTab(validTab);
+  }, [validTab]);
+
+  const selectTab = (nextTab) => {
+    setTab(nextTab);
+    setSearchParams(nextTab === 'profile' ? {} : { tab: nextTab }, { replace: true });
+  };
 
   if (!authReady) {
     return (
@@ -1327,7 +1339,7 @@ const Account = () => {
                   <button
                     key={item.key}
                     type="button"
-                    onClick={() => setTab(item.key)}
+                    onClick={() => selectTab(item.key)}
                     className={`flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition ${
                       active
                         ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
@@ -1358,7 +1370,7 @@ const Account = () => {
                 <button
                   key={item.key}
                   type="button"
-                  onClick={() => setTab(item.key)}
+                  onClick={() => selectTab(item.key)}
                   className={`inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
                     active
                       ? 'bg-blue-600 text-white shadow-sm'

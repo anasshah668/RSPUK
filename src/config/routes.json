@@ -57,6 +57,7 @@
     "faqById": "settings/faqs",
     "neonPricing": "admin/neon-pricing",
     "featuredSignagePricing": "admin/featured-signage-pricing",
+    "featuredSignageMedia": "admin/featured-signage-media",
     "ordersFromCheckout": "admin/orders-from-checkout"
   },
   "neonPricing": {
@@ -64,6 +65,10 @@
   },
   "featuredSignagePricing": {
     "calculate": "featured-signage-pricing/calculate"
+  },
+  "featuredSignageMedia": {
+    "list": "featured-signage-media",
+    "bySlug": "featured-signage-media"
   },
   "settings": {
     "topAnnouncement": "settings/top-announcement",
@@ -100,6 +105,7 @@
   "designService": {
     "price": "design-service/price",
     "create": "design-service",
+    "inquiry": "design-service/inquiry",
     "my": "design-service/my",
     "getById": "design-service",
     "adminList": "design-service/admin/all",

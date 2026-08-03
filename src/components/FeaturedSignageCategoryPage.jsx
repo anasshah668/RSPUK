@@ -12,6 +12,8 @@ import FeaturedHeroPriceCalculator from './FeaturedHeroPriceCalculator';
 import { useFeaturedSignagePrice } from '../hooks/useFeaturedSignagePrice';
 import { buildFeaturedPricingInput } from '../utils/featuredSignagePricing';
 import { readVatInclusiveFromStorage, payableFromNet } from '../utils/vatUtils';
+import { featuredSignageMediaService } from '../services/featuredSignageMediaService';
+import { mergeFeaturedItemWithMedia } from '../utils/featuredSignageMedia';
 
 const getInitialFormState = (productType) => ({
   productType: productType || '',
@@ -72,8 +74,8 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
   const [contactOpen, setContactOpen] = useState(false);
   const [contactSubmitting, setContactSubmitting] = useState(false);
   const [contact, setContact] = useState({ name: '', email: '', phone: '' });
+  const [signageItem, setSignageItem] = useState(() => getFeaturedSignageBySlug(categorySlug));
 
-  const signageItem = getFeaturedSignageBySlug(categorySlug);
   const pageCopy = {
     heading: signageItem?.heading || signageItem?.title || 'Featured Signage',
     blurb:
@@ -107,6 +109,27 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
     };
 
     fetchProducts();
+  }, [categorySlug]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const base = getFeaturedSignageBySlug(categorySlug);
+    setSignageItem(base);
+    setFormData(getInitialFormState(base?.title || ''));
+
+    (async () => {
+      try {
+        const data = await featuredSignageMediaService.getPublicBySlug(categorySlug);
+        if (cancelled) return;
+        setSignageItem(mergeFeaturedItemWithMedia(categorySlug, data?.images || data?.imageObjects));
+      } catch {
+        // Keep static public-folder images if media API is unavailable.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [categorySlug]);
 
   const galleryImages = useMemo(() => signageItem?.images || [], [signageItem]);

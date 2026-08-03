@@ -10,6 +10,7 @@ const statusClass = (status) => {
   if (v === 'delivered') return 'bg-emerald-50 text-emerald-700 border-emerald-100';
   if (v === 'in_progress') return 'bg-blue-50 text-blue-700 border-blue-100';
   if (v === 'paid') return 'bg-purple-50 text-purple-700 border-purple-100';
+  if (v === 'submitted') return 'bg-amber-50 text-amber-800 border-amber-100';
   if (v === 'cancelled') return 'bg-gray-100 text-gray-700 border-gray-200';
   return 'bg-amber-50 text-amber-700 border-amber-100';
 };
@@ -20,6 +21,7 @@ const AdminDesignServiceTab = () => {
   const [selected, setSelected] = useState(null);
   const [adminNotes, setAdminNotes] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [kindFilter, setKindFilter] = useState('');
   const [uploadingId, setUploadingId] = useState('');
 
   const load = useCallback(async () => {
@@ -27,6 +29,7 @@ const AdminDesignServiceTab = () => {
     try {
       const data = await designService.adminList({
         ...(statusFilter ? { status: statusFilter } : {}),
+        ...(kindFilter ? { kind: kindFilter } : {}),
       });
       setRequests(data?.requests || []);
     } catch (err) {
@@ -34,7 +37,7 @@ const AdminDesignServiceTab = () => {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, kindFilter]);
 
   useEffect(() => {
     load();
@@ -88,26 +91,38 @@ const AdminDesignServiceTab = () => {
   return (
     <div className="grid lg:grid-cols-[1fr_1.1fr] gap-6">
       <div>
-        <div className="flex items-center justify-between mb-4 gap-3">
+        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
           <h3 className="text-lg font-bold text-gray-900" style={font}>
-            Paid design jobs
+            Design requests
           </h3>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="text-sm border border-gray-300 rounded-lg px-3 py-1.5"
-          >
-            <option value="">All statuses</option>
-            <option value="paid">Paid</option>
-            <option value="in_progress">In progress</option>
-            <option value="delivered">Delivered</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
+          <div className="flex flex-wrap gap-2">
+            <select
+              value={kindFilter}
+              onChange={(e) => setKindFilter(e.target.value)}
+              className="text-sm border border-gray-300 rounded-lg px-3 py-1.5"
+            >
+              <option value="">All types</option>
+              <option value="inquiry">Free inquiries</option>
+              <option value="paid">Paid jobs</option>
+            </select>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="text-sm border border-gray-300 rounded-lg px-3 py-1.5"
+            >
+              <option value="">All statuses</option>
+              <option value="submitted">Submitted</option>
+              <option value="paid">Paid</option>
+              <option value="in_progress">In progress</option>
+              <option value="delivered">Delivered</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
         </div>
 
         {requests.length === 0 ? (
           <p className="text-gray-600 text-sm" style={font}>
-            No paid design requests yet.
+            No design requests yet.
           </p>
         ) : (
           <div className="space-y-2 max-h-[70vh] overflow-y-auto">
@@ -126,6 +141,7 @@ const AdminDesignServiceTab = () => {
                     <div>
                       <p className="font-semibold text-gray-900 text-sm">{row.title}</p>
                       <p className="text-xs text-gray-500 mt-0.5">
+                        {row.requestKind === 'inquiry' ? 'Free inquiry · ' : 'Paid · '}
                         {row.customerName || row.user?.name || 'Customer'}
                         {(row.customerPhone || row.user?.phone) &&
                           ` · ${row.customerPhone || row.user?.phone}`}
@@ -158,8 +174,14 @@ const AdminDesignServiceTab = () => {
                 {selected.title}
               </h4>
               <p className="text-xs text-gray-500 mt-1">
-                £{Number(selected.priceAmount || 0).toFixed(2)} ·{' '}
-                <span className="text-emerald-700 font-semibold">Paid</span>
+                {selected.requestKind === 'inquiry' || selected.paymentStatus === 'not_required' ? (
+                  <span className="text-amber-700 font-semibold">Free inquiry · No payment</span>
+                ) : (
+                  <>
+                    £{Number(selected.priceAmount || 0).toFixed(2)} ·{' '}
+                    <span className="text-emerald-700 font-semibold">Paid</span>
+                  </>
+                )}
                 {selected.orderReference ? ` · Ref ${selected.orderReference}` : ''}
               </p>
             </div>

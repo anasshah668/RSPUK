@@ -26,7 +26,9 @@ export function lineBasketPayableAmount(item, vatInclusive) {
   const qty = Number(item?.quantity || 1);
   const lineNet = Number(item?.price || 0) * qty;
   if (item?.type === 'checkout-order') return lineNet;
-  if (item?.type === 'custom-neon') return payableFromNet(lineNet, vatInclusive);
+  if (item?.type === 'custom-neon' || item?.amountBasis === 'net') {
+    return payableFromNet(lineNet, vatInclusive);
+  }
   return lineNet;
 }
 

@@ -332,6 +332,8 @@ const CheckoutPage = () => {
             : 'Multi-item checkout',
         amount: totalAmount,
         amountBasis: first.amountBasis || null,
+        type: first.type,
+        designServiceRequestId: first.designServiceRequestId,
         summary: Array.isArray(first.summary) ? first.summary : [],
         selectedAttributes: first.selectedAttributes,
         selectionSnapshot: first.selectionSnapshot,
@@ -403,7 +405,9 @@ const CheckoutPage = () => {
           const incomingPrice = Number(i?.price || 0);
           if (!Number.isFinite(incomingPrice)) return s;
           if (i?.type === 'checkout-order') return s + incomingPrice;
-          if (i?.type === 'custom-neon') return s + payableFromNet(incomingPrice, vatInclusive);
+          if (i?.type === 'custom-neon' || i?.amountBasis === 'net') {
+            return s + payableFromNet(incomingPrice, vatInclusive);
+          }
           return s + incomingPrice;
         },
         0
@@ -422,7 +426,9 @@ const CheckoutPage = () => {
     const incomingPrice = Number(item?.price || 0);
     if (!Number.isFinite(incomingPrice)) return 0;
     if (item?.type === 'checkout-order') return incomingPrice;
-    if (item?.type === 'custom-neon') return payableFromNet(incomingPrice, vatInclusive);
+    if (item?.type === 'custom-neon' || item?.amountBasis === 'net') {
+      return payableFromNet(incomingPrice, vatInclusive);
+    }
     return incomingPrice;
   };
 
@@ -478,7 +484,7 @@ const CheckoutPage = () => {
         })
       : [
           stripHeavyFieldsFromLineItem({
-            type: 'checkout-line',
+            type: checkoutData?.type || 'checkout-line',
             title: checkoutData?.title || 'Order',
             description:
               typeof checkoutData?.description === 'string'
@@ -486,6 +492,7 @@ const CheckoutPage = () => {
                 : '',
             quantity: 1,
             price: payAmount,
+            designServiceRequestId: checkoutData?.designServiceRequestId,
             summary: Array.isArray(checkoutData?.summary) ? checkoutData?.summary : [],
             source: checkoutData?.source,
             thirdPartyProductKey: checkoutData?.thirdPartyProductKey,
@@ -500,6 +507,18 @@ const CheckoutPage = () => {
                 : {},
           }),
         ];
+
+  const resolveDesignServiceRequestId = () => {
+    if (checkoutData?.designServiceRequestId) return String(checkoutData.designServiceRequestId);
+    if (isMultiCheckout && checkoutItems?.length) {
+      const designLine = checkoutItems.find(
+        (item) =>
+          String(item?.type || '').toLowerCase() === 'design-service' && item?.designServiceRequestId,
+      );
+      if (designLine?.designServiceRequestId) return String(designLine.designServiceRequestId);
+    }
+    return '';
+  };
 
   /**
    * Apply any user-uploaded artwork overrides to a line. If an override exists
@@ -693,6 +712,7 @@ const CheckoutPage = () => {
             ? {
                 title: `Order (${checkoutItems.length} items)`,
                 description: 'Multi-item checkout',
+                designServiceRequestId: resolveDesignServiceRequestId() || undefined,
                 summary: checkoutItems.map((item, idx) => ({
                   label: (item.title || item.name || `Item ${idx + 1}`).slice(0, 100),
                   value: `Qty ${item.quantity || 1} · £${lineDisplayAmount(item).toFixed(2)}`,
@@ -701,6 +721,7 @@ const CheckoutPage = () => {
             : {
                 title: checkoutData?.title,
                 description: checkoutData?.description,
+                designServiceRequestId: resolveDesignServiceRequestId() || undefined,
                 summary: checkoutData?.summary || [],
               },
         });
@@ -749,13 +770,55 @@ const CheckoutPage = () => {
             currency: 'GBP',
             email: sanitizedCustomerInfo.email,
             customerName: sanitizedCustomerInfo.name,
+            customerAddressLines: [
+              sanitizedCustomerInfo.address,
+              [sanitizedCustomerInfo.city, sanitizedCustomerInfo.postalCode].filter(Boolean).join(', '),
+            ].filter(Boolean),
             orderTitle: isMultiCheckout
               ? checkoutItems.length === 1
                 ? checkoutItems[0].title || checkoutItems[0].name || 'Order'
                 : `${checkoutItems.length} items`
               : checkoutData?.title,
+            designServiceSuccess: Boolean(resolveDesignServiceRequestId()),
             receiptEmailSent,
             receiptEmailReason,
+            amountBasis: isMultiCheckout
+              ? checkoutItems.every(
+                  (i) => i?.amountBasis === 'net' || i?.type === 'custom-neon' || i?.type === 'featured-signage',
+                )
+                ? 'net'
+                : null
+              : checkoutData?.amountBasis || null,
+            receiptLineItems: (isMultiCheckout && checkoutItems?.length
+              ? checkoutItems
+              : [
+                  {
+                    type: checkoutData?.type,
+                    title: checkoutData?.title || 'Order',
+                    name: checkoutData?.title || 'Order',
+                    quantity: 1,
+                    price:
+                      checkoutData?.amountBasis === 'net' ||
+                      checkoutData?.type === 'custom-neon' ||
+                      checkoutData?.type === 'featured-signage'
+                        ? Number(checkoutData?.amount ?? payAmount)
+                        : Number(payAmount),
+                    amountBasis: checkoutData?.amountBasis,
+                    priceIsLineTotal: true,
+                  },
+                ]
+            ).map((item) => ({
+              type: item?.type,
+              title: item?.title || item?.name || 'Item',
+              name: item?.name || item?.title || 'Item',
+              quantity: Number(item?.quantity) || 1,
+              price: Number(item?.price) || 0,
+              amountBasis: item?.amountBasis,
+              priceIsLineTotal:
+                item?.priceIsLineTotal ||
+                item?.type === 'featured-signage' ||
+                (!isMultiCheckout && Boolean(checkoutData)),
+            })),
             tradeprintOrderReference:
               tradeprintResult?.orderReference ||
               tradeprintResult?.tradeprintOrder?.orderReference ||

@@ -17,6 +17,20 @@ const create = (payload) => {
   return httpClient.post(apiRoutes.designService.create, formData);
 };
 
+const createInquiry = (payload) => {
+  const formData = new FormData();
+  Object.entries(payload || {}).forEach(([key, value]) => {
+    if (key === 'referenceFiles') return;
+    if (value !== undefined && value !== null && value !== '') {
+      formData.append(key, value);
+    }
+  });
+  (payload?.referenceFiles || []).forEach((file) => {
+    if (file) formData.append('referenceFiles', file);
+  });
+  return httpClient.post(apiRoutes.designService.inquiry, formData);
+};
+
 const listMy = () => httpClient.get(apiRoutes.designService.my);
 
 const getById = (id) => httpClient.get(`${apiRoutes.designService.getById}/${id}`);
@@ -39,6 +53,7 @@ const adminUploadDeliverable = (id, file) => {
 export const designService = {
   getPrice,
   create,
+  createInquiry,
   listMy,
   getById,
   adminList,
