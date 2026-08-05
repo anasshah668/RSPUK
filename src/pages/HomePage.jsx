@@ -44,7 +44,7 @@ const HomePage = () => {
       <FeaturedSignageProducts />
       <IndustriesWeSupport />
       <Features />
-      <CustomNeonPrinting />
+      {/* <CustomNeonPrinting /> */}
       <Products />
       <WhyChooseUs />
       <SignageMatters />

@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import DesignerAuthModal from '../components/DesignerAuthModal';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { designService } from '../services/designService';
@@ -66,7 +65,7 @@ const DESIGN_FAQS = [
 
 const DesignServicePage = () => {
   const navigate = useNavigate();
-  const { user, authReady, isAuthenticated } = useAuth();
+  const { user, authReady } = useAuth();
   const { addToCart, clearCart, cartItems } = useCart();
 
   const [pricing, setPricing] = useState({ price: 50, currency: 'GBP', vatInclusive: true });
@@ -86,10 +85,6 @@ const DesignServicePage = () => {
   const title = titleOption === OTHER_TITLE_VALUE ? customTitle : titleOption;
   const titleDropdownRef = useRef(null);
 
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [authModalMode, setAuthModalMode] = useState('signup');
-  const pendingSubmitRef = useRef(false);
-
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
     email: '',
@@ -98,17 +93,6 @@ const DesignServicePage = () => {
     city: '',
     postalCode: '',
   });
-
-  useEffect(() => {
-    if (!authReady) return;
-    if (step === 'choose' && !isAuthenticated()) {
-      setStep('form');
-      setRequestId('');
-      setRequestDoc(null);
-      openAuthModal('signin');
-      toast.error('Please sign in to continue.');
-    }
-  }, [authReady, step, user]);
 
   useEffect(() => {
     designService.getPrice().then(setPricing).catch(() => {});
@@ -189,17 +173,7 @@ const DesignServicePage = () => {
     setReferenceFiles(files);
   };
 
-  const openAuthModal = (mode = 'signup') => {
-    setAuthModalMode(mode === 'signin' ? 'signin' : 'signup');
-    setAuthModalOpen(true);
-  };
-
   const performCreateRequest = async () => {
-    if (!isAuthenticated()) {
-      pendingSubmitRef.current = true;
-      openAuthModal('signin');
-      return;
-    }
     if (!title.trim() || !brief.trim()) {
       toast.error(
         titleOption === OTHER_TITLE_VALUE && !customTitle.trim()
@@ -210,6 +184,10 @@ const DesignServicePage = () => {
     }
     if (!customerInfo.name.trim()) {
       toast.error('Please enter your full name.');
+      return;
+    }
+    if (!customerInfo.email.trim()) {
+      toast.error('Please enter your email address.');
       return;
     }
 
@@ -240,27 +218,6 @@ const DesignServicePage = () => {
 
   const handleCreateRequest = async (e) => {
     e.preventDefault();
-    if (!title.trim() || !brief.trim()) {
-      toast.error(
-        titleOption === OTHER_TITLE_VALUE && !customTitle.trim()
-          ? 'Please enter your project title.'
-          : 'Please select a project title and enter a design brief.',
-      );
-      return;
-    }
-    if (!customerInfo.name.trim()) {
-      toast.error('Please enter your full name.');
-      return;
-    }
-    if (!isAuthenticated() && !customerInfo.email.trim()) {
-      toast.error('Please enter your email address.');
-      return;
-    }
-    if (!isAuthenticated()) {
-      pendingSubmitRef.current = true;
-      openAuthModal('signin');
-      return;
-    }
     await performCreateRequest();
   };
 
@@ -291,11 +248,6 @@ const DesignServicePage = () => {
   };
 
   const handleAddToBasket = async () => {
-    if (!isAuthenticated()) {
-      openAuthModal('signin');
-      toast.error('Please sign in to add to basket.');
-      return;
-    }
     if (!requestDoc?._id && !requestId) {
       toast.error('Design request is missing. Please submit your brief again.');
       return;
@@ -322,11 +274,6 @@ const DesignServicePage = () => {
   };
 
   const handleProceedToCheckout = () => {
-    if (!isAuthenticated()) {
-      openAuthModal('signin');
-      toast.error('Please sign in to checkout.');
-      return;
-    }
     if (!requestDoc?._id && !requestId) {
       toast.error('Design request is missing. Please submit your brief again.');
       return;
@@ -673,7 +620,7 @@ const DesignServicePage = () => {
         </form>
       )}
 
-      {step === 'choose' && requestDoc && isAuthenticated() && (
+      {step === 'choose' && requestDoc && (
         <div className="space-y-5">
           <div className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-blue-50 p-5" style={font}>
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Brief saved</p>
@@ -761,30 +708,6 @@ const DesignServicePage = () => {
           </button>
         </div>
       )}
-
-      <DesignerAuthModal
-        open={authModalOpen}
-        initialAuthMode={authModalMode}
-        onClose={() => {
-          setAuthModalOpen(false);
-          pendingSubmitRef.current = false;
-        }}
-        onAuthenticated={async () => {
-          if (pendingSubmitRef.current) {
-            pendingSubmitRef.current = false;
-            await performCreateRequest();
-          }
-        }}
-        title="Sign in to continue"
-        subtitle="Sign in or create an account to save your brief, then add to basket or checkout."
-        benefits={[
-          'Save your design request to your account',
-          'Add to basket or checkout securely',
-          'Track progress from My Account',
-        ]}
-        verifyOtpButtonLabel="Verify & continue"
-        signInButtonLabel="Sign in & continue"
-      />
 
       <div className="mt-16 pt-12 border-t border-gray-200 space-y-12">
         <section aria-labelledby="design-service-overview">

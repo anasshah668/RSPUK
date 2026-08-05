@@ -62,14 +62,14 @@ export function buildSaleReceiptLines({ lineItems, orderTitle, amountPaid, amoun
         item.type === 'custom-neon' ||
         item.type === 'featured-signage';
 
+      // `price` on cart/checkout line items is always the total for the whole
+      // line (it already accounts for quantity / print-run size) — it is never
+      // a per-unit rate, so it must not be multiplied by qty again here. This
+      // mirrors the totals shown on the checkout page (see `lineDisplayAmount`
+      // in CheckoutPage.jsx).
       let amountNet = 0;
       if (Number.isFinite(rawPrice)) {
-        if (isNet || item.priceIsLineTotal) {
-          // Featured / many checkout payloads store the full line net in `price`.
-          amountNet = item.priceIsLineTotal || item.type === 'featured-signage' ? rawPrice : rawPrice * qty;
-        } else {
-          amountNet = (rawPrice * qty) / (1 + UK_VAT_RATE);
-        }
+        amountNet = isNet ? rawPrice : rawPrice / (1 + UK_VAT_RATE);
       }
 
       return {
@@ -141,9 +141,19 @@ export async function downloadSaleReceiptPdf({
   try {
     const logoUrl = await loadImageDataUrl(company.logoPath || '/logo.png');
     const { width: iw, height: ih } = await getImageSize(logoUrl);
-    const logoW = 42;
-    const logoH = Math.min(16, (logoW * ih) / iw);
-    pdf.addImage(logoUrl, 'PNG', pageWidth - marginX - logoW, y - 6, logoW, logoH);
+    const logoW = 44;
+    const logoH = Math.min(18, (logoW * ih) / iw);
+    const padX = 4;
+    const padY = 3;
+    const boxW = logoW + padX * 2;
+    const boxH = logoH + padY * 2;
+    const boxX = pageWidth - marginX - boxW;
+    const boxY = y - 7;
+
+    // Dark panel so white parts of the logo stay visible on the white receipt
+    pdf.setFillColor(15, 23, 42); // slate-900
+    pdf.roundedRect(boxX, boxY, boxW, boxH, 2, 2, 'F');
+    pdf.addImage(logoUrl, 'PNG', boxX + padX, boxY + padY, logoW, logoH);
     logoLoaded = true;
   } catch {
     logoLoaded = false;
@@ -168,7 +178,7 @@ export async function downloadSaleReceiptPdf({
   y += 4.2;
   pdf.text(`Company Registration No. ${company.companyNumber || '—'}`, marginX, y);
 
-  y = Math.max(y + 10, logoLoaded ? 58 : 52);
+  y = Math.max(y + 10, logoLoaded ? 60 : 52);
 
   // —— INVOICE TO (left) + SALE RECEIPT bars (right) ——
   const barsX = pageWidth - marginX - 62;
