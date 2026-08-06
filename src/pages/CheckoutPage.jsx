@@ -136,18 +136,6 @@ function pickOrderReviewSummaryRows(summary) {
     .slice(0, 4);
 }
 
-function formatSourceLabel(source) {
-  const value = String(source || '').trim();
-  if (!value) return '';
-  if (value === 'third-party') return 'Trade Print';
-  if (value === 'in-house') return 'In House';
-  return value
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
 function getTradeprintServiceLevel(item) {
   const value = String(
     item?.serviceLevel ||
@@ -350,8 +338,6 @@ const CheckoutPage = () => {
     return undefined;
   }, [location?.state?.checkoutData, checkoutItems]);
 
-  const checkoutSourceLabel = formatSourceLabel(checkoutData?.source);
- 
   const [activeSlide, setActiveSlide] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('worldpay-card');
   const [acceptTerms, setAcceptTerms] = useState(false);
@@ -1131,7 +1117,7 @@ const CheckoutPage = () => {
                           className="text-[11px] text-gray-500 mt-0.5"
                           style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                         >
-                          Qty {item?.quantity || 1} · Source: {formatSourceLabel(item?.source) || 'Trade Print'}
+                          Qty {item?.quantity || 1}
                         </p>
                         {override ? (
                           <p
@@ -1237,11 +1223,6 @@ const CheckoutPage = () => {
                         <p className="text-xs text-gray-500 mt-0.5 tabular-nums">
                           Qty {item.quantity || 1}
                         </p>
-                        {formatSourceLabel(item.source) ? (
-                          <p className="text-[11px] text-gray-500 mt-0.5">
-                            Source: {formatSourceLabel(item.source)}
-                          </p>
-                        ) : null}
                       </div>
                       <p className="shrink-0 font-semibold text-gray-900 tabular-nums self-start">
                         £{lineDisplayAmount(item).toFixed(2)}
@@ -1273,11 +1254,6 @@ const CheckoutPage = () => {
                   >
                     {checkoutData?.title}
                   </p>
-                  {checkoutSourceLabel ? (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Source: {checkoutSourceLabel}
-                    </p>
-                  ) : null}
                 </div>
                 {reviewSummaryRows.length > 0 ? (
                   <dl className="grid gap-2 text-sm">
