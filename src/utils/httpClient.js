@@ -88,7 +88,10 @@ class HttpClient {
       const errorMessage = 
         data?.message || 
         data?.error || 
-        `HTTP ${response.status}: ${response.statusText}`;
+        (typeof data === 'string' && data.trim()) ||
+        (response.status === 413
+          ? 'Upload is too large for the server. Try fewer or smaller pictures.'
+          : `HTTP ${response.status}: ${response.statusText}`);
       
       // Handle 401 Unauthorized - clear token and redirect
       if (response.status === 401) {
@@ -112,13 +115,16 @@ class HttpClient {
     await this.init();
     
     const url = `${this.baseURL}/${endpoint}`;
+    const { timeout, ...requestOptions } = options;
     
     // Apply request interceptor
-    const interceptedOptions = await this.interceptRequest(url, options);
+    const interceptedOptions = await this.interceptRequest(url, requestOptions);
     
     // Create abort controller for timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    const isFormData = interceptedOptions.body instanceof FormData;
+    const timeoutMs = timeout || (isFormData ? Math.max(this.timeout, 120000) : this.timeout);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
     try {
       const response = await fetch(url, {

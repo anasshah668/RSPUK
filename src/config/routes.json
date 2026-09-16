@@ -58,6 +58,7 @@
     "neonPricing": "admin/neon-pricing",
     "featuredSignagePricing": "admin/featured-signage-pricing",
     "featuredSignageMedia": "admin/featured-signage-media",
+    "uploadsPresign": "admin/uploads/presign",
     "ordersFromCheckout": "admin/orders-from-checkout"
   },
   "neonPricing": {
