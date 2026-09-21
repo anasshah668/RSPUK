@@ -85,13 +85,19 @@ class HttpClient {
     }
 
     if (!response.ok) {
-      const errorMessage = 
-        data?.message || 
-        data?.error || 
-        (typeof data === 'string' && data.trim()) ||
-        (response.status === 413
-          ? 'Upload is too large for the server. Try fewer or smaller pictures.'
-          : `HTTP ${response.status}: ${response.statusText}`);
+      const rawText = typeof data === 'string' ? data : '';
+      const looksTooLarge =
+        response.status === 413 ||
+        /too large|payload too large|entity too large/i.test(
+          rawText || String(data?.message || data?.error || ''),
+        );
+
+      const errorMessage = looksTooLarge
+        ? 'Those pictures are too large for the server. Try fewer files, or a smaller JPEG/PNG — large camera photos are compressed automatically on retry.'
+        : data?.message ||
+          data?.error ||
+          (rawText.trim() && !/^FUNCTION_/i.test(rawText) ? rawText.trim() : '') ||
+          `HTTP ${response.status}: ${response.statusText}`;
       
       // Handle 401 Unauthorized - clear token and redirect
       if (response.status === 401) {

@@ -2948,6 +2948,7 @@ const SettingsTab = () => {
       setNotice(projectId ? 'Gallery project updated.' : 'Gallery project created.');
     } catch (e) {
       setError(e?.message || 'Failed to save gallery project');
+      throw e;
     } finally {
       setGallerySaving(false);
     }
@@ -3449,17 +3450,21 @@ const GalleryProjectModal = ({ project, onClose, onSave, isSaving }) => {
       return;
     }
 
-    await onSave({
-      projectId: project?._id,
-      files: newFiles,
-      payload: {
-        title: String(title || '').trim(),
-        description: String(description || '').trim(),
-        displayOrder: Number(displayOrder) || 0,
-        isActive: Boolean(isActive),
-        existingImages,
-      },
-    });
+    try {
+      await onSave({
+        projectId: project?._id,
+        files: newFiles,
+        payload: {
+          title: String(title || '').trim(),
+          description: String(description || '').trim(),
+          displayOrder: Number(displayOrder) || 0,
+          isActive: Boolean(isActive),
+          existingImages,
+        },
+      });
+    } catch (err) {
+      setValidationError(err?.message || 'Failed to save gallery project. Please try again.');
+    }
   };
 
   return (
@@ -3534,7 +3539,7 @@ const GalleryProjectModal = ({ project, onClose, onSave, isSaving }) => {
               className="w-full text-sm text-gray-700"
             />
             <p className="mt-1 text-xs text-gray-500">
-              You can upload multiple images for each project.
+              Large camera photos are compressed and uploaded one at a time. If an upload fails, the error will appear above.
             </p>
           </div>
 
@@ -3572,7 +3577,7 @@ const GalleryProjectModal = ({ project, onClose, onSave, isSaving }) => {
               className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold disabled:opacity-60"
               disabled={isSaving}
             >
-              {isSaving ? 'Saving...' : project ? 'Update Project' : 'Create Project'}
+              {isSaving ? 'Uploading pictures…' : project ? 'Update Project' : 'Create Project'}
             </button>
           </div>
         </form>

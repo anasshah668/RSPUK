@@ -1,6 +1,6 @@
 import httpClient from '../utils/httpClient';
 import { apiRoutes } from '../config/routes';
-import compressImageFile from '../utils/compressImageFile';
+import { prepareImageForUpload } from '../utils/compressImageFile';
 
 const adminMediaUrl = (categorySlug) =>
   `${apiRoutes.admin.featuredSignageMedia}/${encodeURIComponent(categorySlug)}`;
@@ -25,7 +25,7 @@ const updateAdmin = async (categorySlug, { existingImages = [] } = {}, files = [
 
   let images = [...existingImages];
   for (const file of files) {
-    const compressed = await compressImageFile(file);
+    const compressed = await prepareImageForUpload(file);
     const formData = new FormData();
     formData.append('existingImages', JSON.stringify(images));
     formData.append('images', compressed, compressed.name || file.name);

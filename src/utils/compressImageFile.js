@@ -42,7 +42,7 @@ const compressImageFile = async (file, options = {}) => {
     let q = quality;
     let blob = await toBlob(mime, q);
 
-    while (blob && blob.size > maxBytes && q > 0.5) {
+    while (blob && blob.size > maxBytes && q > 0.4) {
       mime = 'image/jpeg';
       q -= 0.08;
       blob = await toBlob(mime, q);
@@ -56,6 +56,22 @@ const compressImageFile = async (file, options = {}) => {
   } finally {
     if (typeof bitmap.close === 'function') bitmap.close();
   }
+};
+
+export const prepareImageForUpload = async (file) => {
+  const compressed = await compressImageFile(file, {
+    maxDimension: 1800,
+    quality: 0.8,
+    maxBytes: 1.2 * 1024 * 1024,
+  });
+  const maxBytes = 3.2 * 1024 * 1024;
+  if (compressed?.size > maxBytes) {
+    const mb = (compressed.size / (1024 * 1024)).toFixed(1);
+    throw new Error(
+      `"${file.name || 'Picture'}" is still ${mb} MB after compression. Choose a smaller JPEG or PNG.`,
+    );
+  }
+  return compressed;
 };
 
 export default compressImageFile;
