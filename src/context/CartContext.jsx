@@ -86,6 +86,30 @@ export const CartProvider = ({ children }) => {
     applyItems(data?.items);
   };
 
+  const replaceCartItem = async (identifier, product, explicitQuantity) => {
+    ensureClientId();
+    const line = resolveCartLine(identifier);
+    const explicitNum =
+      explicitQuantity === undefined || explicitQuantity === null ? NaN : Number(explicitQuantity);
+    const nestedNum = Number(product?.quantity);
+    const qty = Math.max(
+      1,
+      (Number.isFinite(explicitNum) && explicitNum > 0 ? explicitNum : null) ??
+        (Number.isFinite(nestedNum) && nestedNum > 0 ? nestedNum : null) ??
+        1,
+    );
+    const { quantity: _ignored, lineId: _ignoredLine, ...base } = product || {};
+    if (!line?.lineId) {
+      await addToCart({ ...base, quantity: qty }, qty);
+      return;
+    }
+    const data = await httpClient.patch(`${apiRoutes.cart.item}/${encodeURIComponent(line.lineId)}`, {
+      item: base,
+      quantity: qty,
+    });
+    applyItems(data?.items);
+  };
+
   const updateQuantity = async (identifier, quantity) => {
     if (quantity <= 0) {
       await removeFromCart(identifier);
@@ -129,6 +153,7 @@ export const CartProvider = ({ children }) => {
     cartItems,
     refreshCart,
     addToCart,
+    replaceCartItem,
     removeFromCart,
     updateQuantity,
     clearCart,

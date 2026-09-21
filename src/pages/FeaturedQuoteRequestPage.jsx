@@ -114,7 +114,8 @@ const FeaturedQuoteRequestPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { categorySlug } = useParams();
-  const { addToCart } = useCart();
+  const { addToCart, replaceCartItem } = useCart();
+  const editCartLine = location.state?.editCartLine || null;
   const [signageItem, setSignageItem] = useState(() => getFeaturedSignageBySlug(categorySlug));
   const presetDimensions = location.state?.presetDimensions;
   const [step, setStep] = useState('form'); // form | preview | success
@@ -127,6 +128,9 @@ const FeaturedQuoteRequestPage = () => {
     ...(presetDimensions?.height ? { height: String(presetDimensions.height) } : {}),
     ...(presetDimensions?.unit ? { unit: presetDimensions.unit } : {}),
     ...(presetDimensions?.quantity ? { quantity: String(presetDimensions.quantity) } : {}),
+    ...(location.state?.editCartLine?.selectionSnapshot?.formData || {}),
+    ...(location.state?.editCartLine?.selectedAttributes?.globalInputs || {}),
+    ...(location.state?.editCartLine?.selectedAttributes?.productSpecificInputs || {}),
   }));
 
   useEffect(() => {
@@ -420,6 +424,9 @@ const FeaturedQuoteRequestPage = () => {
         globalInputs: orderPayload.globalInputs,
         productSpecificInputs: orderPayload.productSpecificInputs,
       },
+      selectionSnapshot: {
+        formData,
+      },
     };
   };
 
@@ -437,8 +444,15 @@ const FeaturedQuoteRequestPage = () => {
     setAddingToBasket(true);
     try {
       const line = buildFeaturedBasketLine();
-      await addToCart(line, 1);
-      toast.success('Added to basket');
+      if (editCartLine?.lineId || editCartLine?.id) {
+        line.id = editCartLine.id || line.id;
+        await replaceCartItem(editCartLine.lineId || editCartLine.id, line, 1);
+        toast.success('Featured signage updated in your basket');
+        navigate(location.pathname, { replace: true, state: {} });
+      } else {
+        await addToCart(line, 1);
+        toast.success('Added to basket');
+      }
       window.dispatchEvent(
         new CustomEvent('rspuk-basket-open', {
           detail: { highlightId: line.id },

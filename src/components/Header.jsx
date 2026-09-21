@@ -10,6 +10,7 @@ import {
   isTradeprintCategory,
 } from '../utils/tradeprintCategories';
 import { basketTypeLabel, getBasketItemDetailLines } from '../utils/cartItemDisplay';
+import { canEditCartItem, getCartItemEditTarget } from '../utils/cartItemEdit';
 
 const Header = () => {
   const navigate = useNavigate();
@@ -371,6 +372,14 @@ const Header = () => {
     setMobileMenuOpen(false);
   };
 
+  const goToEditItem = (item) => {
+    const target = getCartItemEditTarget(item);
+    if (!target?.path) return;
+    navigate(target.path, { state: target.state });
+    setBasketOpen(false);
+    setMobileMenuOpen(false);
+  };
+
   const goToCheckoutAll = () => {
     if (!cartItems.length) return;
     navigate('/checkout', {
@@ -451,7 +460,7 @@ const Header = () => {
             cartItems.map((item) => {
               const itemKey = String(item.id || item.lineId || '');
               const typeLabel = basketTypeLabel(item.type);
-              const detailLines = getBasketItemDetailLines(item);
+              const detailLines = getBasketItemDetailLines(item, { maxSummary: 8 });
               const isHighlighted = basketHighlightId && itemKey === String(basketHighlightId);
               const projectOnly =
                 item.type === 'design-service' && item.description
@@ -477,13 +486,24 @@ const Header = () => {
                         {item.title || item.name}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => removeFromCart(item.lineId || item.id)}
-                      className="text-red-600 text-xs font-semibold shrink-0 hover:underline"
-                    >
-                      Remove
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {canEditCartItem(item) ? (
+                        <button
+                          type="button"
+                          onClick={() => goToEditItem(item)}
+                          className="text-blue-600 text-xs font-semibold hover:underline"
+                        >
+                          Edit
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => removeFromCart(item.lineId || item.id)}
+                        className="text-red-600 text-xs font-semibold hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
 
                   {projectOnly && detailLines.length === 0 ? (

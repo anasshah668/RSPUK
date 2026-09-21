@@ -1,5 +1,7 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import { canEditCartItem, getCartItemEditTarget } from '../utils/cartItemEdit';
 
 const API_ORIGIN = (import.meta.env.VITE_API_URL || '')
   .replace(/\/api\/?$/i, '')
@@ -85,7 +87,15 @@ function getCartItemDetailLines(item) {
 }
 
 const CartDropdown = ({ isOpen, onClose }) => {
+  const navigate = useNavigate();
   const { cartItems, removeFromCart, updateQuantity, getCartTotal, clearCart } = useCart();
+
+  const goToEditItem = (item) => {
+    const target = getCartItemEditTarget(item);
+    if (!target?.path) return;
+    navigate(target.path, { state: target.state });
+    onClose();
+  };
 
   if (!isOpen) return null;
 
@@ -223,6 +233,16 @@ const CartDropdown = ({ isOpen, onClose }) => {
                         </p>
                       </div>
 
+                      {canEditCartItem(item) ? (
+                        <button
+                          type="button"
+                          onClick={() => goToEditItem(item)}
+                          className="text-blue-600 hover:text-blue-800 text-xs font-semibold px-1"
+                          title="Edit item"
+                        >
+                          Edit
+                        </button>
+                      ) : null}
                       <button
                         onClick={() => removeFromCart(item.lineId || item.id)}
                         className="text-red-500 hover:text-red-700 transition-colors p-1"

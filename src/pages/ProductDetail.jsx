@@ -65,7 +65,8 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const location = useLocation();
   const dispatch = useDispatch();
   const savedDraft = useSelector((state) => state.designerSession?.productDetailDraft);
-  const { addToCart } = useCart();
+  const { addToCart, replaceCartItem } = useCart();
+  const editCartLine = location.state?.editCartLine || null;
   const { isAuthenticated } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalPurpose, setAuthModalPurpose] = useState('cart');
@@ -105,6 +106,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const [deliveryPostcode, setDeliveryPostcode] = useState('');
   const [quantitiesOptions, setQuantitiesOptions] = useState([]);
   const hasHydratedDraftRef = useRef(false);
+  const hasHydratedEditRef = useRef(false);
 
   // Initialize with productProp if available, then fetch from URL params or productId
   useEffect(() => {
@@ -285,9 +287,10 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
 
   useEffect(() => {
     setSelectedImageIndex(0);
+    if (location.state?.editCartLine) return;
     setQuantity(null);
     setQuantitiesOptions([]);
-  }, [product?._id, productProp?._id, encryptedId]);
+  }, [product?._id, productProp?._id, encryptedId, location.state?.editCartLine]);
 
   useEffect(() => {
     if (hasThirdPartyPricing) return;
@@ -301,6 +304,30 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       setQuantity(resolved);
     }
   }, [quantity, quantitiesOptions, hasThirdPartyPricing]);
+
+  useEffect(() => {
+    const edit = location.state?.editCartLine;
+    if (!edit || !product || hasHydratedEditRef.current) return;
+    if (edit.designOption) setDesignOption(edit.designOption);
+    if (edit.size) setSelectedSize(edit.size);
+    if (Number(edit.quantity) > 0) setQuantity(Number(edit.quantity));
+    if (edit.material) setMaterial(edit.material);
+    if (edit.sidesPrinted) setSidesPrinted(edit.sidesPrinted);
+    if (edit.lamination) setLamination(edit.lamination);
+    if (edit.roundCorners) setRoundCorners(edit.roundCorners);
+    if (edit.deliveryOption) {
+      setDeliveryOption(edit.deliveryOption);
+      deliveryOptionRef.current = edit.deliveryOption;
+    }
+    if (edit.selectedAttributes && typeof edit.selectedAttributes === 'object') {
+      setSelectedAttributeValues((prev) => ({ ...prev, ...edit.selectedAttributes }));
+    }
+    if (edit.artworkPreviewUrl) {
+      setArtworkUploadUrl(edit.artworkPreviewUrl);
+    }
+    hasHydratedEditRef.current = true;
+    hasHydratedDraftRef.current = true;
+  }, [product, location.state?.editCartLine]);
 
   useEffect(() => {
     if (!hasThirdPartyPricing || !thirdPartyProductKey) {
@@ -888,11 +915,30 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
           lamination,
           roundCorners,
           deliveryOption: resolvedDeliveryOption
-        })
+        }),
+        summary: [
+          ...(sizeEnabled && selectedSize ? [{ label: 'Size', value: String(selectedSize) }] : []),
+          { label: 'Quantity', value: String(qtyToAdd) },
+          ...(effectiveDesignOption
+            ? [{ label: 'Design', value: effectiveDesignOption === 'upload' ? 'Upload artwork' : 'Online designer' }]
+            : []),
+          ...productOptions,
+        ],
       };
 
-      await addToCart(cartProduct);
-      toast.success(`${displayProduct.name} added to cart!`);
+      if (editCartLine?.lineId || editCartLine?.id) {
+        await replaceCartItem(editCartLine.lineId || editCartLine.id, cartProduct);
+        toast.success(`${displayProduct.name} updated in your basket.`);
+        navigate(location.pathname, { replace: true, state: {} });
+        window.dispatchEvent(
+          new CustomEvent('rspuk-basket-open', {
+            detail: { highlightId: editCartLine.id || cartProduct.id },
+          }),
+        );
+      } else {
+        await addToCart(cartProduct);
+        toast.success(`${displayProduct.name} added to cart!`);
+      }
     } catch (e) {
       console.error('[cart] add failed', e);
       toast.error(e?.message || 'Could not add to basket. Please try again.');
@@ -1045,6 +1091,11 @@ console.log('fretrhyrtewrfew', source);
               <h1 className="text-3xl font-bold text-gray-900 mt-1">
                 {displayProduct.name}
               </h1>
+              {editCartLine ? (
+                <p className="mt-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                  You are editing this item from your basket. Change the options, then click Update Basket.
+                </p>
+              ) : null}
             </div>
 
             {/* Price (hide for business cards / delivery-table products because pricing is dynamic) */}
@@ -2144,8 +2195,12 @@ console.log('fretrhyrtewrfew', source);
                 ? isUploadingArtwork
                   ? 'Uploading artwork…'
                   : isAddingToCart
-                    ? 'Adding…'
-                    : 'Add To Basket'
+                    ? editCartLine
+                      ? 'Updating…'
+                      : 'Adding…'
+                    : editCartLine
+                      ? 'Update Basket'
+                      : 'Add To Basket'
                 : 'Design Your Product'}
             </button>
           </div>

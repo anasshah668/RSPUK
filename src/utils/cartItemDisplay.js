@@ -39,6 +39,41 @@ export function getBasketItemDetailLines(item, { maxSummary = 4 } = {}) {
     return lines.slice(0, maxSummary);
   }
 
+  if (item?.size) {
+    lines.push({ label: 'Size', value: String(item.size) });
+  }
+  if (item?.quantity) {
+    lines.push({ label: 'Quantity', value: String(item.quantity) });
+  }
+  if (item?.designOption === 'upload') {
+    lines.push({ label: 'Design', value: 'Upload artwork' });
+  } else if (item?.designOption === 'custom') {
+    lines.push({ label: 'Design', value: 'Online designer' });
+  }
+  if (item?.deliveryOption) {
+    lines.push({
+      label: 'Delivery',
+      value: String(item.deliveryOption).replace(/-/g, ' '),
+    });
+  }
+
+  if (Array.isArray(item?.productOptions)) {
+    item.productOptions.forEach((opt) => {
+      if (!opt?.label || opt.value == null || String(opt.value).trim() === '') return;
+      lines.push({ label: String(opt.label), value: String(opt.value) });
+    });
+  }
+
+  if (item?.selectedAttributes && typeof item.selectedAttributes === 'object') {
+    Object.entries(item.selectedAttributes).forEach(([label, value]) => {
+      if (value == null || value === '' || typeof value === 'object') return;
+      if (lines.some((row) => row.label === label && row.value === String(value))) return;
+      lines.push({ label: String(label), value: String(value) });
+    });
+  }
+
+  if (lines.length > 0) return lines.slice(0, maxSummary);
+
   if (item?.description && type !== 'design-service') {
     const short =
       item.description.length > 120

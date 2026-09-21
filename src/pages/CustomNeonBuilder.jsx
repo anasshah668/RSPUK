@@ -5,7 +5,7 @@ import { quoteService } from '../services/quoteService';
 import { neonPricingService } from '../services/neonPricingService';
 import { toast } from 'react-toastify';
 
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { authService } from '../services/authService';
@@ -69,8 +69,10 @@ const NEON_BUILDER_FAQ = [
 
 const CustomNeonBuilder = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated } = useAuth();
-  const { addToCart } = useCart();
+  const { addToCart, replaceCartItem } = useCart();
+  const editCartLine = location.state?.editCartLine || null;
   const { setPreviewExitGuardActive, confirmLeavePreview } = useNeonPreviewExit();
   const previewRef = useRef(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -125,6 +127,16 @@ const CustomNeonBuilder = () => {
     hex: NEON_LIVE_BG_COLORS[0].hex,
   }));
   const livePreviewTextSize = Math.round(neonConfig.size * 1.38);
+
+  useEffect(() => {
+    const snap = editCartLine?.selectionSnapshot;
+    const cfg = snap?.neonConfig;
+    if (!cfg || typeof cfg !== 'object') return;
+    setNeonConfig((prev) => ({ ...prev, ...cfg }));
+    if (snap.selectedSize) setSelectedSize(snap.selectedSize);
+    if (typeof snap.customSizeEnabled === 'boolean') setCustomSizeEnabled(snap.customSizeEnabled);
+    if (snap.customSize && typeof snap.customSize === 'object') setCustomSize(snap.customSize);
+  }, [editCartLine]);
 
   const livePreviewBackdropStyle =
     liveViewBackdrop.kind === 'image'
@@ -597,19 +609,29 @@ const CustomNeonBuilder = () => {
   const addNeonToBasket = () => {
     const summaryPayload = neonCheckoutSummary.map(({ label, value }) => ({ label, value: String(value) }));
     const textLine = summaryPayload.find((s) => s.label === 'Text')?.value || (neonConfig.text || '').trim();
-    addToCart(
-      {
-        id: `custom-neon-${Date.now()}`,
-        type: 'custom-neon',
-        title: 'Custom Neon Sign',
-        description: textLine.length > 140 ? `${textLine.slice(0, 137)}…` : textLine,
-        price: Number(estimatedAmount) || 0,
-        quantity: 1,
-        summary: summaryPayload,
+    const line = {
+      id: editCartLine?.id || `custom-neon-${Date.now()}`,
+      type: 'custom-neon',
+      title: 'Custom Neon Sign',
+      description: textLine.length > 140 ? `${textLine.slice(0, 137)}…` : textLine,
+      price: Number(estimatedAmount) || 0,
+      quantity: 1,
+      summary: summaryPayload,
+      selectionSnapshot: {
+        neonConfig,
+        selectedSize,
+        customSizeEnabled,
+        customSize,
       },
-      1,
-    );
-    toast.success('Added to basket');
+    };
+    if (editCartLine?.lineId || editCartLine?.id) {
+      replaceCartItem(editCartLine.lineId || editCartLine.id, line, 1);
+      toast.success('Neon sign updated in your basket');
+      navigate(location.pathname, { replace: true, state: {} });
+    } else {
+      addToCart(line, 1);
+      toast.success('Added to basket');
+    }
     window.dispatchEvent(new CustomEvent('rspuk-basket-open'));
   };
 
