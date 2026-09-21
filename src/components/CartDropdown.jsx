@@ -229,7 +229,7 @@ const CartDropdown = ({ isOpen, onClose }) => {
                           className="font-bold text-gray-900"
                           style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                         >
-                          £{(item.price * item.quantity).toFixed(2)}
+                          £{Number(item.price || 0).toFixed(2)}
                         </p>
                       </div>
 

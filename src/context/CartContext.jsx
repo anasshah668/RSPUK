@@ -141,7 +141,7 @@ export const CartProvider = ({ children }) => {
     return cartItems.reduce((total, item) => {
       const price = Number(item.price);
       if (!Number.isFinite(price)) return total;
-      return total + price * item.quantity;
+      return total + price;
     }, 0);
   };
 

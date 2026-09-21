@@ -334,8 +334,7 @@ const Header = () => {
   const basketTotalDisplay = cartItems.reduce((sum, item) => sum + lineBasketDisplayAmount(item), 0);
 
   const goToCheckoutForItem = (item) => {
-    const qty = Number(item.quantity || 1);
-    const lineNet = Number(item.price || 0) * qty;
+    const lineNet = Number(item.price || 0);
     let summary =
       Array.isArray(item.summary) && item.summary.length > 0
         ? item.summary

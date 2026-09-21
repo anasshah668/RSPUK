@@ -376,7 +376,7 @@ const CheckoutPage = () => {
   const multiNeonNetTotal = useMemo(() => {
     if (!isMultiCheckout || !allCustomNeon) return 0;
     return checkoutItems.reduce(
-      (s, i) => s + Number(i.price || 0) * Number(i.quantity || 1),
+      (s, i) => s + Number(i.price || 0),
       0
     );
   }, [isMultiCheckout, allCustomNeon, checkoutItems]);
