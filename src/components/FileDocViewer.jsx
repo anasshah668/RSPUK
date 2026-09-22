@@ -2,12 +2,37 @@ import React, { useMemo, useState } from 'react';
 import DocViewer, { DocViewerRenderers } from '@cyntler/react-doc-viewer';
 import '@cyntler/react-doc-viewer/dist/index.css';
 import { FiDownload, FiZoomIn, FiZoomOut, FiRotateCcw } from 'react-icons/fi';
+import { API_BASE_URL } from '../config/apiConfig';
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.15;
 
 export const isHttpUrl = (value) => /^https?:\/\//i.test(String(value || '').trim());
+
+const isOurS3Url = (value) => {
+  try {
+    const host = new URL(value).hostname.toLowerCase();
+    return (
+      host === 'amzn-s3-bucket-rspuk.s3.us-east-1.amazonaws.com' ||
+      host === 'amzn-s3-bucket-rspuk.s3.amazonaws.com' ||
+      (host.startsWith('amzn-s3-bucket-rspuk.s3.') && host.endsWith('.amazonaws.com'))
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isPdfFile = (url, fileName = '') =>
+  /\.pdf(?:$|[?#])/i.test(String(url || '')) || /\.pdf$/i.test(String(fileName || ''));
+
+export const toProxiedFileUrl = (fileUrl) => {
+  const url = String(fileUrl || '').trim();
+  if (!isHttpUrl(url) || !isOurS3Url(url)) return url;
+  const base = String(API_BASE_URL || '').replace(/\/+$/, '');
+  if (!base) return url;
+  return `${base}/uploads/file?url=${encodeURIComponent(url)}`;
+};
 
 export const linkLabelForUrl = (url) => {
   try {
@@ -83,9 +108,10 @@ const toCloudinaryAttachmentUrl = (url, filename) => {
 
 export const downloadFileToDevice = async (fileUrl, fileName = 'download') => {
   const safeName = fileName || linkLabelForUrl(fileUrl) || 'download';
+  const fetchUrl = toProxiedFileUrl(fileUrl);
 
   try {
-    const response = await fetch(fileUrl, { mode: 'cors' });
+    const response = await fetch(fetchUrl, { mode: 'cors' });
     if (!response.ok) throw new Error('Download failed');
 
     const blob = await response.blob();
@@ -117,15 +143,17 @@ export const FileDocViewer = ({ fileUrl, fileName = '' }) => {
   const [zoom, setZoom] = useState(1);
   const [downloading, setDownloading] = useState(false);
   const displayName = fileName || linkLabelForUrl(fileUrl);
+  const previewUrl = toProxiedFileUrl(fileUrl);
+  const showPdfFrame = isPdfFile(fileUrl, displayName);
 
   const documents = useMemo(
     () => [
       {
-        uri: fileUrl,
+        uri: previewUrl,
         fileName: displayName,
       },
     ],
-    [fileUrl, displayName],
+    [previewUrl, displayName],
   );
 
   const zoomOut = () => setZoom((z) => Math.max(MIN_ZOOM, Number((z - ZOOM_STEP).toFixed(2))));
@@ -186,16 +214,24 @@ export const FileDocViewer = ({ fileUrl, fileName = '' }) => {
           }}
         >
           <div className="bg-white rounded-xl shadow-sm ring-1 ring-gray-200 overflow-hidden min-h-[70vh]">
-            <DocViewer
-              documents={documents}
-              pluginRenderers={DocViewerRenderers}
-              config={{
-                header: { disableHeader: true },
-                pdfZoom: { defaultZoom: 1, zoomJump: ZOOM_STEP },
-                pdfVerticalScrollByDefault: true,
-              }}
-              style={{ minHeight: '70vh' }}
-            />
+            {showPdfFrame ? (
+              <iframe
+                src={fileUrl}
+                title={displayName}
+                className="w-full min-h-[70vh] border-0 bg-white"
+              />
+            ) : (
+              <DocViewer
+                documents={documents}
+                pluginRenderers={DocViewerRenderers}
+                config={{
+                  header: { disableHeader: true },
+                  pdfZoom: { defaultZoom: 1, zoomJump: ZOOM_STEP },
+                  pdfVerticalScrollByDefault: true,
+                }}
+                style={{ minHeight: '70vh' }}
+              />
+            )}
           </div>
         </div>
       </div>
