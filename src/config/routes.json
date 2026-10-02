@@ -8,6 +8,7 @@
     "registerVerifyOtp": "auth/register/verify-otp",
     "me": "auth/me",
     "forgotPassword": "auth/forgot-password",
+    "forgotPasswordVerifyOtp": "auth/forgot-password/verify-otp",
     "resetPassword": "auth/reset-password",
     "changePassword": "auth/change-password"
   },

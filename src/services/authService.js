@@ -86,6 +86,14 @@ const forgotPassword = (email, options = {}) => {
   );
 };
 
+const forgotPasswordVerifyOtp = (payload) => {
+  return httpClient.post(
+    `${apiRoutes.authentication.forgotPasswordVerifyOtp}`,
+    payload,
+    { skipAuth: true },
+  );
+};
+
 const resetPassword = (payload) => {
   return httpClient.post(
     `${apiRoutes.authentication.resetPassword}`,
@@ -111,6 +119,7 @@ export const authService = {
   getProfile,
   updateProfile,
   forgotPassword,
+  forgotPasswordVerifyOtp,
   resetPassword,
   getGoogleAuthUrl,
   changePassword,
