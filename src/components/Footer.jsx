@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useNeonPreviewExit } from '../context/NeonPreviewExitContext';
 import { featuredSignageItems } from '../data/featuredSignageData';
 import { COMPANY_CONTACT } from '../config/companyContact';
@@ -220,16 +220,25 @@ const Footer = () => {
                 { label: 'Get a Free Quote', action: 'quote' },
                 { label: 'Design Tool', action: 'product-designer' },
                 { label: 'FAQs', action: 'faqs' },
-              ].map(({ label, action }) => (
-                <li key={action}>
-                  <button
-                    type="button"
-                    onClick={() => handleNavClick(action)}
-                    className={linkClass}
-                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                  >
-                    {label}
-                  </button>
+                { label: 'Terms & Conditions', href: '/terms' },
+                { label: 'Privacy Policy', href: '/privacy' },
+                { label: 'Delivery & Returns', href: '/delivery-returns' },
+              ].map(({ label, action, href }) => (
+                <li key={href || action}>
+                  {href ? (
+                    <Link to={href} className={`${linkClass} block`} style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                      {label}
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleNavClick(action)}
+                      className={linkClass}
+                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                    >
+                      {label}
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>

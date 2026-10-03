@@ -27,6 +27,7 @@ const ResetPassword = lazy(() => import("../pages/ResetPassword"));
 const AdminDashboard = lazy(() => import("../pages/AdminDashboard"));
 const CategoryProducts = lazy(() => import("../pages/CategoryProducts"));
 const Account = lazy(() => import("../pages/Account"));
+const LegalPage = lazy(() => import("../pages/LegalPage"));
 const FeaturedPrintedBoardPage = lazy(
   () => import("../pages/FeaturedPrintedBoardPage"),
 );
@@ -120,6 +121,21 @@ export const routes = [
   {
     path: "/faqs",
     component: FaqPage,
+    layout: "default",
+  },
+  {
+    path: "/terms",
+    component: LegalPage,
+    layout: "default",
+  },
+  {
+    path: "/privacy",
+    component: LegalPage,
+    layout: "default",
+  },
+  {
+    path: "/delivery-returns",
+    component: LegalPage,
     layout: "default",
   },
   {
@@ -325,6 +341,9 @@ export const getRoutePath = (routeName, params = {}) => {
     professionalDesignRequest: "/professional-design-request",
     gallery: "/gallery",
     faqs: "/faqs",
+    terms: "/terms",
+    privacy: "/privacy",
+    deliveryReturns: "/delivery-returns",
     login: "/login",
     register: "/register",
     account: "/account",

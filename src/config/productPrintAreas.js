@@ -93,11 +93,11 @@ export const productPrintAreas = {
     // travelMug: { ... }
   },
 
-  // Business Cards Category
+  // Business Cards Category — 85 × 55mm at 96dpi
   businessCards: {
     "business-card": {
       name: "Business Card",
-      dimensions: { width: 350, height: 200 },
+      dimensions: { width: 321, height: 208 },
       printAreas: [
         {
           id: "front",
@@ -129,10 +129,54 @@ export const productPrintAreas = {
  * @param {string} productType - The product type (e.g., "pen", "tshirt")
  * @returns {Object|null} - Product configuration with print areas or null if not found
  */
+const MM_TO_PX = (mm) => Math.max(1, Math.round((Number(mm) / 25.4) * 96));
+
+export function parseSizeMm(raw) {
+  const match = String(raw || '').match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)/i);
+  if (!match) return null;
+  return { widthMm: Number(match[1]), heightMm: Number(match[2]) };
+}
+
+export function getLockedProductSizeMm({ category, productType, widthMm, heightMm, sizeLabel } = {}) {
+  const parsedW = Number(widthMm);
+  const parsedH = Number(heightMm);
+  if (Number.isFinite(parsedW) && parsedW > 0 && Number.isFinite(parsedH) && parsedH > 0) {
+    return { widthMm: parsedW, heightMm: parsedH };
+  }
+  const fromLabel = parseSizeMm(sizeLabel);
+  if (fromLabel) return fromLabel;
+  const haystack = `${category || ''} ${productType || ''}`.toLowerCase();
+  if (haystack.includes('business-card') || haystack.includes('business card')) {
+    return { widthMm: 85, heightMm: 55 };
+  }
+  return null;
+}
+
+export function getProductCanvasPixels(sizeMm) {
+  if (!sizeMm?.widthMm || !sizeMm?.heightMm) return null;
+  return {
+    width: MM_TO_PX(sizeMm.widthMm),
+    height: MM_TO_PX(sizeMm.heightMm),
+    widthMm: sizeMm.widthMm,
+    heightMm: sizeMm.heightMm,
+  };
+}
+
 export const getProductPrintAreas = (category, productType) => {
   // Normalize category and productType to lowercase
-  const normalizedCategory = category?.toLowerCase().trim();
-  const normalizedType = productType?.toLowerCase().trim();
+  const normalizedCategory = String(category || '').toLowerCase().trim().replace(/\s+/g, '-');
+  const normalizedType = String(productType || '').toLowerCase().trim().replace(/\s+/g, '-');
+  const categoryAliases = {
+    'business-cards': 'businessCards',
+    'business-card': 'businessCards',
+    businesscards: 'businessCards',
+  };
+  const aliasedCategory = categoryAliases[normalizedCategory];
+  if (aliasedCategory && productPrintAreas[aliasedCategory]) {
+    const aliased = productPrintAreas[aliasedCategory][normalizedType]
+      || productPrintAreas[aliasedCategory]['business-card'];
+    if (aliased) return aliased;
+  }
 
   // Helper to pluralize/singularize for matching
   const pluralize = (str) => {

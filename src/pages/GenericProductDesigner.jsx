@@ -12,7 +12,8 @@ import DesignerAuthModal from '../components/DesignerAuthModal';
 import DesignReviewScreen from '../components/DesignReviewScreen';
 import RefreshGuardModal, { useRefreshGuard } from '../components/RefreshGuardModal';
 import { uploadService } from '../services/uploadService';
-import { getProductPrintAreas } from '../config/productPrintAreas';
+import { getProductPrintAreas, getLockedProductSizeMm, getProductCanvasPixels } from '../config/productPrintAreas';
+import { dedupeOptionRows, formatOptionLabel } from '../utils/optionLabels';
 import { generateTemplateThumbnail } from '../utils/templateThumbnail';
 import {
   applyCanvasDisplayZoom,
@@ -529,6 +530,14 @@ const GenericProductDesigner = () => {
   const selectedSizeParam =
     productSearchParams.get('size') || productOptionParams.size || '';
   const isProductDoubleSided = resolveProductDoubleSided(sidePrintedParam);
+  const lockedProductSizeMm = getLockedProductSizeMm({
+    category: productCategory,
+    productType,
+    widthMm: productSearchParams.get('widthMm'),
+    heightMm: productSearchParams.get('heightMm'),
+    sizeLabel: selectedSizeParam,
+  });
+  const lockedProductPixels = getProductCanvasPixels(lockedProductSizeMm);
   const productQuantity = Math.max(
     1,
     Number(productSearchParams.get('quantity') || savedDraft?.quantity || 1),
@@ -652,7 +661,14 @@ const GenericProductDesigner = () => {
   const [showAutosaveRestore, setShowAutosaveRestore] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [templateThumbnails, setTemplateThumbnails] = useState({});
-  const [templateCategory, setTemplateCategory] = useState('All');
+  const [templateCategory, setTemplateCategory] = useState(() => {
+    const haystack = `${productCategory || ''} ${productType || ''}`.toLowerCase();
+    if (haystack.includes('business')) return 'Business Cards';
+    if (haystack.includes('flyer')) return 'Flyers';
+    if (haystack.includes('leaflet') || haystack.includes('brochure')) return 'Leaflets & Brochures';
+    if (haystack.includes('poster')) return 'Posters';
+    return 'All';
+  });
   const [templateQuery, setTemplateQuery] = useState('');
   const [applyingTemplateId, setApplyingTemplateId] = useState(null);
   const [templateSwitchModal, setTemplateSwitchModal] = useState({
@@ -2052,11 +2068,13 @@ const GenericProductDesigner = () => {
     productInitDoneRef.current = true;
 
     const config = getProductPrintAreas(productCategory, productType);
-    const dims = config?.dimensions || { width: 800, height: 400 };
+    const dims = lockedProductPixels || config?.dimensions || { width: 321, height: 208 };
     const sideNames = isProductDoubleSided ? ['Front', 'Back'] : ['Front'];
     const productPages = sideNames.map((name, index) => ({
       ...emptyPage(index, { width: dims.width, height: dims.height }),
       name,
+      widthMm: dims.widthMm || lockedProductSizeMm?.widthMm,
+      heightMm: dims.heightMm || lockedProductSizeMm?.heightMm,
     }));
 
     commitPagesState(productPages);
@@ -2486,12 +2504,13 @@ const GenericProductDesigner = () => {
   const addText = () => {
     if (!canvas || !textInput.trim()) return;
     const text = new fabric.Textbox(textInput, {
-      left: 80,
-      top: 80,
-      width: 360,
+      left: 24,
+      top: 24,
+      width: Math.max(80, Math.min(360, (canvas.getWidth() || 320) - 48)),
       fontSize,
       fill: textColor,
       fontFamily,
+      styles: {},
       objectCaching: false,
       editable: false,
     });
@@ -2643,17 +2662,27 @@ const GenericProductDesigner = () => {
   const addQrCode = async () => {
     if (!canvas || !qrText.trim()) return;
     try {
+      const canvasW = canvas.getWidth() || 320;
+      const canvasH = canvas.getHeight() || 208;
+      const maxSide = Math.max(48, Math.min(canvasW, canvasH) * 0.42);
+      const fittedSize = Math.min(qrSize, maxSide);
+      const bg = String(backgroundColor || '#ffffff').toLowerCase();
+      const bgIsDark = bg !== '#ffffff' && bg !== 'transparent' && bg !== '#fff' && bg !== '#f8fafc';
+      const darkColor = qrColor === '#111111' && bgIsDark ? '#ffffff' : qrColor;
       const dataUrl = await QRCode.toDataURL(qrText, {
-        width: qrSize,
-        margin: 0,
+        width: Math.round(fittedSize),
+        margin: 1,
         color: {
-          dark: qrColor,
+          dark: darkColor,
           light: '#00000000'
         }
       });
       fabric.Image.fromURL(dataUrl, (img) => {
         if (!img) return;
-        img.set({ left: 120, top: 120, name: 'qr-code', objectCaching: false });
+        img.scaleToWidth(fittedSize);
+        const left = Math.max(8, Math.min((canvasW - fittedSize) / 2, canvasW - fittedSize - 8));
+        const top = Math.max(8, Math.min((canvasH - fittedSize) / 2, canvasH - fittedSize - 8));
+        img.set({ left, top, name: 'qr-code', objectCaching: false });
         canvas.add(img);
         finalizeNewObject(img);
       });
@@ -3290,6 +3319,16 @@ const GenericProductDesigner = () => {
       } else {
         nextPages = templatePages;
         nextIndex = 0;
+      }
+
+      if (isProductMode && lockedProductPixels) {
+        nextPages = nextPages.map((page) => ({
+          ...page,
+          width: lockedProductPixels.width,
+          height: lockedProductPixels.height,
+          widthMm: lockedProductPixels.widthMm,
+          heightMm: lockedProductPixels.heightMm,
+        }));
       }
 
       pagesRef.current = nextPages;
@@ -3999,22 +4038,22 @@ const GenericProductDesigner = () => {
     push('Design method', 'Online Designer');
     push('Quantity', productQuantity);
     push('Size', selectedSizeParam || draft.selectedSize);
-    push('Material', productSearchParams.get('material') || draft.material);
-    push('Sides printed', sidePrintedParam || draft.sidesPrinted);
-    push('Lamination', productSearchParams.get('lamination') || draft.lamination);
-    push('Corners', productSearchParams.get('roundCorners') || draft.roundCorners);
-    push('Delivery', productSearchParams.get('deliveryOption') || draft.deliveryOption);
+    push('Material', formatOptionLabel(productSearchParams.get('material') || draft.material));
+    push('Sides printed', formatOptionLabel(sidePrintedParam || draft.sidesPrinted));
+    push('Lamination', formatOptionLabel(productSearchParams.get('lamination') || draft.lamination));
+    push('Corners', formatOptionLabel(productSearchParams.get('roundCorners') || draft.roundCorners));
+    push('Delivery', formatOptionLabel(productSearchParams.get('deliveryOption') || draft.deliveryOption));
 
     Object.entries(productOptionParams).forEach(([key, value]) => {
-      if (['size', 'material', 'lamination', 'round_corners', 'delivery_option'].includes(key)) return;
-      push(humanizeProductOptionKey(key), value);
+      if (['size', 'material', 'lamination', 'round_corners', 'delivery_option', 'sides_printed', 'side_printed'].includes(key)) return;
+      push(humanizeProductOptionKey(key), formatOptionLabel(value));
     });
 
     Object.entries(draft.selectedAttributeValues || {}).forEach(([label, value]) => {
-      push(label, value);
+      push(label, formatOptionLabel(value));
     });
 
-    return rows;
+    return dedupeOptionRows(rows);
   };
 
   const buildCartLineItem = () => {
@@ -4033,7 +4072,7 @@ const GenericProductDesigner = () => {
       name: draft.productName || productType,
       title: draft.productName || productType,
       category: draft.productCategory || productCategory,
-      price: linePrice,
+      price: Number(Number(linePrice || 0).toFixed(2)),
       image: draft.productImage || '',
       quantity: productQuantity,
       designOption: 'custom',
@@ -4628,6 +4667,23 @@ const GenericProductDesigner = () => {
 
         <div className="hidden h-9 w-px bg-slate-200 sm:block" />
 
+        {isProductMode && pages.length > 1 ? (
+          <div className="hidden items-center rounded-xl border border-slate-200 bg-slate-50 p-0.5 sm:flex">
+            {pages.map((page, idx) => (
+              <button
+                key={page.id}
+                type="button"
+                onClick={() => switchToPage(idx)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                  idx === currentPageIndex ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {page.name || `Page ${idx + 1}`}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
         <div className="min-w-0 flex-1 sm:flex-none">
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-700">RSPUK Studio</p>
           <h1 className="truncate text-[15px] font-bold leading-tight text-slate-900 sm:text-base">
@@ -4775,7 +4831,7 @@ const GenericProductDesigner = () => {
             </button>
           </div>
 
-          {isTextSelected && (
+          {isTextSelected && !['templates', 'web', 'pages', 'qr'].includes(activeTab) && (
             <div className="shrink-0 border-b border-emerald-200 bg-gradient-to-b from-emerald-50 via-white to-white px-4 py-3 shadow-[0_4px_12px_-8px_rgba(16,185,129,0.35)]">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">

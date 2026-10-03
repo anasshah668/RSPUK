@@ -12,6 +12,13 @@ import { saveProductDetailDraft } from '../store/designerSessionSlice';
 import { useAuth } from '../context/AuthContext';
 import DesignerAuthModal from '../components/DesignerAuthModal';
 import { isTradeprintProduct, normalizeProductSource } from '../utils/productSource';
+import { getLockedProductSizeMm } from '../config/productPrintAreas';
+
+const formatUkDate = (value) => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+};
 
 const FALLBACK_QUANTITY_OPTIONS = [1, 10, 25, 50, 100, 250, 500, 1000];
 
@@ -101,6 +108,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [imageZoom, setImageZoom] = useState({ active: false, x: 50, y: 50 });
   const [deliveryPricesByOption, setDeliveryPricesByOption] = useState({});
+  const [deliveryPriceGrid, setDeliveryPriceGrid] = useState({});
   const [deliveryPricingLoading, setDeliveryPricingLoading] = useState(false);
   const [expectedDeliveryByOption, setExpectedDeliveryByOption] = useState({});
   const [deliveryPostcode, setDeliveryPostcode] = useState('');
@@ -214,7 +222,6 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   };
 
 
-  console.log('[ProductDetail] displayProduct', displayProduct);
   const dynamicAttributes = product?.thirdPartyAttributes || productProp?.thirdPartyAttributes || {};
   const hasDynamicAttributes = Object.keys(dynamicAttributes).length > 0;
   const thirdPartyProductKey =
@@ -357,6 +364,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       setDeliveryPricesByOption({});
       return;
     }
+    const qtyList = quantitiesOptions.length > 0 ? quantitiesOptions : [qty];
 
     let active = true;
     setDeliveryPricingLoading(true);
@@ -367,24 +375,36 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
           const response = await thirdPartyService.getProductPrices({
             productId: thirdPartyProductKey,
             serviceLevel: option.serviceLevel,
-            quantity: [qty],
+            quantity: qtyList,
             productionData,
           });
           const rows = Array.isArray(response?.prices) ? response.prices : [];
+          const byQty = {};
+          rows.forEach((row) => {
+            const rowQty = Number(row?.quantity);
+            const servicePrice =
+              row?.prices?.find(
+                (entry) => String(entry?.serviceLevel || '').toLowerCase() === option.serviceLevel.toLowerCase()
+              ) || row?.prices?.[0];
+            if (Number.isFinite(rowQty) && servicePrice?.price != null) {
+              byQty[rowQty] = servicePrice.price;
+            }
+          });
           const exactRow = rows.find((row) => Number(row?.quantity) === qty) || rows[0];
           const servicePrice =
             exactRow?.prices?.find(
               (entry) => String(entry?.serviceLevel || '').toLowerCase() === option.serviceLevel.toLowerCase()
             ) || exactRow?.prices?.[0];
-          return [option.key, servicePrice?.price ?? null];
+          return [option.key, { current: servicePrice?.price ?? null, byQty }];
         } catch (error) {
-          return [option.key, null];
+          return [option.key, { current: null, byQty: {} }];
         }
       })
     )
       .then((entries) => {
         if (!active) return;
-        setDeliveryPricesByOption(Object.fromEntries(entries));
+        setDeliveryPricesByOption(Object.fromEntries(entries.map(([key, value]) => [key, value?.current ?? null])));
+        setDeliveryPriceGrid(Object.fromEntries(entries.map(([key, value]) => [key, value?.byQty || {}])));
       })
       .finally(() => {
         if (active) setDeliveryPricingLoading(false);
@@ -549,14 +569,19 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const getEffectivePricingTable = () => {
     if (hasThirdPartyPricing) {
       const qty = effectiveQuantity;
+      const qtys = quantitiesOptions.length > 0 ? quantitiesOptions : [qty];
       return {
         enabled: true,
-        quantities: [qty],
+        quantities: qtys,
         deliveryOptions: STATIC_DELIVERY_OPTIONS.map((option) => ({
           key: option.key,
           label: option.label,
           etaDays: option.etaDays,
-          prices: [deliveryPricesByOption[option.key] ?? null],
+          prices: qtys.map(
+            (rowQty) =>
+              deliveryPriceGrid[option.key]?.[rowQty] ??
+              (rowQty === qty ? deliveryPricesByOption[option.key] : null),
+          ),
         })),
       };
     }
@@ -655,9 +680,9 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     if (apiDateRaw) {
       const parsed = new Date(apiDateRaw);
       if (!Number.isNaN(parsed.getTime())) {
-        const weekday = parsed.toLocaleDateString(undefined, { weekday: 'short' });
-        const day = parsed.toLocaleDateString(undefined, { day: '2-digit' });
-        const month = parsed.toLocaleDateString(undefined, { month: 'short' });
+        const weekday = parsed.toLocaleDateString('en-GB', { weekday: 'short' });
+        const day = parsed.toLocaleDateString('en-GB', { day: '2-digit' });
+        const month = parsed.toLocaleDateString('en-GB', { month: 'short' });
         return `${weekday}. ${day} ${month}`;
       }
     }
@@ -666,9 +691,9 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     const addDays = option?.etaDays ?? (deliveryOption === 'express' ? 2 : deliveryOption === 'standard' ? 4 : 6);
     const eta = new Date(now);
     eta.setDate(now.getDate() + addDays);
-    const weekday = eta.toLocaleDateString(undefined, { weekday: 'short' });
-    const day = eta.toLocaleDateString(undefined, { day: '2-digit' });
-    const month = eta.toLocaleDateString(undefined, { month: 'short' });
+    const weekday = eta.toLocaleDateString('en-GB', { weekday: 'short' });
+    const day = eta.toLocaleDateString('en-GB', { day: '2-digit' });
+    const month = eta.toLocaleDateString('en-GB', { month: 'short' });
     return `${weekday}. ${day} ${month}`;
   };
 
@@ -688,6 +713,30 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
 
   const performArtworkUpload = async (file) => {
     if (!file) return;
+
+    const maxBytes = 50 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      const message = 'Artwork must be 50MB or smaller.';
+      setArtworkUploadError(message);
+      toast.error(message);
+      return;
+    }
+    if (file.size < 2048) {
+      const message = 'That file is too small to be a print-ready PDF. Please export from your design software.';
+      setArtworkUploadError(message);
+      toast.error(message);
+      return;
+    }
+    if (hasThirdPartyPricing) {
+      const name = String(file.name || '').toLowerCase();
+      const isPdf = file.type === 'application/pdf' || name.endsWith('.pdf');
+      if (!isPdf) {
+        const message = 'This product needs a print-ready PDF (not a photo).';
+        setArtworkUploadError(message);
+        toast.error(message);
+        return;
+      }
+    }
 
     setArtworkUploadUrl(null);
     setArtworkUploadError('');
@@ -795,9 +844,21 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       queryParams.set(safeKey, String(value));
     });
 
-    console.log('[ProductDetail] selected options', material, sidesPrinted, lamination, roundCorners, deliveryOptionRef.current || deliveryOption, selectedAttributeValues);
-
-    console.log(selectedAttributeValues,"selectedAttributeValues")
+    const specSize =
+      displayProduct?.specifications?.Size ||
+      displayProduct?.specifications?.size ||
+      (Array.isArray(displayProduct?.features)
+        ? displayProduct.features.find((row) => /\d+\s*[x×]\s*\d+/i.test(String(row)))
+        : '');
+    const lockedSize = getLockedProductSizeMm({
+      category: category || type,
+      productType: businessCardMode ? 'business-card' : type,
+      sizeLabel: selectedSize || specSize,
+    });
+    if (lockedSize) {
+      queryParams.set('widthMm', String(lockedSize.widthMm));
+      queryParams.set('heightMm', String(lockedSize.heightMm));
+    }
 
     dispatch(
       saveProductDetailDraft({
@@ -855,7 +916,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
 
       // Calculate price for business cards and products using a delivery pricing table
       const exVatPrice = (isBusinessCard() || hasDeliveryPricing) ? getCurrentPrice() : displayProduct.price;
-      const finalPrice = applyVatMode(exVatPrice);
+      const finalPrice = Number(Number(applyVatMode(exVatPrice) || 0).toFixed(2));
 
       const imageForCart = selectedImage || displayProduct.image;
       const resolvedDeliveryOption = deliveryOptionRef.current || deliveryOption;
@@ -937,7 +998,15 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         );
       } else {
         await addToCart(cartProduct);
-        toast.success(`${displayProduct.name} added to cart!`);
+        toast.success(`${displayProduct.name} added to basket. View basket in the header.`, {
+          autoClose: 8000,
+        });
+        setIsAddingToCart(false);
+        window.dispatchEvent(
+          new CustomEvent('rspuk-basket-open', {
+            detail: { highlightId: cartProduct.id },
+          }),
+        );
       }
     } catch (e) {
       console.error('[cart] add failed', e);
@@ -1008,7 +1077,6 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
       }
     }, 120);
   };
-console.log('fretrhyrtewrfew', source);
   return (
     <div className="min-h-screen bg-gray-50 py-6 pb-24">
       <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
@@ -1567,7 +1635,7 @@ console.log('fretrhyrtewrfew', source);
                                         }}
                                         style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                                       >
-                                        £{row.saver.toFixed(2)}
+                                        {row.saver != null ? `£${Number(row.saver).toFixed(2)}` : '—'}
                                         {deliveryOption === 'saver' && row.qty === effectiveQuantity && (
                                           <svg className="w-4 h-4 text-yellow-500 absolute bottom-1 right-1" fill="currentColor" viewBox="0 0 20 20">
                                             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
@@ -1586,7 +1654,7 @@ console.log('fretrhyrtewrfew', source);
                                         }}
                                         style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                                       >
-                                        £{row.standard.toFixed(2)}
+                                        {row.standard != null ? `£${Number(row.standard).toFixed(2)}` : '—'}
                                       </td>
                                       <td 
                                         className={`px-4 py-3 text-center text-sm cursor-pointer ${
@@ -1600,7 +1668,7 @@ console.log('fretrhyrtewrfew', source);
                                         }}
                                         style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                                       >
-                                        £{row.express.toFixed(2)}
+                                        {row.express != null ? `£${Number(row.express).toFixed(2)}` : '—'}
                                       </td>
                                     </tr>
                                   );
@@ -1695,7 +1763,7 @@ console.log('fretrhyrtewrfew', source);
                               £{applyVatMode(getPriceForQuantity(effectiveQuantity, 'saver') || 0).toFixed(2)}
                             </p>
                             <p className="text-[11px] text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                              {expectedDeliveryByOption.saver ? `ETA: ${new Date(expectedDeliveryByOption.saver).toLocaleDateString()}` : 'ETA: Enter postcode'}
+                              {expectedDeliveryByOption.saver ? `ETA: ${formatUkDate(expectedDeliveryByOption.saver)}` : 'ETA: Enter postcode'}
                             </p>
                           </button>
                         )}
@@ -1716,7 +1784,7 @@ console.log('fretrhyrtewrfew', source);
                               £{applyVatMode(getPriceForQuantity(effectiveQuantity, 'standard') || 0).toFixed(2)}
                             </p>
                             <p className="text-[11px] text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                              {expectedDeliveryByOption.standard ? `ETA: ${new Date(expectedDeliveryByOption.standard).toLocaleDateString()}` : 'ETA: Enter postcode'}
+                              {expectedDeliveryByOption.standard ? `ETA: ${formatUkDate(expectedDeliveryByOption.standard)}` : 'ETA: Enter postcode'}
                             </p>
                           </button>
                         )}
@@ -1737,7 +1805,7 @@ console.log('fretrhyrtewrfew', source);
                               £{applyVatMode(getPriceForQuantity(effectiveQuantity, 'express') || 0).toFixed(2)}
                             </p>
                             <p className="text-[11px] text-gray-500 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                              {expectedDeliveryByOption.express ? `ETA: ${new Date(expectedDeliveryByOption.express).toLocaleDateString()}` : 'ETA: Enter postcode'}
+                              {expectedDeliveryByOption.express ? `ETA: ${formatUkDate(expectedDeliveryByOption.express)}` : 'ETA: Enter postcode'}
                             </p>
                           </button>
                         )}
@@ -1933,9 +2001,23 @@ console.log('fretrhyrtewrfew', source);
                                       : 'Artwork is required. Please upload an image or PDF to enable “Add To Basket”.')}
                                 </p>
                               ) : (
-                                <p className="text-[11px] text-green-700 font-medium" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                                  Artwork uploaded successfully.
-                                </p>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-[11px] text-green-700 font-medium" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                                    Artwork uploaded successfully.
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setArtworkUploadUrl(null);
+                                      setUploadedImage(null);
+                                      setArtworkUploadError('');
+                                      if (artworkFileInputRef.current) artworkFileInputRef.current.value = '';
+                                    }}
+                                    className="text-[11px] font-semibold text-blue-700 hover:underline"
+                                  >
+                                    Replace / remove
+                                  </button>
+                                </div>
                               )}
                               {uploadedImage && typeof uploadedImage === 'string' && uploadedImage.startsWith('data:') && (
                                 <img src={uploadedImage} alt="Uploaded design" className="w-24 h-24 object-cover rounded border" />

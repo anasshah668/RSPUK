@@ -39,7 +39,12 @@ export const AuthProvider = ({ children }) => {
       const me = await httpClient.get(apiRoutes.authentication.me);
       const normalized = mapMeToUser(me);
       setUser(normalized);
-      localStorage.setItem('user', JSON.stringify(normalized));
+      localStorage.setItem('user', JSON.stringify({
+        _id: normalized._id,
+        name: normalized.name,
+        email: normalized.email,
+        role: normalized.role,
+      }));
     } catch {
       setUser(null);
       localStorage.removeItem('token');
@@ -55,7 +60,12 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     if (user) {
-      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('user', JSON.stringify({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      }));
     }
   }, [user]);
 
@@ -70,7 +80,12 @@ export const AuthProvider = ({ children }) => {
     }
     setUser(userData);
     if (userData && typeof userData === 'object') {
-      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('user', JSON.stringify({
+        _id: userData._id,
+        name: userData.name,
+        email: userData.email,
+        role: userData.role,
+      }));
     }
   };
 

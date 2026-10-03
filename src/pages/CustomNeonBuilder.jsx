@@ -409,14 +409,6 @@ const CustomNeonBuilder = () => {
       { key: 'dimensions', label: 'Dimensions', value: dim },
       { key: 'font', label: 'Font', value: neonConfig.font },
       { key: 'color', label: 'Tube colour', value: neonConfig.color, variant: 'color' },
-      {
-        key: 'previewSize',
-        label: 'Preview text size',
-        value: `${neonConfig.size}px (on-screen guide only)`,
-      },
-      { key: 'glow', label: 'Glow intensity', value: String(neonConfig.glowIntensity) },
-      { key: 'spacing', label: 'Letter spacing', value: `${neonConfig.letterSpacing}px` },
-      { key: 'flicker', label: 'Flicker effect', value: neonConfig.flicker ? 'On' : 'Off' },
       { key: 'backing', label: 'Backing style', value: bgStyle },
       {
         key: 'bgcol',
@@ -612,9 +604,11 @@ const CustomNeonBuilder = () => {
     const line = {
       id: editCartLine?.id || `custom-neon-${Date.now()}`,
       type: 'custom-neon',
+      name: 'Custom Neon Sign',
       title: 'Custom Neon Sign',
       description: textLine.length > 140 ? `${textLine.slice(0, 137)}…` : textLine,
-      price: Number(estimatedAmount) || 0,
+      price: Number(Number(estimatedAmount || 0).toFixed(2)),
+      amountBasis: 'net',
       quantity: 1,
       summary: summaryPayload,
       selectionSnapshot: {
@@ -632,6 +626,8 @@ const CustomNeonBuilder = () => {
       addToCart(line, 1);
       toast.success('Added to basket');
     }
+    setPreviewExitGuardActive(false);
+    setShowPreview(false);
     window.dispatchEvent(new CustomEvent('rspuk-basket-open'));
   };
 
@@ -1208,7 +1204,9 @@ const CustomNeonBuilder = () => {
                                 ({size.widthFt}) • {size.lettersPerLine} letters per line
                               </p>
                             </div>
-                            <p className="text-xs font-bold text-gray-600 whitespace-nowrap">Quote</p>
+                            {selectedSize?.width === `${size.widthCm}cm` && selectedSize?.height && neonNet > 0 ? (
+                              <p className="text-xs font-bold text-emerald-700 whitespace-nowrap">from £{neonMainDisplay.toFixed(2)}</p>
+                            ) : null}
                           </div>
                         </button>
                       ))}
@@ -1404,9 +1402,13 @@ const CustomNeonBuilder = () => {
                     <p className="text-[10px] text-emerald-900/75 mt-1.5 leading-snug" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                       £{neonNet.toFixed(2)} ex VAT · £{neonGross.toFixed(2)} inc VAT (20%) — same switch as the site header.
                     </p>
-                    {neonPricingSource !== 'api' ? (
+                    {!selectedSize?.width || !selectedSize?.height ? (
                       <p className="text-[11px] text-emerald-900/80 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                        Using built-in estimate — check API connection
+                        Select a size to see your price
+                      </p>
+                    ) : neonPricingSource !== 'api' ? (
+                      <p className="text-[11px] text-emerald-900/80 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+                        Price is an estimate until live pricing is confirmed
                       </p>
                     ) : null}
                   </div>

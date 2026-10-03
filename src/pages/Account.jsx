@@ -10,6 +10,7 @@ const font = { fontFamily: 'Lexend Deca, sans-serif' };
 
 const NAV_ITEMS = [
   { key: 'profile', label: 'Profile', description: 'Personal details & address' },
+  { key: 'orders', label: 'Orders', description: 'Status, artwork and reorder' },
   { key: 'quotes', label: 'Quotes', description: 'Requests & conversations' },
   { key: 'design-orders', label: 'Design Orders', description: 'Paid design projects' },
   { key: 'track-order', label: 'Track Order', description: 'Order status lookup' },
@@ -55,6 +56,7 @@ const IconXCircle = ({ className = 'w-5 h-5' }) => (
 
 const NAV_ICONS = {
   profile: IconUser,
+  orders: IconPackage,
   quotes: IconDocument,
   'design-orders': IconPalette,
   'track-order': IconPackage,
@@ -177,10 +179,17 @@ const ViewProfile = () => {
         const data = await authService.getProfile();
         if (!mounted) return;
         setProfile(data);
+        const incoming = data.address || {};
         setForm({
           name: data.name || '',
           phone: data.phone || '',
-          address: data.address || { street: '', city: '', state: '', zipCode: '', country: '' },
+          address: {
+            street: incoming.street || '',
+            city: incoming.city || '',
+            state: incoming.state === 'United Kingdom' ? '' : incoming.state || '',
+            zipCode: incoming.zipCode || '',
+            country: incoming.country === 'uk' ? 'United Kingdom' : incoming.country || 'United Kingdom',
+          },
         });
       } finally {
         if (mounted) setLoading(false);
@@ -267,7 +276,11 @@ const ViewProfile = () => {
           </div>
           <div>
             <label className={labelClass} style={font}>Country</label>
-            <input name="address.country" value={form.address?.country || ''} onChange={handleChange} className={inputClass} style={font} />
+            <select name="address.country" value={form.address?.country || 'United Kingdom'} onChange={handleChange} className={inputClass} style={font}>
+              <option value="United Kingdom">United Kingdom</option>
+              <option value="Ireland">Ireland</option>
+              <option value="Other">Other</option>
+            </select>
           </div>
         </div>
       </div>
@@ -1225,8 +1238,80 @@ const CancelOrder = () => {
   );
 };
 
+const ViewOrders = () => {
+  const [orders, setOrders] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const data = await orderService.getUserOrders();
+        if (mounted) setOrders(Array.isArray(data) ? data : data?.orders || []);
+      } catch {
+        if (mounted) setOrders([]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  if (loading) return <Spinner />;
+
+  if (!orders.length) {
+    return (
+      <p className="text-sm text-gray-500" style={font}>
+        You have no orders yet. When you check out, they will appear here with status and artwork links.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {orders.map((order) => (
+        <div key={order._id || order.id} className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-gray-900" style={font}>
+                {order.orderNumber || order.trackingNumber || order._id}
+              </p>
+              <p className="text-xs text-gray-500 mt-1" style={font}>
+                {order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
+              </p>
+            </div>
+            <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
+              {order.status || 'Received'}
+            </span>
+          </div>
+          <div className="mt-3 space-y-2">
+            {(order.items || []).map((item, idx) => (
+              <div key={item._id || idx} className="flex items-center justify-between gap-3 text-sm">
+                <p className="text-gray-800" style={font}>
+                  {item.name || item.product?.name || 'Item'} × {item.quantity || 1}
+                </p>
+                {item.artworkPreviewUrl || item.fileUrls?.[0] ? (
+                  <a
+                    href={item.artworkPreviewUrl || item.fileUrls[0]}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-semibold text-blue-700 hover:underline"
+                  >
+                    Artwork
+                  </a>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const TAB_META = {
   profile: { title: 'Your profile', subtitle: 'Manage your personal details and delivery address' },
+  orders: { title: 'Your orders', subtitle: 'Status, artwork and reorder from previous checkouts' },
   quotes: { title: 'Your quotes', subtitle: 'View pricing, artwork, and chat with our team' },
   'design-orders': { title: 'Design orders', subtitle: 'Track paid design projects and download deliverables' },
   'change-password': { title: 'Security', subtitle: 'Keep your account safe with a strong password' },
@@ -1389,6 +1474,7 @@ const Account = () => {
           <main className="min-w-0 lg:col-start-2">
             <ContentPanel title={activeMeta.title} subtitle={activeMeta.subtitle}>
               {tab === 'profile' && <ViewProfile />}
+              {tab === 'orders' && <ViewOrders />}
               {tab === 'quotes' && <ViewQuotes />}
               {tab === 'design-orders' && <ViewDesignOrders />}
               {tab === 'change-password' && <ChangePassword />}

@@ -14,7 +14,13 @@ import AuthLayout, {
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, authReady, isAuthenticated } = useAuth();
+
+  React.useEffect(() => {
+    if (authReady && isAuthenticated()) {
+      navigate('/account', { replace: true });
+    }
+  }, [authReady, isAuthenticated, navigate]);
   const [formData, setFormData] = useState({
     email: '',
     password: '',

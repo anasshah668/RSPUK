@@ -562,7 +562,7 @@ const Header = () => {
               <span className="tabular-nums">£{basketTotalDisplay.toFixed(2)}</span>
             </div>
             <p className="text-[10px] text-gray-500 leading-snug">
-              Includes UK VAT on custom neon only when Inc VAT is selected in the header.
+              Totals follow the Inc / Ex VAT switch in the header. UK VAT is 20% where it applies.
             </p>
             <button
               type="button"

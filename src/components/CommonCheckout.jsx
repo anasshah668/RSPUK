@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { paymentService } from '../services/paymentService';
 import { formatWorldpayClientError } from '../utils/worldpayClientErrorMessage';
@@ -435,6 +436,26 @@ const CommonCheckout = ({
     }
   };
 
+  const fieldErrors = {
+    email:
+      customerInfo.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerInfo.email)
+        ? 'Enter a valid email address.'
+        : '',
+    phone:
+      customerInfo.phone && !/^[+0-9()\-\s]{7,30}$/.test(customerInfo.phone)
+        ? 'Enter a valid UK phone number.'
+        : '',
+    postalCode:
+      customerInfo.postalCode &&
+      !/^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(String(customerInfo.postalCode).replace(/\s+/g, ' ').trim())
+        ? 'Enter a valid UK postcode (e.g. SW1A 1AA).'
+        : '',
+  };
+  const inputClass = (invalid) =>
+    `w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+      invalid ? 'border-red-400 bg-red-50' : 'border-gray-300'
+    }`;
+
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
@@ -475,31 +496,37 @@ const CommonCheckout = ({
                 placeholder="Full Name"
                 value={customerInfo.name}
                 onChange={(e) => onCustomerInfoChange({ ...customerInfo, name: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className={inputClass(false)}
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               />
-              <input
-                type="email"
-                placeholder="Email Address"
-                value={customerInfo.email}
-                onChange={(e) => onCustomerInfoChange({ ...customerInfo, email: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-              />
-              <input
-                type="tel"
-                placeholder="Phone Number"
-                value={customerInfo.phone}
-                onChange={(e) => onCustomerInfoChange({ ...customerInfo, phone: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent md:col-span-1"
-                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-              />
+              <div>
+                <input
+                  type="email"
+                  placeholder="Email Address"
+                  value={customerInfo.email}
+                  onChange={(e) => onCustomerInfoChange({ ...customerInfo, email: e.target.value })}
+                  className={inputClass(Boolean(fieldErrors.email))}
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                />
+                {fieldErrors.email ? <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p> : null}
+              </div>
+              <div>
+                <input
+                  type="tel"
+                  placeholder="Phone Number"
+                  value={customerInfo.phone}
+                  onChange={(e) => onCustomerInfoChange({ ...customerInfo, phone: e.target.value })}
+                  className={inputClass(Boolean(fieldErrors.phone))}
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                />
+                {fieldErrors.phone ? <p className="mt-1 text-xs text-red-600">{fieldErrors.phone}</p> : null}
+              </div>
               <textarea
                 placeholder="Street address (line 1)"
                 value={customerInfo.address}
                 onChange={(e) => onCustomerInfoChange({ ...customerInfo, address: e.target.value })}
                 rows="2"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent md:col-span-2"
+                className={`${inputClass(false)} md:col-span-2`}
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               />
               <input
@@ -507,18 +534,47 @@ const CommonCheckout = ({
                 placeholder="City / Town"
                 value={customerInfo.city || ''}
                 onChange={(e) => onCustomerInfoChange({ ...customerInfo, city: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className={inputClass(false)}
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 autoComplete="address-level2"
               />
+              <div>
+                <input
+                  type="text"
+                  placeholder="Postcode (e.g. SW1A 1AA)"
+                  value={customerInfo.postalCode || ''}
+                  onChange={(e) => onCustomerInfoChange({ ...customerInfo, postalCode: e.target.value })}
+                  className={inputClass(Boolean(fieldErrors.postalCode))}
+                  style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  autoComplete="postal-code"
+                />
+                {fieldErrors.postalCode ? <p className="mt-1 text-xs text-red-600">{fieldErrors.postalCode}</p> : null}
+              </div>
+              <select
+                value={customerInfo.country || 'United Kingdom'}
+                onChange={(e) => onCustomerInfoChange({ ...customerInfo, country: e.target.value })}
+                className={inputClass(false)}
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+              >
+                <option>United Kingdom</option>
+                <option>Ireland</option>
+                <option>Other</option>
+              </select>
               <input
                 type="text"
-                placeholder="Postcode (e.g. SW1A 1AA)"
-                value={customerInfo.postalCode || ''}
-                onChange={(e) => onCustomerInfoChange({ ...customerInfo, postalCode: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Company (optional)"
+                value={customerInfo.company || ''}
+                onChange={(e) => onCustomerInfoChange({ ...customerInfo, company: e.target.value })}
+                className={inputClass(false)}
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                autoComplete="postal-code"
+              />
+              <input
+                type="text"
+                placeholder="VAT number (optional)"
+                value={customerInfo.vatNumber || ''}
+                onChange={(e) => onCustomerInfoChange({ ...customerInfo, vatNumber: e.target.value })}
+                className={`${inputClass(false)} md:col-span-2`}
+                style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               />
               <div className="md:col-span-2">
                 <label
@@ -580,7 +636,12 @@ const CommonCheckout = ({
                   <p className="text-xs font-semibold text-blue-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                     Worldpay Secure Card Entry
                   </p>
-                  <span className="text-[10px] font-bold text-blue-900 border border-blue-300 px-2 py-0.5 rounded-full">LIVE GATEWAY READY</span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-900 border border-blue-300 px-2 py-0.5 rounded-full">
+                    <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                      <path fillRule="evenodd" d="M5 8V6a5 5 0 1110 0v2h1a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2v-6a2 2 0 012-2h1zm2 0h6V6a3 3 0 10-6 0v2z" clipRule="evenodd" />
+                    </svg>
+                    Secured by Worldpay
+                  </span>
                 </div>
                 <div className="grid grid-cols-1 gap-2 mt-2">
                   <form id="worldpay-card-form" className="space-y-2">
@@ -640,7 +701,13 @@ const CommonCheckout = ({
               checked={acceptTerms}
               onChange={(e) => onAcceptTermsChange(e.target.checked)}
             />
-            <span>I agree to the Terms & Conditions and understand this order will be processed securely.</span>
+            <span>
+              I agree to the{' '}
+              <Link to="/terms" className="font-semibold text-blue-700 underline underline-offset-2" target="_blank" rel="noreferrer">
+                Terms &amp; Conditions
+              </Link>{' '}
+              and understand this order will be processed securely.
+            </span>
           </label>
 
           {payButtonHint && (

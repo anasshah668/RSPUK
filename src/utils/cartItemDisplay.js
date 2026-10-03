@@ -1,5 +1,7 @@
 /** Basket / cart line display helpers */
 
+import { dedupeOptionRows } from './optionLabels';
+
 export function basketTypeLabel(type) {
   switch (type) {
     case 'design-service':
@@ -23,54 +25,32 @@ export function getBasketItemDetailLines(item, { maxSummary = 4 } = {}) {
   const lines = [];
   const type = item?.type;
 
-  if (Array.isArray(item?.summary) && item.summary.length > 0) {
-    const skipLabels =
-      type === 'design-service'
-        ? new Set(['Price'])
-        : type === 'custom-neon'
-          ? new Set()
-          : new Set();
-
-    item.summary.slice(0, maxSummary + 2).forEach(({ label, value }) => {
-      if (!label || skipLabels.has(label)) return;
-      if (value == null || String(value).trim() === '') return;
-      lines.push({ label: String(label), value: String(value) });
-    });
-    return lines.slice(0, maxSummary);
-  }
-
-  if (item?.size) {
-    lines.push({ label: 'Size', value: String(item.size) });
-  }
   if (item?.quantity) {
     lines.push({ label: 'Quantity', value: String(item.quantity) });
   }
-  if (item?.designOption === 'upload') {
-    lines.push({ label: 'Design', value: 'Upload artwork' });
-  } else if (item?.designOption === 'custom') {
-    lines.push({ label: 'Design', value: 'Online designer' });
-  }
-  if (item?.deliveryOption) {
-    lines.push({
-      label: 'Delivery',
-      value: String(item.deliveryOption).replace(/-/g, ' '),
+
+  const collected = [];
+  if (Array.isArray(item?.summary) && item.summary.length > 0) {
+    item.summary.forEach(({ label, value }) => {
+      if (!label || String(label).toLowerCase() === 'quantity') return;
+      if (type === 'design-service' && label === 'Price') return;
+      collected.push({ label, value });
     });
+  } else {
+    if (item?.size) collected.push({ label: 'Size', value: String(item.size) });
+    if (item?.designOption === 'upload') collected.push({ label: 'Design', value: 'Upload artwork' });
+    if (item?.designOption === 'custom') collected.push({ label: 'Design', value: 'Online designer' });
+    if (item?.deliveryOption) collected.push({ label: 'Delivery', value: item.deliveryOption });
+    if (Array.isArray(item?.productOptions)) collected.push(...item.productOptions);
+    if (item?.selectedAttributes && typeof item.selectedAttributes === 'object') {
+      Object.entries(item.selectedAttributes).forEach(([label, value]) => {
+        if (value == null || value === '' || typeof value === 'object') return;
+        collected.push({ label, value: String(value) });
+      });
+    }
   }
 
-  if (Array.isArray(item?.productOptions)) {
-    item.productOptions.forEach((opt) => {
-      if (!opt?.label || opt.value == null || String(opt.value).trim() === '') return;
-      lines.push({ label: String(opt.label), value: String(opt.value) });
-    });
-  }
-
-  if (item?.selectedAttributes && typeof item.selectedAttributes === 'object') {
-    Object.entries(item.selectedAttributes).forEach(([label, value]) => {
-      if (value == null || value === '' || typeof value === 'object') return;
-      if (lines.some((row) => row.label === label && row.value === String(value))) return;
-      lines.push({ label: String(label), value: String(value) });
-    });
-  }
+  lines.push(...dedupeOptionRows(collected));
 
   if (lines.length > 0) return lines.slice(0, maxSummary);
 

@@ -6,7 +6,9 @@ import { paymentService } from '../services/paymentService';
 import { thirdPartyService } from '../services/thirdPartyService';
 import { uploadService } from '../services/uploadService';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import { useVatInclusive } from '../hooks/useVatInclusive';
+import { dedupeOptionRows } from '../utils/optionLabels';
 import {
   grossFromNet,
   payableFromNet,
@@ -40,9 +42,15 @@ const ORDER_REVIEW_SUMMARY_LABELS = new Set([
   'Mounting',
   'Quantity',
   'Material',
+  'Paper type',
   'Product',
   'Product type',
   'Item',
+  'Delivery',
+  'Design',
+  'Sides printed',
+  'Corners',
+  'Lamination',
 ]);
 
 
@@ -123,17 +131,16 @@ function normalizeSelectedAttributesFromLineItem(item) {
 
 function pickOrderReviewSummaryRows(summary) {
   if (!Array.isArray(summary)) return [];
-  return summary
+  return dedupeOptionRows(summary)
     .filter((row) => {
-      if (!row?.label) return false;
       const label = String(row.label);
       const val = String(row.value ?? '').trim();
       if (!val) return false;
       if (ORDER_REVIEW_SUMMARY_LABELS.has(label)) return val.length <= 72;
-      if (/detail|description|^text$/i.test(label)) return false;
+      if (/detail|description|^text$|preview text|glow|letter spacing|flicker/i.test(label)) return false;
       return val.length <= 44;
     })
-    .slice(0, 4);
+    .slice(0, 8);
 }
 
 function getTradeprintServiceLevel(item) {
@@ -287,6 +294,7 @@ const CheckoutPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { addToCart, clearCart, refreshCart, cartItems } = useCart();
+  const { user } = useAuth();
   const vatInclusive = useVatInclusive();
   const checkoutItems = Array.isArray(location.state?.checkoutItems) ? location.state.checkoutItems : null;
   const isMultiCheckout = Boolean(checkoutItems?.length);
@@ -361,8 +369,26 @@ const CheckoutPage = () => {
     address: '',
     city: '',
     postalCode: '',
+    country: 'United Kingdom',
+    company: '',
+    vatNumber: '',
     orderComments: '',
   });
+
+  useEffect(() => {
+    if (!user) return;
+    const address = user.address && typeof user.address === 'object' ? user.address : {};
+    setCustomerInfo((prev) => ({
+      ...prev,
+      name: prev.name || user.name || '',
+      email: prev.email || user.email || '',
+      phone: prev.phone || user.phone || '',
+      address: prev.address || address.street || '',
+      city: prev.city || address.city || '',
+      postalCode: prev.postalCode || address.zipCode || '',
+      country: prev.country || (address.country === 'uk' ? 'United Kingdom' : address.country) || 'United Kingdom',
+    }));
+  }, [user]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -433,6 +459,9 @@ const CheckoutPage = () => {
     address: String(customerInfo.address || '').trim(),
     city: String(customerInfo.city || '').trim(),
     postalCode: String(customerInfo.postalCode || '').trim(),
+    country: String(customerInfo.country || 'United Kingdom').trim(),
+    company: String(customerInfo.company || '').trim(),
+    vatNumber: String(customerInfo.vatNumber || '').trim(),
     orderComments: String(customerInfo.orderComments || '').trim(),
   };
 
