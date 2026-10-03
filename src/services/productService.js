@@ -47,6 +47,10 @@ const getRecommended = (params = {}) => {
   );
 };
 
+const listAdmin = () => {
+  return httpClient.get(`${apiRoutes.products.create}`);
+};
+
 const create = (payload, files = []) => {
   const formData = new FormData();
   
@@ -92,6 +96,7 @@ const deleteProduct = (productId) => {
 export const productService = {
   list,
   listAll,
+  listAdmin,
   getById,
   getByCategory,
   getRecommended,

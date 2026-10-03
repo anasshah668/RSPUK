@@ -13,6 +13,17 @@ import { useAuth } from '../context/AuthContext';
 import DesignerAuthModal from '../components/DesignerAuthModal';
 import { isTradeprintProduct, normalizeProductSource } from '../utils/productSource';
 import { getLockedProductSizeMm } from '../config/productPrintAreas';
+import { toProxiedFileUrl } from '../components/FileDocViewer';
+
+const productDisplayImages = (item) => {
+  const urls = [
+    item?.productImage?.url,
+    ...(Array.isArray(item?.images) ? item.images.map((img) => img?.url) : []),
+  ]
+    .filter(Boolean)
+    .map((url) => toProxiedFileUrl(url) || url);
+  return [...new Set(urls)];
+};
 
 const formatUkDate = (value) => {
   const date = value instanceof Date ? value : new Date(value);
@@ -153,10 +164,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const getProduct = () => {
     // If we have product from backend, use it
     if (product) {
-      const allImages = [
-        product.productImage?.url,
-        ...(Array.isArray(product.images) ? product.images.map((img) => img?.url) : []),
-      ].filter(Boolean);
+      const allImages = productDisplayImages(product);
       return {
         name: product.name,
         category: product.category?.charAt(0).toUpperCase() + product.category?.slice(1).replace('-', ' ') || 'Product',
@@ -177,10 +185,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     }
     // If we have productProp passed from parent, use it (this prevents image flash)
     if (productProp) {
-      const allImages = [
-        productProp.productImage?.url,
-        ...(Array.isArray(productProp.images) ? productProp.images.map((img) => img?.url) : []),
-      ].filter(Boolean);
+      const allImages = productDisplayImages(productProp);
       return {
         name: productProp.name,
         category: productProp.category?.charAt(0).toUpperCase() + productProp.category?.slice(1).replace('-', ' ') || 'Product',

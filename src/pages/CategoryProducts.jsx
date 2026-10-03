@@ -6,6 +6,13 @@ import { getRoutePath } from '../config/routes.config';
 import WavyUnderline from '../components/WavyUnderline';
 import { getFeaturedSignageBySlug } from '../data/featuredSignageData';
 import { isTradeprintCategory } from '../utils/tradeprintCategories';
+import { toProxiedFileUrl } from '../components/FileDocViewer';
+
+const productCardImage = (product) =>
+  toProxiedFileUrl(product?.productImage?.url || product?.images?.[0]?.url || '') ||
+  product?.productImage?.url ||
+  product?.images?.[0]?.url ||
+  '';
 
 const CategoryProducts = ({ categorySlugOverride } = {}) => {
   const params = useParams();
@@ -190,7 +197,7 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
           .trim(),
         category: product.category,
         price: product.basePrice || product.variants?.[0]?.price || 0,
-        image: product.productImage?.url || product.images?.[0]?.url || '',
+        image: productCardImage(product),
         _id: product._id,
         productData: product,
         source: product.source || 'local',
@@ -218,7 +225,7 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
         name: product.name,
         category: product.category,
         price: product.basePrice || product.variants?.[0]?.price || 0,
-        image: product.productImage?.url || product.images?.[0]?.url || '',
+        image: productCardImage(product),
         _id: product._id,
         productData: product,
         source: 'api',

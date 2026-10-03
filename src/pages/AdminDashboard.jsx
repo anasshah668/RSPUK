@@ -14,7 +14,18 @@ import AdminFeaturedSignagePricingTab from '../components/AdminFeaturedSignagePr
 import AdminFeaturedProductsTab from '../components/AdminFeaturedProductsTab';
 import AdminDesignServiceTab from '../components/AdminDesignServiceTab';
 import AdminActivityFeed from '../components/AdminActivityFeed';
-import { FileViewerLink, isHttpUrl, linkLabelForUrl, openFileViewer } from '../components/FileDocViewer';
+import { FileViewerLink, isHttpUrl, linkLabelForUrl, openFileViewer, toProxiedFileUrl } from '../components/FileDocViewer';
+
+const productImageList = (product) => {
+  const fromArray = Array.isArray(product?.images)
+    ? product.images.filter((img) => img?.url)
+    : [];
+  if (fromArray.length) return fromArray;
+  if (product?.productImage?.url) return [product.productImage];
+  return [];
+};
+
+const displayImageUrl = (url) => toProxiedFileUrl(url) || url;
 import { RevenueColumnChart, NewUsersChart } from '../components/AdminOverviewCharts';
 import { isThirdPartyOrder, thirdPartyOrderStatusLabel, orderFulfillmentTypeLabel } from '../utils/orderThirdParty';
 import { designService } from '../services/designService';
@@ -109,7 +120,7 @@ const AdminDashboard = () => {
         const data = await adminService.analytics();
         setAnalytics(data);
       } else if (activeTab === 'products') {
-        const data = await productService.listAll();
+        const data = await productService.listAdmin();
         setProducts(data.products || []);
       } else if (activeTab === 'orders') {
         const data = await orderService.list();
@@ -573,6 +584,7 @@ const ProductsTab = ({ products, onRefresh }) => {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Image</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
@@ -585,7 +597,19 @@ const ProductsTab = ({ products, onRefresh }) => {
             {products.map((product) => (
               <tr key={product._id}>
                 <td className="px-6 py-4 whitespace-nowrap">
+                  {productImageList(product)[0]?.url ? (
+                    <img
+                      src={displayImageUrl(productImageList(product)[0].url)}
+                      alt=""
+                      className="h-12 w-12 rounded-md object-cover border border-gray-200 bg-gray-50"
+                    />
+                  ) : (
+                    <div className="h-12 w-12 rounded-md bg-gray-100 border border-gray-200" />
+                  )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900">{product.name}</div>
+                  <div className="text-[11px] text-gray-400">{productImageList(product).length} image{productImageList(product).length === 1 ? '' : 's'}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm text-gray-500 capitalize">{product.category}</div>
@@ -706,7 +730,9 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
     },
   });
   const [files, setFiles] = useState([]);
+  const [existingImages, setExistingImages] = useState([]);
   const [errors, setErrors] = useState({});
+  const productImageInputRef = useRef(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [categories, setCategories] = useState([]);
@@ -773,7 +799,8 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
           })(),
         },
       });
-      setFiles([]); // Reset files when editing
+      setFiles([]);
+      setExistingImages(productImageList(product));
     } else {
       // Reset form when adding new product
       setFormData({
@@ -806,6 +833,7 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
         },
       });
       setFiles([]);
+      setExistingImages([]);
     }
   }, [product]);
 
@@ -850,7 +878,18 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
   };
 
   const handleFileChange = (e) => {
-    setFiles(Array.from(e.target.files || []));
+    const incoming = Array.from(e.target.files || []);
+    if (!incoming.length) return;
+    setFiles((prev) => [...prev, ...incoming].slice(0, 10));
+    e.target.value = '';
+  };
+
+  const removeExistingImage = (index) => {
+    setExistingImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removePendingFile = (index) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const validate = () => {
@@ -927,7 +966,7 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
 
       // Use centralized service
       if (product) {
-        await productService.update(product._id, payload, files);
+        await productService.update(product._id, { ...payload, existingImages }, files);
       } else {
         await productService.create(payload, files);
       }
@@ -1023,6 +1062,7 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
               Product Images
             </label>
             <input
+              ref={productImageInputRef}
               type="file"
               accept="image/*"
               multiple
@@ -1030,8 +1070,63 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
               className="w-full text-sm text-gray-700"
             />
             <p className="mt-1 text-xs text-gray-500">
-              You can upload up to 5 images. First image will be used as the main product image.
+              Add more pictures without replacing the ones already saved. First image is the main product photo. Up to 10 images.
             </p>
+
+            {existingImages.length > 0 ? (
+              <div className="mt-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Saved images</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {existingImages.map((img, idx) => (
+                    <div key={`${img?.publicId || img?.url || 'img'}-${idx}`} className="relative border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+                      <img
+                        src={displayImageUrl(img?.url)}
+                        alt={`Product ${idx + 1}`}
+                        className="w-full h-24 object-cover"
+                      />
+                      {idx === 0 ? (
+                        <span className="absolute bottom-1 left-1 rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                          Main
+                        </span>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => removeExistingImage(idx)}
+                        className="absolute top-1 right-1 bg-white/95 text-red-600 rounded px-1.5 py-0.5 text-xs font-semibold shadow"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="mt-2 text-xs text-amber-700">No saved images yet. Upload at least one so the shop page can show a photo.</p>
+            )}
+
+            {files.length > 0 ? (
+              <div className="mt-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">New images to add</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {files.map((file, idx) => (
+                    <div key={`${file.name}-${idx}`} className="relative border border-dashed border-blue-200 rounded-lg overflow-hidden bg-blue-50/40">
+                      <img
+                        src={URL.createObjectURL(file)}
+                        alt={file.name}
+                        className="w-full h-24 object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removePendingFile(idx)}
+                        className="absolute top-1 right-1 bg-white/95 text-red-600 rounded px-1.5 py-0.5 text-xs font-semibold shadow"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
