@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { productService } from '../services/productService';
 import { categoryService } from '../services/categoryService';
 import { encryptId, createSlug } from '../utils/encryption';
 import { getRoutePath } from '../config/routes.config';
 import WavyUnderline from './WavyUnderline';
+import { toProxiedFileUrl } from './FileDocViewer';
+import { extractImageUrl, fallbackImageDataUri, handleImageErrorOnce, isUsableImageUrl } from '../utils/safeImage';
 
 const Products = () => {
-  const navigate = useNavigate();
   const location = useLocation();
   const [hoveredProduct, setHoveredProduct] = useState(null);
   const [imageErrors, setImageErrors] = useState({});
@@ -98,7 +98,11 @@ const Products = () => {
           categoryDisplayName,
           price: product.basePrice || product.variants?.[0]?.price || 0,
           originalPrice: null,
-          image: product.productImage?.url || product.images?.[0]?.url || '',
+          image: (() => {
+            const raw = extractImageUrl(product.productImage) || extractImageUrl(product.images?.[0]) || extractImageUrl(product.image);
+            if (!isUsableImageUrl(raw)) return '';
+            return toProxiedFileUrl(raw) || raw;
+          })(),
           badge: null,
           rating: 4.5,
           reviews: 0,
@@ -138,14 +142,12 @@ const Products = () => {
     console.log('Added to cart:', product);
   };
 
-  const handleProductClick = (product) => {
-    // Navigate to product detail page with encrypted ID
+  const productHref = (product) => {
     const productId = product._id || product.id;
     const encryptedId = encryptId(productId);
     const slug = createSlug(product.name);
     const category = product.categorySlug || product.category?.toLowerCase() || 'product';
-    
-    navigate(getRoutePath('productDetail', { category, productName: slug, encryptedId }));
+    return getRoutePath('productDetail', { category, productName: slug, encryptedId });
   };
 
   return (
@@ -221,27 +223,26 @@ const Products = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
             {visibleProducts.map((product) => (
-            <div
+            <Link
               key={product.id}
-              className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 group cursor-pointer"
+              to={productHref(product)}
+              className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 group block"
               onMouseEnter={() => setHoveredProduct(product.id)}
               onMouseLeave={() => setHoveredProduct(null)}
-              onClick={() => handleProductClick(product)}
             >
               {/* Product Image Container */}
               <div className="relative h-64 bg-gray-100 overflow-hidden">
                 <img
-                  src={imageErrors[product.id] ? `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='500'%3E%3Crect fill='%23e5e7eb' width='500' height='500'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='20' fill='%239ca3af'%3E${encodeURIComponent(product.name)}%3C/text%3E%3C/svg%3E` : product.image}
+                  src={imageErrors[product.id] ? fallbackImageDataUri(product.name, 500) : (product.image || fallbackImageDataUri(product.name, 500))}
                   alt={product.name}
                   className={`w-full h-full object-cover transition-transform duration-500 ${
                     hoveredProduct === product.id ? 'scale-110' : 'scale-100'
                   }`}
                   onError={(e) => {
                     if (!imageErrors[product.id]) {
-                      setImageErrors(prev => ({ ...prev, [product.id]: true }));
-                      // Use a data URI as fallback instead of external URL
-                      e.target.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='500'%3E%3Crect fill='%23e5e7eb' width='500' height='500'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='20' fill='%239ca3af'%3E${encodeURIComponent(product.name)}%3C/text%3E%3C/svg%3E`;
+                      setImageErrors((prev) => ({ ...prev, [product.id]: true }));
                     }
+                    handleImageErrorOnce(e, product.name);
                   }}
                 />
                 
@@ -263,16 +264,12 @@ const Products = () => {
                 <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity duration-300 ${
                   hoveredProduct === product.id ? 'opacity-100' : 'opacity-0'
                 }`}>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleProductClick(product);
-                    }}
-                    className="px-6 py-3 bg-white text-gray-900 rounded-lg font-semibold hover:bg-blue-600 hover:text-white transition-colors"
+                  <span
+                    className="px-6 py-3 bg-white text-gray-900 rounded-lg font-semibold group-hover:bg-blue-600 group-hover:text-white transition-colors"
                     style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                   >
                     Quick View
-                  </button>
+                  </span>
                 </div>
 
               </div>
@@ -291,7 +288,7 @@ const Products = () => {
                   {product.description || ' '}
                 </p>
               </div>
-            </div>
+            </Link>
             ))}
           </div>
         )}

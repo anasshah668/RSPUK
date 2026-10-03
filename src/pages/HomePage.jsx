@@ -17,8 +17,15 @@ import TrustChecklist from '../components/TrustChecklist';
 import IndustriesWeSupport from '../components/IndustriesWeSupport';
 import SignageMatters from '../components/SignageMatters';
 import SolutionFinder from '../components/SolutionFinder';
+import { usePageSeo } from '../hooks/usePageSeo';
 
 const HomePage = () => {
+  usePageSeo({
+    title: 'Custom Signage, Printing & Fabrication | River Signs & Print',
+    description:
+      'UK print, signage, neon and fabrication from River Signs & Print in Middlesbrough. Business cards, banners, window graphics and custom neon.',
+    path: '/',
+  });
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (!params.get('category')) return;

@@ -8,7 +8,8 @@ import { uploadService } from '../services/uploadService';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useVatInclusive } from '../hooks/useVatInclusive';
-import { dedupeOptionRows } from '../utils/optionLabels';
+import { dedupeOptionRows, formatOptionLabel } from '../utils/optionLabels';
+import { getBasketItemDetailLines } from '../utils/cartItemDisplay';
 import {
   grossFromNet,
   payableFromNet,
@@ -16,6 +17,7 @@ import {
 } from '../utils/vatUtils';
 import { formatPaymentErrorForToast } from '../utils/formatPaymentChargeError';
 import { isTradeprintLineItem } from '../utils/productSource';
+import { usePageSeo } from '../hooks/usePageSeo';
 
 const sliderItems = [
   {
@@ -291,6 +293,11 @@ async function submitTradeprintOrderAfterPayment({ lineItems, customerInfo, orde
 }
 
 const CheckoutPage = () => {
+  usePageSeo({
+    title: 'Secure Checkout | River Signs & Print',
+    description: 'Complete your River Signs & Print order securely with Worldpay.',
+    path: '/checkout',
+  });
   const navigate = useNavigate();
   const location = useLocation();
   const { addToCart, clearCart, refreshCart, cartItems } = useCart();
@@ -391,6 +398,16 @@ const CheckoutPage = () => {
   }, [user]);
 
   useEffect(() => {
+    const fromCart = (checkoutItems || []).map((item) => item.deliveryPostcode).find(Boolean)
+      || checkoutData?.deliveryPostcode;
+    if (!fromCart) return;
+    setCustomerInfo((prev) => ({
+      ...prev,
+      postalCode: prev.postalCode || fromCart,
+    }));
+  }, [checkoutItems, checkoutData?.deliveryPostcode]);
+
+  useEffect(() => {
     const timer = setInterval(() => {
       setActiveSlide((prev) => (prev + 1) % sliderItems.length);
     }, 3500);
@@ -448,10 +465,31 @@ const CheckoutPage = () => {
     ? `Your order (${checkoutItems.length} ${checkoutItems.length === 1 ? 'item' : 'items'})`
     : checkoutData?.title || 'Secure Checkout';
 
-  const reviewSummaryRows = useMemo(
-    () => pickOrderReviewSummaryRows(checkoutData?.summary),
-    [checkoutData?.summary]
-  );
+  const reviewSummaryRows = useMemo(() => {
+    const rows = pickOrderReviewSummaryRows(checkoutData?.summary);
+    const extra = [];
+    if (checkoutData?.deliveryOption) {
+      extra.push({ label: 'Delivery', value: formatOptionLabel(checkoutData.deliveryOption) });
+    }
+    if (checkoutData?.deliveryEta) {
+      const eta = new Date(checkoutData.deliveryEta);
+      extra.push({
+        label: 'ETA',
+        value: Number.isNaN(eta.getTime())
+          ? String(checkoutData.deliveryEta)
+          : eta.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+      });
+    }
+    if (checkoutData?.deliveryPostcode) {
+      extra.push({ label: 'Delivery postcode', value: checkoutData.deliveryPostcode });
+    }
+    return dedupeOptionRows([...rows, ...extra]);
+  }, [
+    checkoutData?.summary,
+    checkoutData?.deliveryOption,
+    checkoutData?.deliveryEta,
+    checkoutData?.deliveryPostcode,
+  ]);
   const sanitizedCustomerInfo = {
     name: String(customerInfo.name || '').trim(),
     email: String(customerInfo.email || '').trim().toLowerCase(),
@@ -1240,36 +1278,51 @@ const CheckoutPage = () => {
             isMultiCheckout ? (
               <div className="space-y-3">
                 <ul className="divide-y divide-gray-100 rounded-lg border border-gray-100 overflow-hidden bg-gray-50/40">
-                  {checkoutItems.map((item, idx) => (
+                  {checkoutItems.map((item, idx) => {
+                    const details = getBasketItemDetailLines(item, { maxSummary: 6 });
+                    return (
                     <li
                       key={item.lineId || item.id || `line-${idx}`}
-                      className="flex justify-between gap-3 px-3 py-2.5"
+                      className="px-3 py-2.5"
                     >
-                      <div className="min-w-0 flex-1">
+                      <div className="flex justify-between gap-3">
                         <p className="font-medium text-gray-900 leading-snug line-clamp-2">
                           {item.title || item.name || 'Item'}
                         </p>
-                        <p className="text-xs text-gray-500 mt-0.5 tabular-nums">
-                          Qty {item.quantity || 1}
+                        <p className="shrink-0 font-semibold text-gray-900 tabular-nums">
+                          £{lineDisplayAmount(item).toFixed(2)}
                         </p>
                       </div>
-                      <p className="shrink-0 font-semibold text-gray-900 tabular-nums self-start">
-                        £{lineDisplayAmount(item).toFixed(2)}
+                      <p className="text-xs text-gray-500 mt-0.5 tabular-nums">
+                        Qty {item.quantity || 1}
+                        {item.deliveryOption ? ` · ${formatOptionLabel(item.deliveryOption)}` : ''}
+                        {item.deliveryEta ? ` · ETA ${new Date(item.deliveryEta).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
                       </p>
+                      {details.length > 0 ? (
+                        <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+                          {details.map((row) => `${row.label}: ${row.value}`).join(' · ')}
+                        </p>
+                      ) : null}
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
-                <div className="flex justify-between items-baseline gap-3 pt-1">
-                  <span className="text-sm font-semibold text-gray-900">Total due</span>
-                  <span className="text-lg font-bold text-blue-700 tabular-nums">
-                    £{payAmount.toFixed(2)}
-                  </span>
+                <div className="space-y-1 text-sm pt-1">
+                  <div className="flex justify-between text-gray-700">
+                    <span>Subtotal (ex VAT)</span>
+                    <span className="tabular-nums">£{(payAmount / 1.2).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-700">
+                    <span>VAT (20%)</span>
+                    <span className="tabular-nums">£{(payAmount - payAmount / 1.2).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-baseline gap-3 pt-1">
+                    <span className="text-sm font-semibold text-gray-900">Total due</span>
+                    <span className="text-lg font-bold text-blue-700 tabular-nums">
+                      £{payAmount.toFixed(2)}
+                    </span>
+                  </div>
                 </div>
-                {allCustomNeon ? (
-                  <p className="text-[11px] text-gray-500 leading-relaxed">
-                    Neon lines use your header VAT setting (UK 20% when Inc VAT is on).
-                  </p>
-                ) : null}
               </div>
             ) : (
               <div className="space-y-3">
@@ -1326,11 +1379,21 @@ const CheckoutPage = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="border-t border-gray-100 pt-3 flex justify-between items-baseline">
-                    <span className="font-semibold text-gray-900">Total due</span>
-                    <span className="text-lg font-bold text-blue-700 tabular-nums">
-                      £{payAmount.toFixed(2)}
-                    </span>
+                  <div className="border-t border-gray-100 pt-3 mt-1 space-y-2 text-sm">
+                    <div className="flex justify-between text-gray-700">
+                      <span>Subtotal (ex VAT)</span>
+                      <span className="tabular-nums">£{(payAmount / 1.2).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-700">
+                      <span>VAT (20%)</span>
+                      <span className="tabular-nums">£{(payAmount - payAmount / 1.2).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline gap-3 pt-1">
+                      <span className="font-semibold text-gray-900">Total due</span>
+                      <span className="text-lg font-bold text-blue-700 tabular-nums">
+                        £{payAmount.toFixed(2)}
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>

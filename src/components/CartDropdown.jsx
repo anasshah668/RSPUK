@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { canEditCartItem, getCartItemEditTarget } from '../utils/cartItemEdit';
+import { fallbackImageDataUri, handleImageErrorOnce, isUsableImageUrl } from '../utils/safeImage';
 
 const API_ORIGIN = (import.meta.env.VITE_API_URL || '')
   .replace(/\/api\/?$/i, '')
@@ -10,6 +11,7 @@ const API_ORIGIN = (import.meta.env.VITE_API_URL || '')
 function resolveCartImageUrl(url) {
   if (!url || typeof url !== 'string') return null;
   const u = url.trim();
+  if (!isUsableImageUrl(u)) return null;
   if (u.startsWith('data:') || /^https?:\/\//i.test(u)) return u;
   if (u.startsWith('//')) return `https:${u}`;
   if (u.startsWith('/') && API_ORIGIN) return `${API_ORIGIN}${u}`;
@@ -160,16 +162,11 @@ const CartDropdown = ({ isOpen, onClose }) => {
                       src={
                         resolveCartImageUrl(item.artworkPreviewUrl) ||
                         resolveCartImageUrl(item.image) ||
-                        `https://via.placeholder.com/80x80?text=${encodeURIComponent(
-                          (item.name || item.title || 'Item').slice(0, 12),
-                        )}`
+                        fallbackImageDataUri(item.name || item.title || 'Item', 80)
                       }
                       alt={item.name || item.title || 'Item'}
                       className="w-full h-full object-cover"
-                      onError={(e) => {
-                        const label = (item.name || item.title || 'Item').slice(0, 12);
-                        e.target.src = 'https://via.placeholder.com/80x80?text=' + encodeURIComponent(label);
-                      }}
+                      onError={(e) => handleImageErrorOnce(e, item.name || item.title || 'Item')}
                     />
                   </div>
 

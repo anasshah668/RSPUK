@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useNeonPreviewExit } from '../context/NeonPreviewExitContext';
@@ -11,6 +11,34 @@ import {
 } from '../utils/tradeprintCategories';
 import { basketTypeLabel, getBasketItemDetailLines } from '../utils/cartItemDisplay';
 import { canEditCartItem, getCartItemEditTarget } from '../utils/cartItemEdit';
+
+const FEATURED_SHOP_ROUTES = {
+  '3d-built-up-letters': '/featured/3d-built-up-letters',
+  '2d-box-signage': '/featured/2d-box-signage',
+  'flex-face': '/featured/flex-face',
+  lightbox: '/featured/lightbox',
+  'printed-board': '/featured/printed-board',
+  posters: '/featured/posters',
+  'pvc-banners': '/featured/pvc-banners',
+  'correx-foamex-aluminium-prints': '/featured/correx-foamex-aluminium-prints',
+  'backlit-prints': '/featured/backlit-prints',
+  'canvas-prints': '/featured/canvas-prints',
+  'printed-vinyl': '/featured/printed-vinyl',
+  'frosted-vinyl': '/featured/frosted-vinyl',
+  'one-way-vision': '/featured/one-way-vision',
+  'cut-vinyl': '/featured/cut-vinyl',
+  'privacy-films': '/featured/privacy-films',
+  'cnc-router-cutting': '/featured/cnc-router-cutting',
+  'fibre-laser-cutting': '/featured/fibre-laser-cutting',
+  'fibre-laser-welding': '/featured/fibre-laser-welding',
+};
+
+const shopCategoryHref = (categorySlug) => {
+  if (isTradeprintCategory(categorySlug)) {
+    return `/?category=${encodeURIComponent(categorySlug)}`;
+  }
+  return FEATURED_SHOP_ROUTES[categorySlug] || `/category/${categorySlug}`;
+};
 
 const Header = () => {
   const navigate = useNavigate();
@@ -121,26 +149,6 @@ const Header = () => {
 
   const goToShopCategory = async (categorySlug) => {
     if (!(await confirmLeavePreview())) return;
-    const featuredRouteMap = {
-      '3d-built-up-letters': '/featured/3d-built-up-letters',
-      '2d-box-signage': '/featured/2d-box-signage',
-      'flex-face': '/featured/flex-face',
-      'lightbox': '/featured/lightbox',
-      'printed-board': '/featured/printed-board',
-      'posters': '/featured/posters',
-      'pvc-banners': '/featured/pvc-banners',
-      'correx-foamex-aluminium-prints': '/featured/correx-foamex-aluminium-prints',
-      'backlit-prints': '/featured/backlit-prints',
-      'canvas-prints': '/featured/canvas-prints',
-      'printed-vinyl': '/featured/printed-vinyl',
-      'frosted-vinyl': '/featured/frosted-vinyl',
-      'one-way-vision': '/featured/one-way-vision',
-      'cut-vinyl': '/featured/cut-vinyl',
-      'privacy-films': '/featured/privacy-films',
-      'cnc-router-cutting': '/featured/cnc-router-cutting',
-      'fibre-laser-cutting': '/featured/fibre-laser-cutting',
-      'fibre-laser-welding': '/featured/fibre-laser-welding',
-    };
 
     // Tradeprint categories open the homepage shop section filtered by category.
     if (isTradeprintCategory(categorySlug)) {
@@ -159,7 +167,7 @@ const Header = () => {
     }
 
     // Navigate featured categories to their dedicated pages, fallback to generic category route.
-    navigate(featuredRouteMap[categorySlug] || `/category/${categorySlug}`);
+    navigate(shopCategoryHref(categorySlug));
     setMobileMenuOpen(false);
     setShopOpen(false);
     setDesignOpen(false);
@@ -364,6 +372,8 @@ const Header = () => {
           artworkPreviewUrl: item?.artworkPreviewUrl,
           fileUrls: item?.fileUrls,
           deliveryOption: item?.deliveryOption,
+          deliveryPostcode: item?.deliveryPostcode,
+          deliveryEta: item?.deliveryEta,
         },
       },
     });
@@ -405,6 +415,8 @@ const Header = () => {
           artworkPreviewUrl: item?.artworkPreviewUrl,
           fileUrls: item?.fileUrls,
           deliveryOption: item?.deliveryOption,
+          deliveryPostcode: item?.deliveryPostcode,
+          deliveryEta: item?.deliveryEta,
         })),
       },
     });
@@ -668,10 +680,13 @@ const Header = () => {
   );
 
   const LogoMark = ({ className = 'h-11' }) => (
-    <button
-      type="button"
+    <Link
+      to="/"
       className="flex items-center gap-2 shrink-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
-      onClick={() => handleNavClick('home')}
+      onClick={async (event) => {
+        event.preventDefault();
+        await handleNavClick('home');
+      }}
       aria-label="River Signs home"
     >
       <img
@@ -690,7 +705,7 @@ const Header = () => {
         <span className="text-blue-400">River</span>
         <span className="text-white">Signs</span>
       </div>
-    </button>
+    </Link>
   );
 
   return (
@@ -705,9 +720,16 @@ const Header = () => {
             <LogoMark className="h-12" />
 
             <div className="flex flex-1 items-center justify-center gap-0.5 xl:gap-1 min-w-0">
-              <button type="button" onClick={() => handleNavClick('home')} className={navBtnClass()}>
+              <Link
+                to="/"
+                onClick={async (event) => {
+                  event.preventDefault();
+                  await handleNavClick('home');
+                }}
+                className={navBtnClass()}
+              >
                 Home
-              </button>
+              </Link>
 
               <div className="relative" ref={shopRef}>
                 <button
@@ -762,14 +784,17 @@ const Header = () => {
                           <ul className="space-y-0.5">
                             {group.items.map((item) => (
                               <li key={`${group.title}-${item.category}`}>
-                                <button
-                                  type="button"
-                                  onClick={() => goToShopCategory(item.category)}
+                                <Link
+                                  to={shopCategoryHref(item.category)}
+                                  onClick={async (event) => {
+                                    event.preventDefault();
+                                    await goToShopCategory(item.category);
+                                  }}
                                   className="group flex w-full items-start gap-1.5 rounded-lg py-1.5 text-left text-[13px] leading-snug text-slate-600 transition-colors hover:text-blue-700"
                                 >
                                   <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-slate-300 transition-colors group-hover:bg-blue-600" />
                                   <span className="transition-colors group-hover:text-blue-700">{item.label}</span>
-                                </button>
+                                </Link>
                               </li>
                             ))}
                           </ul>
@@ -779,11 +804,12 @@ const Header = () => {
 
                     <div className="flex items-center justify-between gap-4 border-t border-slate-100 bg-slate-50/80 px-7 py-4">
                       <p className="text-xs text-slate-500">Not sure which product is right for you?</p>
-                      <button
-                        type="button"
-                        onClick={() => {
+                      <Link
+                        to="/get-free-quote"
+                        onClick={async (event) => {
+                          event.preventDefault();
                           setShopOpen(false);
-                          handleNavClick('quote');
+                          await handleNavClick('quote');
                         }}
                         className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 transition-colors hover:text-blue-700"
                       >
@@ -791,7 +817,7 @@ const Header = () => {
                         <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 5l7 7-7 7" />
                         </svg>
-                      </button>
+                      </Link>
                     </div>
                   </div>
                 )}
@@ -820,9 +846,12 @@ const Header = () => {
                 </button>
                 {designOpen && (
                   <div className="absolute top-full left-0 z-50 mt-3 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white py-2 shadow-xl shadow-slate-900/15">
-                    <button
-                      type="button"
-                      onClick={() => handleNavClick('product-designer')}
+                    <Link
+                      to="/generic-product-designer"
+                      onClick={async (event) => {
+                        event.preventDefault();
+                        await handleNavClick('product-designer');
+                      }}
                       className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-slate-50"
                     >
                       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
@@ -834,10 +863,13 @@ const Header = () => {
                         <span className="block text-sm font-semibold text-slate-900">Design Tool</span>
                         <span className="block text-xs text-slate-500">Online product designer</span>
                       </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleNavClick('custom-neon-builder')}
+                    </Link>
+                    <Link
+                      to="/custom-neon-builder"
+                      onClick={async (event) => {
+                        event.preventDefault();
+                        await handleNavClick('custom-neon-builder');
+                      }}
                       className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-slate-50"
                     >
                       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
@@ -849,14 +881,21 @@ const Header = () => {
                         <span className="block text-sm font-semibold text-slate-900">Custom Neon</span>
                         <span className="block text-xs text-slate-500">Build your neon sign</span>
                       </span>
-                    </button>
+                    </Link>
                   </div>
                 )}
               </div>
 
-              <button type="button" onClick={() => handleNavClick('gallery')} className={navBtnClass()}>
+              <Link
+                to="/gallery"
+                onClick={async (event) => {
+                  event.preventDefault();
+                  await handleNavClick('gallery');
+                }}
+                className={navBtnClass()}
+              >
                 Gallery
-              </button>
+              </Link>
             </div>
 
             <div className="relative z-[110] flex items-center gap-2 xl:gap-3 shrink-0 overflow-visible">
@@ -911,17 +950,20 @@ const Header = () => {
                           ) : null}
                         </div>
                         {accountMenu.map((item) => (
-                          <button
+                          <Link
                             key={item.tab}
-                            type="button"
-                            onClick={() => goToAccountTab(item.tab)}
+                            to={item.tab ? `/account?tab=${encodeURIComponent(item.tab)}` : '/account'}
+                            onClick={async (event) => {
+                              event.preventDefault();
+                              await goToAccountTab(item.tab);
+                            }}
                             className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm text-slate-600 transition hover:bg-slate-50 hover:text-blue-700"
                           >
                             <span>{item.label}</span>
                             <svg className="h-3.5 w-3.5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
-                          </button>
+                          </Link>
                         ))}
                       </>
                     ) : (
@@ -930,20 +972,26 @@ const Header = () => {
                           <p className="text-sm font-semibold text-slate-900">Welcome</p>
                           <p className="mt-0.5 text-xs text-slate-500">Sign in to manage orders &amp; quotes</p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleNavClick('login')}
+                        <Link
+                          to="/login"
+                          onClick={async (event) => {
+                            event.preventDefault();
+                            await handleNavClick('login');
+                          }}
                           className="flex w-full px-4 py-2.5 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                         >
                           Login
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleNavClick('register')}
-                          className="mx-3 mb-2 mt-1 w-[calc(100%-1.5rem)] rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+                        </Link>
+                        <Link
+                          to="/register"
+                          onClick={async (event) => {
+                            event.preventDefault();
+                            await handleNavClick('register');
+                          }}
+                          className="mx-3 mb-2 mt-1 block w-[calc(100%-1.5rem)] rounded-xl bg-blue-600 px-4 py-2.5 text-center text-sm font-semibold text-white transition hover:bg-blue-700"
                         >
                           Sign Up
-                        </button>
+                        </Link>
                       </>
                     )}
                   </div>
@@ -993,13 +1041,16 @@ const Header = () => {
 
         {mobileMenuOpen && (
           <div className="space-y-1 border-t border-slate-700/80 py-3 lg:hidden">
-            <button
-              type="button"
-              onClick={() => handleNavClick('home')}
+            <Link
+              to="/"
+              onClick={async (event) => {
+                event.preventDefault();
+                await handleNavClick('home');
+              }}
               className="block w-full rounded-xl px-4 py-3 text-left text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white"
             >
               Home
-            </button>
+            </Link>
 
             <div className="px-2">
               <button
@@ -1029,14 +1080,17 @@ const Header = () => {
                       </h3>
                       <div className="space-y-0.5">
                         {group.items.map((item) => (
-                          <button
+                          <Link
                             key={`${group.title}-${item.category}`}
-                            type="button"
-                            onClick={() => goToShopCategory(item.category)}
+                            to={shopCategoryHref(item.category)}
+                            onClick={async (event) => {
+                              event.preventDefault();
+                              await goToShopCategory(item.category);
+                            }}
                             className="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-300 transition hover:bg-white/10 hover:text-white"
                           >
                             {item.label}
-                          </button>
+                          </Link>
                         ))}
                       </div>
                     </div>
@@ -1066,31 +1120,40 @@ const Header = () => {
               </button>
               {designOpen && (
                 <div className="mt-1 space-y-0.5 rounded-xl bg-white/5 px-2 py-2">
-                  <button
-                    type="button"
-                    onClick={() => handleNavClick('product-designer')}
+                  <Link
+                    to="/generic-product-designer"
+                    onClick={async (event) => {
+                      event.preventDefault();
+                      await handleNavClick('product-designer');
+                    }}
                     className="block w-full rounded-lg px-3 py-2.5 text-left text-sm text-slate-300 transition hover:bg-white/10 hover:text-white"
                   >
                     Design Tool
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleNavClick('custom-neon-builder')}
+                  </Link>
+                  <Link
+                    to="/custom-neon-builder"
+                    onClick={async (event) => {
+                      event.preventDefault();
+                      await handleNavClick('custom-neon-builder');
+                    }}
                     className="block w-full rounded-lg px-3 py-2.5 text-left text-sm text-slate-300 transition hover:bg-white/10 hover:text-white"
                   >
                     Custom Neon
-                  </button>
+                  </Link>
                 </div>
               )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => handleNavClick('gallery')}
+            <Link
+              to="/gallery"
+              onClick={async (event) => {
+                event.preventDefault();
+                await handleNavClick('gallery');
+              }}
               className="block w-full rounded-xl px-4 py-3 text-left text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white"
             >
               Gallery
-            </button>
+            </Link>
 
             <div className="mt-2 border-t border-slate-700/80 pt-3">
               <p className="px-4 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
@@ -1103,32 +1166,41 @@ const Header = () => {
                     {user?.email ? <p className="mt-0.5 text-xs text-slate-400">{user.email}</p> : null}
                   </div>
                   {accountMenu.map((item) => (
-                    <button
+                    <Link
                       key={item.tab}
-                      type="button"
-                      onClick={() => goToAccountTab(item.tab)}
+                      to={item.tab ? `/account?tab=${encodeURIComponent(item.tab)}` : '/account'}
+                      onClick={async (event) => {
+                        event.preventDefault();
+                        await goToAccountTab(item.tab);
+                      }}
                       className="block w-full rounded-xl px-4 py-3 text-left text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white"
                     >
                       {item.label}
-                    </button>
+                    </Link>
                   ))}
                 </>
               ) : (
                 <div className="space-y-2 px-3 pb-1">
-                  <button
-                    type="button"
-                    onClick={() => handleNavClick('login')}
+                  <Link
+                    to="/login"
+                    onClick={async (event) => {
+                      event.preventDefault();
+                      await handleNavClick('login');
+                    }}
                     className="block w-full rounded-xl px-4 py-3 text-left text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white"
                   >
                     Login
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleNavClick('register')}
+                  </Link>
+                  <Link
+                    to="/register"
+                    onClick={async (event) => {
+                      event.preventDefault();
+                      await handleNavClick('register');
+                    }}
                     className="block w-full rounded-xl bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-blue-500"
                   >
                     Sign Up
-                  </button>
+                  </Link>
                 </div>
               )}
             </div>

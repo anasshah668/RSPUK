@@ -489,3 +489,30 @@ export async function loadPageOntoCanvas(canvas, page) {
   enforceCanvasDisplayAspectRatio(canvas);
   canvas.discardActiveObject();
 }
+
+export function fitTemplateObjectsToPage(canvas, source, dest) {
+  if (!canvas || !source?.width || !source?.height || !dest?.width || !dest?.height) return;
+  const sourceW = Number(source.width);
+  const sourceH = Number(source.height);
+  const destW = Number(dest.width);
+  const destH = Number(dest.height);
+  if (sourceW <= 0 || sourceH <= 0 || destW <= 0 || destH <= 0) return;
+  const sameSize = Math.abs(sourceW - destW) < 2 && Math.abs(sourceH - destH) < 2;
+  if (sameSize) return;
+
+  const scale = Math.min(destW / sourceW, destH / sourceH);
+  const offsetX = (destW - sourceW * scale) / 2;
+  const offsetY = (destH - sourceH * scale) / 2;
+
+  canvas.getObjects().forEach((obj) => {
+    if (!obj || obj.excludeFromExport) return;
+    obj.set({
+      scaleX: (obj.scaleX || 1) * scale,
+      scaleY: (obj.scaleY || 1) * scale,
+      left: (obj.left || 0) * scale + offsetX,
+      top: (obj.top || 0) * scale + offsetY,
+    });
+    if (typeof obj.setCoords === 'function') obj.setCoords();
+  });
+  canvas.requestRenderAll();
+}

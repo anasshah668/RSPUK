@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { FiChevronDown, FiChevronUp } from 'react-icons/fi';
 
 const PREVIEW_CHAR_LIMIT = 155;
@@ -204,9 +205,17 @@ const GoogleReviewsBadge = () => {
   }, [closePanel, isOpen]);
 
   const { rating, reviewCount, reviews, reviewsUrl } = reviewsData;
+  const { pathname } = useLocation();
+  const hideOnThisPage =
+    /^\/(product-designer|generic-product-designer|checkout|custom-neon-builder|neon-builder)/.test(pathname);
+  if (hideOnThisPage) return null;
+  const hasStickyPriceBar = pathname.split('/').filter(Boolean).length === 3;
 
   return (
-    <div ref={rootRef} className="fixed bottom-6 left-4 z-50 sm:left-6">
+    <div
+      ref={rootRef}
+      className={`fixed left-4 z-30 hidden md:block sm:left-6 ${hasStickyPriceBar ? 'bottom-24' : 'bottom-6'}`}
+    >
       {isOpen ? (
         <div
           className="mb-2 w-[min(100vw-2rem,380px)] overflow-hidden rounded-md border border-gray-200 bg-white shadow-2xl"

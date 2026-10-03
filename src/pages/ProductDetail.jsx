@@ -13,16 +13,22 @@ import { useAuth } from '../context/AuthContext';
 import DesignerAuthModal from '../components/DesignerAuthModal';
 import { isTradeprintProduct, normalizeProductSource } from '../utils/productSource';
 import { getLockedProductSizeMm } from '../config/productPrintAreas';
+import { formatPdfPageMm, inspectPdfFile, pdfPageFitsProduct } from '../utils/inspectPdfFile';
 import { toProxiedFileUrl } from '../components/FileDocViewer';
+import { usePageSeo } from '../hooks/usePageSeo';
+import { extractImageUrl, handleImageErrorOnce, isUsableImageUrl } from '../utils/safeImage';
 
 const productDisplayImages = (item) => {
-  const urls = [
-    item?.productImage?.url,
-    ...(Array.isArray(item?.images) ? item.images.map((img) => img?.url) : []),
-  ]
-    .filter(Boolean)
-    .map((url) => toProxiedFileUrl(url) || url);
-  return [...new Set(urls)];
+  const raw = [
+    extractImageUrl(item?.productImage),
+    extractImageUrl(item?.image),
+    ...(Array.isArray(item?.images) ? item.images.map((img) => extractImageUrl(img)) : []),
+  ];
+  return [...new Set(
+    raw
+      .filter(isUsableImageUrl)
+      .map((url) => toProxiedFileUrl(url) || url),
+  )];
 };
 
 const formatUkDate = (value) => {
@@ -89,6 +95,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalPurpose, setAuthModalPurpose] = useState('cart');
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [justAddedToCart, setJustAddedToCart] = useState(false);
   const pendingAddToCartRef = useRef(false);
   const pendingArtworkUploadRef = useRef(false);
   const pendingArtworkFileRef = useRef(null);
@@ -211,6 +218,16 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
   };
 
   const displayProduct = getProduct();
+  usePageSeo({
+    title: displayProduct?.name
+      ? `${displayProduct.name} | River Signs & Print`
+      : 'Product | River Signs & Print',
+    description:
+      displayProduct?.description ||
+      'Order custom print and signage from River Signs & Print. Choose quantity, delivery and artwork options.',
+    path: location.pathname,
+    image: displayProduct?.image || displayProduct?.productImage?.url,
+  });
   const productImages = Array.isArray(displayProduct?.images) && displayProduct.images.length > 0
     ? displayProduct.images
     : (displayProduct?.image ? [displayProduct.image] : []);
@@ -741,6 +758,36 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         toast.error(message);
         return;
       }
+      const specSize =
+        displayProduct?.specifications?.Size ||
+        displayProduct?.specifications?.size ||
+        (Array.isArray(displayProduct?.features)
+          ? displayProduct.features.find((row) => /\d+\s*[x×]\s*\d+/i.test(String(row)))
+          : '');
+      const lockedSize = getLockedProductSizeMm({
+        category: displayProduct?.category || product?.category || category,
+        productType: isBusinessCard() ? 'business-card' : productType,
+        sizeLabel: selectedSize || specSize,
+      });
+      try {
+        const inspected = await inspectPdfFile(file);
+        const expectedSides = String(sidesPrinted || '').includes('double') ? 2 : 1;
+        if (inspected.pageCount && inspected.pageCount < expectedSides) {
+          const message = `This product is ${expectedSides === 2 ? 'double-sided' : 'single-sided'} but the PDF has ${inspected.pageCount} page${inspected.pageCount === 1 ? '' : 's'}.`;
+          setArtworkUploadError(message);
+          toast.error(message);
+          return;
+        }
+        if (lockedSize && !pdfPageFitsProduct(inspected, lockedSize)) {
+          const actual = formatPdfPageMm(inspected.widthPt, inspected.heightPt) || 'a different size';
+          const message = `This PDF is ${actual}. The product trim is ${lockedSize.widthMm} × ${lockedSize.heightMm} mm. Export at the product size (plus bleed) and try again.`;
+          setArtworkUploadError(message);
+          toast.error(message);
+          return;
+        }
+      } catch {
+        /* if we cannot read the PDF, still allow upload */
+      }
     }
 
     setArtworkUploadUrl(null);
@@ -959,9 +1006,12 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         name: displayProduct.name,
         category: displayProduct.category,
         price: finalPrice,
+        amountBasis: 'gross',
         image: imageForCart,
         quantity: qtyToAdd,
         source,
+        deliveryPostcode: deliveryPostcode.trim(),
+        deliveryEta: expectedDeliveryByOption?.[resolvedDeliveryOption] || '',
         thirdPartyProductKey: hasThirdPartyPricing ? thirdPartyProductKey : null,
         designOption: effectiveDesignOption,
         withoutArtwork,
@@ -1003,14 +1053,24 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
         );
       } else {
         await addToCart(cartProduct);
-        toast.success(`${displayProduct.name} added to basket. View basket in the header.`, {
-          autoClose: 8000,
-        });
-        setIsAddingToCart(false);
-        window.dispatchEvent(
-          new CustomEvent('rspuk-basket-open', {
-            detail: { highlightId: cartProduct.id },
-          }),
+        setJustAddedToCart(true);
+        window.setTimeout(() => setJustAddedToCart(false), 2500);
+        toast.success(
+          <span>
+            {displayProduct.name} added to basket.{' '}
+            <button
+              type="button"
+              className="underline font-semibold"
+              onClick={() =>
+                window.dispatchEvent(
+                  new CustomEvent('rspuk-basket-open', { detail: { highlightId: cartProduct.id } }),
+                )
+              }
+            >
+              View basket
+            </button>
+          </span>,
+          { autoClose: 8000 },
         );
       }
     } catch (e) {
@@ -1117,9 +1177,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                     transform: imageZoom.active ? 'scale(2)' : 'scale(1)',
                     transformOrigin: `${imageZoom.x}% ${imageZoom.y}%`,
                   }}
-                  onError={(e) => {
-                    e.target.src = 'https://via.placeholder.com/800x800?text=' + encodeURIComponent(displayProduct.name);
-                  }}
+                  onError={(e) => handleImageErrorOnce(e, displayProduct.name)}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-gray-400">
@@ -1143,9 +1201,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                         src={imgUrl}
                         alt={`${displayProduct.name} ${index + 1}`}
                         className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.src = 'https://via.placeholder.com/120x120?text=Image';
-                        }}
+                        onError={(e) => handleImageErrorOnce(e, displayProduct.name)}
                       />
                     </button>
                   ))}
@@ -1980,19 +2036,39 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                         </div>
                           {designOption === 'upload' && (
                             <div className="space-y-2">
-                              <input
-                                ref={artworkFileInputRef}
-                                type="file"
-                                accept={hasThirdPartyPricing ? '.pdf,application/pdf' : 'image/*,.pdf,application/pdf'}
-                                onClick={handleArtworkFileInputClick}
-                                onChange={handleImageUpload}
-                                disabled={isUploadingArtwork}
-                                aria-required="true"
-                                aria-invalid={!artworkUploadUrl}
-                                className={`text-xs text-gray-600 w-full rounded border ${
-                                  !artworkUploadUrl ? 'border-red-300' : 'border-gray-200'
-                                } disabled:opacity-60`}
-                              />
+                              <label
+                                className={`flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed px-3 py-4 text-center cursor-pointer ${
+                                  !artworkUploadUrl ? 'border-red-300 bg-red-50/40' : 'border-gray-200 bg-gray-50'
+                                } ${isUploadingArtwork ? 'opacity-60 pointer-events-none' : ''}`}
+                                onDragOver={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const file = e.dataTransfer.files?.[0];
+                                  if (file) {
+                                    handleImageUpload({ target: { files: [file], value: '' } });
+                                  }
+                                }}
+                              >
+                                <input
+                                  ref={artworkFileInputRef}
+                                  type="file"
+                                  accept={hasThirdPartyPricing ? '.pdf,application/pdf' : 'image/*,.pdf,application/pdf'}
+                                  onClick={handleArtworkFileInputClick}
+                                  onChange={handleImageUpload}
+                                  disabled={isUploadingArtwork}
+                                  aria-required="true"
+                                  aria-invalid={!artworkUploadUrl}
+                                  className="sr-only"
+                                />
+                                <span className="text-xs font-semibold text-gray-800">
+                                  {hasThirdPartyPricing ? 'Drop a print-ready PDF here or click to browse' : 'Drop artwork here or click to browse'}
+                                </span>
+                                <span className="text-[11px] text-gray-500">PDF up to 50MB · export at the product size</span>
+                              </label>
                               {isUploadingArtwork ? (
                                 <p className="text-[11px] text-blue-600 font-medium flex items-center gap-1.5" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
                                   <span className="inline-block w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" aria-hidden="true" />
@@ -2285,6 +2361,8 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                     ? editCartLine
                       ? 'Updating…'
                       : 'Adding…'
+                    : justAddedToCart
+                      ? 'Added ✓'
                     : editCartLine
                       ? 'Update Basket'
                       : 'Add To Basket'

@@ -175,14 +175,17 @@ const Footer = () => {
                   if (!item) return null;
                   return (
                     <li key={slug}>
-                      <button
-                        type="button"
-                        onClick={() => handleFeaturedProductClick(item.route)}
+                      <Link
+                        to={item.route}
+                        onClick={async (event) => {
+                          event.preventDefault();
+                          await handleFeaturedProductClick(item.route);
+                        }}
                         className={linkClass}
                         style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                       >
                         {item.title}
-                      </button>
+                      </Link>
                     </li>
                   );
                 })}
@@ -196,18 +199,21 @@ const Footer = () => {
             <h4 className="text-white font-bold mb-4 text-base">Company</h4>
             <ul className="space-y-2">
               {[
-                { label: 'About Us', action: 'about' },
-                { label: 'Gallery', action: 'gallery' },
-              ].map(({ label, action }) => (
-                <li key={action}>
-                  <button
-                    type="button"
-                    onClick={() => handleNavClick(action)}
+                { label: 'About Us', href: '/about-us' },
+                { label: 'Gallery', href: '/gallery' },
+              ].map(({ label, href }) => (
+                <li key={href}>
+                  <Link
+                    to={href}
+                    onClick={async (event) => {
+                      event.preventDefault();
+                      await handleNavClick(href === '/about-us' ? 'about' : 'gallery');
+                    }}
                     className={linkClass}
                     style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                   >
                     {label}
-                  </button>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -217,28 +223,26 @@ const Footer = () => {
             <h4 className="text-white font-bold mb-4 text-base">Support</h4>
             <ul className="space-y-2">
               {[
-                { label: 'Get a Free Quote', action: 'quote' },
-                { label: 'Design Tool', action: 'product-designer' },
-                { label: 'FAQs', action: 'faqs' },
+                { label: 'Get a Free Quote', href: '/get-free-quote', action: 'quote' },
+                { label: 'Design Tool', href: '/generic-product-designer', action: 'product-designer' },
+                { label: 'FAQs', href: '/faqs', action: 'faqs' },
                 { label: 'Terms & Conditions', href: '/terms' },
                 { label: 'Privacy Policy', href: '/privacy' },
                 { label: 'Delivery & Returns', href: '/delivery-returns' },
               ].map(({ label, action, href }) => (
-                <li key={href || action}>
-                  {href ? (
-                    <Link to={href} className={`${linkClass} block`} style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                      {label}
-                    </Link>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleNavClick(action)}
-                      className={linkClass}
-                      style={{ fontFamily: 'Lexend Deca, sans-serif' }}
-                    >
-                      {label}
-                    </button>
-                  )}
+                <li key={href}>
+                  <Link
+                    to={href}
+                    onClick={async (event) => {
+                      if (!action) return;
+                      event.preventDefault();
+                      await handleNavClick(action);
+                    }}
+                    className={`${linkClass} block`}
+                    style={{ fontFamily: 'Lexend Deca, sans-serif' }}
+                  >
+                    {label}
+                  </Link>
                 </li>
               ))}
             </ul>

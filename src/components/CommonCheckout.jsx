@@ -496,7 +496,8 @@ const CommonCheckout = ({
                 placeholder="Full Name"
                 value={customerInfo.name}
                 onChange={(e) => onCustomerInfoChange({ ...customerInfo, name: e.target.value })}
-                className={inputClass(false)}
+                className={inputClass(Boolean(fieldErrors.name))}
+                aria-invalid={Boolean(fieldErrors.name)}
                 style={{ fontFamily: 'Lexend Deca, sans-serif' }}
               />
               <div>
@@ -506,6 +507,7 @@ const CommonCheckout = ({
                   value={customerInfo.email}
                   onChange={(e) => onCustomerInfoChange({ ...customerInfo, email: e.target.value })}
                   className={inputClass(Boolean(fieldErrors.email))}
+                  aria-invalid={Boolean(fieldErrors.email)}
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 />
                 {fieldErrors.email ? <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p> : null}
@@ -517,6 +519,7 @@ const CommonCheckout = ({
                   value={customerInfo.phone}
                   onChange={(e) => onCustomerInfoChange({ ...customerInfo, phone: e.target.value })}
                   className={inputClass(Boolean(fieldErrors.phone))}
+                  aria-invalid={Boolean(fieldErrors.phone)}
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                 />
                 {fieldErrors.phone ? <p className="mt-1 text-xs text-red-600">{fieldErrors.phone}</p> : null}
@@ -545,6 +548,7 @@ const CommonCheckout = ({
                   value={customerInfo.postalCode || ''}
                   onChange={(e) => onCustomerInfoChange({ ...customerInfo, postalCode: e.target.value })}
                   className={inputClass(Boolean(fieldErrors.postalCode))}
+                  aria-invalid={Boolean(fieldErrors.postalCode)}
                   style={{ fontFamily: 'Lexend Deca, sans-serif' }}
                   autoComplete="postal-code"
                 />

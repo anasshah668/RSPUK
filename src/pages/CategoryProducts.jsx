@@ -7,12 +7,16 @@ import WavyUnderline from '../components/WavyUnderline';
 import { getFeaturedSignageBySlug } from '../data/featuredSignageData';
 import { isTradeprintCategory } from '../utils/tradeprintCategories';
 import { toProxiedFileUrl } from '../components/FileDocViewer';
+import { extractImageUrl, isUsableImageUrl } from '../utils/safeImage';
 
-const productCardImage = (product) =>
-  toProxiedFileUrl(product?.productImage?.url || product?.images?.[0]?.url || '') ||
-  product?.productImage?.url ||
-  product?.images?.[0]?.url ||
-  '';
+const productCardImage = (product) => {
+  const raw =
+    extractImageUrl(product?.productImage) ||
+    extractImageUrl(product?.images?.[0]) ||
+    extractImageUrl(product?.image);
+  if (!isUsableImageUrl(raw)) return '';
+  return toProxiedFileUrl(raw) || raw;
+};
 
 const CategoryProducts = ({ categorySlugOverride } = {}) => {
   const params = useParams();

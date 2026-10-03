@@ -26,6 +26,7 @@ import {
   DEFAULT_CANVAS_SIZE_MM,
   getTemplateBackgroundObject,
   isTemplateBackgroundObject,
+  fitTemplateObjectsToPage,
   loadPageOntoCanvas,
   prepareCanvasForInteraction,
   resetCanvasViewport,
@@ -37,6 +38,7 @@ import {
 } from '../utils/templateCanvasLoader';
 import {
   clearOnlineDesignerAutosave,
+  designerAutosaveKey,
   loadOnlineDesignerAutosave,
   saveOnlineDesignerAutosave,
 } from '../utils/onlineDesignerStorage';
@@ -538,6 +540,11 @@ const GenericProductDesigner = () => {
     sizeLabel: selectedSizeParam,
   });
   const lockedProductPixels = getProductCanvasPixels(lockedProductSizeMm);
+  const autosaveStorageKey = designerAutosaveKey({
+    productMode: isProductMode,
+    productId: savedDraft?.productId,
+    productType,
+  });
   const productQuantity = Math.max(
     1,
     Number(productSearchParams.get('quantity') || savedDraft?.quantity || 1),
@@ -2384,16 +2391,16 @@ const GenericProductDesigner = () => {
   }, [canvas]);
 
   useEffect(() => {
-    if (isProductMode || !canvas || autosavePromptShownRef.current) return;
-    const saved = loadOnlineDesignerAutosave();
+    if (!canvas || autosavePromptShownRef.current) return;
+    const saved = loadOnlineDesignerAutosave(autosaveStorageKey);
     if (saved?.pages?.length) {
       setShowAutosaveRestore(true);
       autosavePromptShownRef.current = true;
     }
-  }, [canvas, isProductMode]);
+  }, [canvas, autosaveStorageKey]);
 
   useEffect(() => {
-    if (!canvas || isProductMode) return undefined;
+    if (!canvas) return undefined;
     const persistAutosave = () => {
       if (isApplyingTemplateRef.current || suppressPageLoadRef.current || canvasHydratingRef.current) return;
       const activeIndex = currentPageIndexRef.current;
@@ -2420,7 +2427,7 @@ const GenericProductDesigner = () => {
       saveOnlineDesignerAutosave({
         pages: updatedPages,
         currentPageIndex: activeIndex,
-      });
+      }, autosaveStorageKey);
       setLastSavedAt(Date.now());
     };
 
@@ -2431,7 +2438,7 @@ const GenericProductDesigner = () => {
       clearInterval(timer);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [canvas, currentPageIndex, isProductMode]);
+  }, [canvas, currentPageIndex, autosaveStorageKey]);
 
   useEffect(() => {
     // Only build the (expensive) template previews while the Templates tab is
@@ -3321,6 +3328,13 @@ const GenericProductDesigner = () => {
         nextIndex = 0;
       }
 
+      const sourceSizes = nextPages.map((page) => ({
+        width: page.width,
+        height: page.height,
+        widthMm: page.widthMm,
+        heightMm: page.heightMm,
+      }));
+
       if (isProductMode && lockedProductPixels) {
         nextPages = nextPages.map((page) => ({
           ...page,
@@ -3367,19 +3381,33 @@ const GenericProductDesigner = () => {
 
         setCanvasSizeUnit('mm');
         canvasSizeUnitRef.current = 'mm';
-        setCanvasWidthInput(String(exact.widthMm));
-        setCanvasHeightInput(String(exact.heightMm));
-        targetPage.widthMm = exact.widthMm;
-        targetPage.heightMm = exact.heightMm;
-        nextPages = nextPages.map((page, idx) =>
-          idx === nextIndex
-            ? { ...page, widthMm: exact.widthMm, heightMm: exact.heightMm }
-            : page,
-        );
+        if (isProductMode && lockedProductPixels) {
+          setCanvasWidthInput(String(lockedProductPixels.widthMm));
+          setCanvasHeightInput(String(lockedProductPixels.heightMm));
+        } else {
+          setCanvasWidthInput(String(exact.widthMm));
+          setCanvasHeightInput(String(exact.heightMm));
+          targetPage.widthMm = exact.widthMm;
+          targetPage.heightMm = exact.heightMm;
+          nextPages = nextPages.map((page, idx) =>
+            idx === nextIndex
+              ? { ...page, widthMm: exact.widthMm, heightMm: exact.heightMm }
+              : page,
+          );
+        }
         pagesRef.current = nextPages;
         commitPagesState(nextPages);
 
         await loadPageOntoCanvas(canvas, clonePageRecord(targetPage));
+        if (isProductMode && lockedProductPixels) {
+          fitTemplateObjectsToPage(canvas, sourceSizes[nextIndex], lockedProductPixels);
+          await applyCanvasBackgroundFill(
+            canvas,
+            pageBackgroundStyle.color && pageBackgroundStyle.color !== 'transparent'
+              ? pageBackgroundStyle.color
+              : '#ffffff',
+          );
+        }
 
         fitCanvasNow();
         await waitForCanvasLayout();
@@ -3450,7 +3478,7 @@ const GenericProductDesigner = () => {
   });
 
   const restoreAutosave = () => {
-    const saved = loadOnlineDesignerAutosave();
+    const saved = loadOnlineDesignerAutosave(autosaveStorageKey);
     if (!saved?.pages?.length) return;
     const restoredPages = saved.pages.map((page) => ({
       ...clonePageRecord(page),
@@ -3776,7 +3804,7 @@ const GenericProductDesigner = () => {
 
   const handleDownloadModalSuccess = (context) => {
     if (context === 'clearAutosave') {
-      clearOnlineDesignerAutosave();
+      clearOnlineDesignerAutosave(autosaveStorageKey);
     } else if (context === 'exit') {
       setShowExitModal(false);
       exitToHome();
@@ -3976,7 +4004,7 @@ const GenericProductDesigner = () => {
 
   const exitToHome = () => {
     if (!isProductMode) {
-      clearOnlineDesignerAutosave();
+      clearOnlineDesignerAutosave(autosaveStorageKey);
     }
     setShowExitModal(false);
     if (isProductMode) {
@@ -4331,6 +4359,7 @@ const GenericProductDesigner = () => {
     setIsAddingToCart(true);
     try {
       await addToCart(buildCartLineItem());
+      clearOnlineDesignerAutosave(autosaveStorageKey);
       toast.success('Added to basket');
       navigate(savedDraft?.returnPath || location.state?.fromPath || '/');
     } catch (error) {
@@ -6545,7 +6574,7 @@ const GenericProductDesigner = () => {
           className={`relative min-h-0 flex-1 overflow-hidden bg-[linear-gradient(180deg,#e2e8f0_0%,#cbd5e1_100%)] p-4 md:p-6 ${isCanvasDragOver ? 'ring-2 ring-inset ring-emerald-400' : ''}`}
           data-tour="online-canvas"
         >
-          {selectedObject && isTextObject(selectedObject) && textEditorActive && (
+          {selectedObject && isTextObject(selectedObject) && textEditorActive && !['templates', 'web'].includes(activeTab) && (
             <div className="pointer-events-none fixed left-1/2 top-[72px] z-30 w-[min(42rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-emerald-200 bg-white p-4 shadow-lg shadow-emerald-100/60 ring-1 ring-emerald-100">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div>

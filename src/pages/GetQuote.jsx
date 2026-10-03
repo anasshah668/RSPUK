@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { quoteService } from '../services/quoteService';
@@ -11,6 +11,7 @@ import {
   labelClass,
 } from '../components/AuthLayout';
 import { COMPANY_CONTACT } from '../config/companyContact';
+import { usePageSeo } from '../hooks/usePageSeo';
 
 const PROJECT_TYPES = [
   'Neon Signs',
@@ -59,6 +60,12 @@ const SectionHeader = ({ step, title, subtitle }) => (
 );
 
 const GetQuote = () => {
+  usePageSeo({
+    title: 'Get a Free Quote | River Signs & Print',
+    description:
+      'Request a free no-obligation quote for print, signage, neon or fabrication. Attach artwork and we typically reply within 24 hours.',
+    path: '/get-free-quote',
+  });
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
   const [formData, setFormData] = useState({
@@ -74,6 +81,8 @@ const GetQuote = () => {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [artworkFile, setArtworkFile] = useState(null);
+  const artworkInputRef = useRef(null);
 
   useEffect(() => {
     if (!user) return;
@@ -150,7 +159,10 @@ const GetQuote = () => {
     setIsSubmitting(true);
 
     try {
-      await quoteService.create(formData);
+      await quoteService.createLogoArtworkQuote({
+        ...formData,
+        artwork: artworkFile || undefined,
+      });
       setIsSubmitted(true);
     } catch (error) {
       setErrors({ submit: error.message });
@@ -428,6 +440,54 @@ const GetQuote = () => {
                     placeholder="Dimensions, materials, colours, deadline, installation needs, or anything else we should know…"
                     style={font}
                   />
+                </div>
+
+                <div className="mb-5">
+                  <label htmlFor="quote-artwork" className={labelClass} style={font}>
+                    Artwork or reference file <span className="font-normal normal-case tracking-normal text-gray-400">(optional)</span>
+                  </label>
+                  <div className="mt-2 flex flex-col gap-2 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800" style={font}>
+                        {artworkFile ? artworkFile.name : 'PDF, AI, PNG or JPG up to 20MB'}
+                      </p>
+                      <p className="text-xs text-gray-500" style={font}>
+                        {artworkFile
+                          ? `${((artworkFile.size || 0) / 1024).toFixed(0)} KB ready to send`
+                          : 'Helps us quote accurately from your design or logo.'}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <label
+                        htmlFor="quote-artwork"
+                        className="cursor-pointer rounded-lg bg-white px-3 py-2 text-sm font-semibold text-blue-700 shadow-sm ring-1 ring-gray-200 hover:bg-blue-50"
+                        style={font}
+                      >
+                        {artworkFile ? 'Replace file' : 'Choose file'}
+                      </label>
+                      {artworkFile ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setArtworkFile(null);
+                            if (artworkInputRef.current) artworkInputRef.current.value = '';
+                          }}
+                          className="rounded-lg px-3 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100"
+                          style={font}
+                        >
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
+                    <input
+                      id="quote-artwork"
+                      ref={artworkInputRef}
+                      type="file"
+                      accept=".pdf,.ai,.eps,.svg,.png,.jpg,.jpeg,.webp"
+                      className="sr-only"
+                      onChange={(e) => setArtworkFile(e.target.files?.[0] || null)}
+                    />
+                  </div>
                 </div>
 
                 <div>

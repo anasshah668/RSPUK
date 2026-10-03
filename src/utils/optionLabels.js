@@ -22,7 +22,7 @@ const LABEL_ALIASES = {
   'sides printed': 'Sides printed',
   'side printed': 'Sides printed',
   'paper type': 'Paper type',
-  material: 'Paper type',
+  material: 'Material',
   corners: 'Corners',
   'round corners': 'Corners',
   delivery: 'Delivery',

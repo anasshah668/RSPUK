@@ -1,9 +1,11 @@
-import React, { Suspense } from 'react';
+import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { routes } from '../config/routes.config';
 import DefaultLayout from '../layouts/DefaultLayout';
 import MinimalLayout from '../layouts/MinimalLayout';
 import { useAuth } from '../context/AuthContext';
+
+const NotFound = lazy(() => import('../pages/NotFound'));
 
 // Loading component
 const LoadingFallback = () => (
@@ -56,8 +58,14 @@ const RouteRenderer = () => {
             />
           );
         })}
-        {/* 404 - Redirect to home */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="*"
+          element={
+            <DefaultLayout>
+              <NotFound />
+            </DefaultLayout>
+          }
+        />
       </Routes>
     </Suspense>
   );

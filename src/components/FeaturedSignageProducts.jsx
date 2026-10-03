@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import WavyUnderline from './WavyUnderline';
 import { featuredSignageItems } from '../data/featuredSignageData';
 import { featuredSignageMediaService } from '../services/featuredSignageMediaService';
 import { mergeFeaturedItemsWithMedia } from '../utils/featuredSignageMedia';
 
 const FeaturedSignageProducts = () => {
-  const navigate = useNavigate();
   const [items, setItems] = useState(() =>
     featuredSignageItems.map((item) => ({
       ...item,
@@ -55,10 +54,10 @@ const FeaturedSignageProducts = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
           {items.map((item) => (
-            <article
+            <Link
               key={item.title}
-              className="group bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden cursor-pointer"
-              onClick={() => navigate(item.route)}
+              to={item.route}
+              className="group bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden"
             >
               <div className="h-40 bg-gray-100 overflow-hidden">
                 <img
@@ -83,7 +82,7 @@ const FeaturedSignageProducts = () => {
                   </svg>
                 </span>
               </div>
-            </article>
+            </Link>
           ))}
         </div>
       </div>

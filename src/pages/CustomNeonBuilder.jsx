@@ -467,22 +467,8 @@ const CustomNeonBuilder = () => {
         label: 'Total (inc VAT)',
         value: neonPricingLoading ? 'Updating…' : `£${neonGross.toFixed(2)}`,
       },
-      {
-        key: 'vatNote',
-        label: 'Matches header VAT',
-        value: neonPricingLoading
-          ? 'Updating…'
-          : vatInclusive
-            ? `Main price shown: £${neonGross.toFixed(2)} inc VAT`
-            : `Main price shown: £${neonNet.toFixed(2)} ex VAT`,
-      },
-      {
-        key: 'pricingSrc',
-        label: 'Pricing basis',
-        value: neonPricingSource === 'api' ? 'Live admin pricing' : 'Offline estimate',
-      },
     ],
-    [neonSpecSummaryRows, neonPricingLoading, neonNet, neonVat, neonGross, neonPricingSource, vatInclusive],
+    [neonSpecSummaryRows, neonPricingLoading, neonNet, neonVat, neonGross],
   );
 
   const handleNext = () => {
@@ -516,16 +502,10 @@ const CustomNeonBuilder = () => {
             description: 'Complete your custom neon sign purchase securely.',
             amount: estimatedAmount,
             amountBasis: 'net',
-            summary: [
-              ...neonSpecSummaryRows.map((row) => ({
-                label: row.label,
-                value: String(row.value),
-              })),
-              {
-                label: 'Pricing basis',
-                value: neonPricingSource === 'api' ? 'Live admin pricing' : 'Offline estimate',
-              },
-            ],
+            summary: neonSpecSummaryRows.map((row) => ({
+              label: row.label,
+              value: String(row.value),
+            })),
           },
         },
       });
