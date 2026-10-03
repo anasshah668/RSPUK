@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import Hero from '../components/Hero';
 import VideoShowcase from '../components/VideoShowcase';
 import Services from '../components/Services';
@@ -19,12 +19,29 @@ import SignageMatters from '../components/SignageMatters';
 import SolutionFinder from '../components/SolutionFinder';
 import { usePageSeo } from '../hooks/usePageSeo';
 
+const HOME_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'LocalBusiness',
+  name: 'River Signs & Print',
+  url: 'https://riversigns.co.uk/',
+  telephone: '07727107037',
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: 'Unit D2, Warelands Way',
+    addressLocality: 'Middlesbrough',
+    postalCode: 'TS4 2JY',
+    addressCountry: 'GB',
+  },
+};
+
 const HomePage = () => {
+  const jsonLd = useMemo(() => HOME_JSON_LD, []);
   usePageSeo({
     title: 'Custom Signage, Printing & Fabrication | River Signs & Print',
     description:
       'UK print, signage, neon and fabrication from River Signs & Print in Middlesbrough. Business cards, banners, window graphics and custom neon.',
     path: '/',
+    jsonLd,
   });
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

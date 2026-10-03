@@ -4,6 +4,17 @@ const DEFAULT_TITLE = 'Custom Signage, Printing & Fabrication Company | RSP UK';
 const DEFAULT_DESCRIPTION =
   'RSP UK provides custom signage, commercial printing, window graphics, fabrication, and print products in Middlesbrough. Get a free quote today.';
 
+function stripHtml(value) {
+  return String(value || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function upsertMeta(attr, key, content) {
   if (!content) return;
   let el = document.querySelector(`meta[${attr}="${key}"]`);
@@ -26,10 +37,10 @@ function upsertLink(rel, href) {
   el.setAttribute('href', href);
 }
 
-export function usePageSeo({ title, description, path, image } = {}) {
+export function usePageSeo({ title, description, path, image, noindex = false, jsonLd } = {}) {
   useEffect(() => {
-    const nextTitle = title || DEFAULT_TITLE;
-    const nextDescription = description || DEFAULT_DESCRIPTION;
+    const nextTitle = stripHtml(title) || DEFAULT_TITLE;
+    const nextDescription = stripHtml(description) || DEFAULT_DESCRIPTION;
     const origin = window.location.origin;
     const canonical = `${origin}${path || window.location.pathname}`;
     const ogImage = image || `${origin}/logo.png`;
@@ -43,12 +54,23 @@ export function usePageSeo({ title, description, path, image } = {}) {
     upsertMeta('property', 'og:image', ogImage);
     upsertMeta('property', 'og:type', 'website');
     upsertMeta('name', 'twitter:card', 'summary_large_image');
+    upsertMeta('name', 'robots', noindex ? 'noindex, nofollow' : 'index, follow');
     upsertLink('canonical', canonical);
+
+    let scriptEl;
+    if (jsonLd) {
+      scriptEl = document.createElement('script');
+      scriptEl.type = 'application/ld+json';
+      scriptEl.setAttribute('data-rspuk-jsonld', '1');
+      scriptEl.textContent = JSON.stringify(jsonLd);
+      document.head.appendChild(scriptEl);
+    }
 
     return () => {
       document.title = previousTitle;
+      scriptEl?.remove();
     };
-  }, [title, description, path, image]);
+  }, [title, description, path, image, noindex, jsonLd]);
 }
 
 export default usePageSeo;

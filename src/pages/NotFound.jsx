@@ -7,6 +7,7 @@ const NotFound = () => {
     title: 'Page not found | River Signs & Print',
     description: 'That page does not exist. Browse our print, signage and neon products or request a quote.',
     path: '/404',
+    noindex: true,
   });
 
   return (

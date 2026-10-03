@@ -594,6 +594,8 @@ const GenericProductDesigner = () => {
   const [zoom, setZoom] = useState(100);
   const [activeTab, setActiveTab] = useState(isProductMode ? 'insert' : 'templates');
   const [selectedObject, setSelectedObject] = useState(null);
+  const [lockTransformRatio, setLockTransformRatio] = useState(true);
+  const [showBlankBackPrompt, setShowBlankBackPrompt] = useState(false);
   const [transformDraft, setTransformDraft] = useState({
     x: '0',
     y: '0',
@@ -2413,9 +2415,13 @@ const GenericProductDesigner = () => {
           console.warn('[autosave-clone]', error);
         }
       }
+      const canvasBg = typeof canvas.backgroundColor === 'string' ? canvas.backgroundColor : '';
       const activeBackground = backgroundStyleRef.current
         ? JSON.parse(JSON.stringify(backgroundStyleRef.current))
         : { ...DEFAULT_BACKGROUND_STYLE };
+      if (canvasBg && canvasBg !== 'transparent' && activeBackground.kind === 'solid') {
+        activeBackground.color = canvasBg;
+      }
       const updatedPages = pagesRef.current.map((page, idx) => {
         if (idx !== activeIndex) return clonePageRecord(page);
         return {
@@ -2599,6 +2605,7 @@ const GenericProductDesigner = () => {
           scaleX: scale,
           scaleY: scale,
           name: `icon-${name}`,
+          lockUniScaling: true,
           objectCaching: false,
         });
         canvas.add(img);
@@ -2632,10 +2639,21 @@ const GenericProductDesigner = () => {
 
     let cancelled = false;
     ICONIFY_CATEGORIES.forEach(async (category) => {
-      const query = (categoryQueries[category.id] || category.defaultQuery || '').trim();
+      const typed = String(categoryQueries[category.id] || '').trim();
+      const seeded = Array.isArray(category.icons) ? category.icons : [];
+      if (!typed && seeded.length) {
+        if (!cancelled) {
+          setIconResultsByCategory((prev) => ({ ...prev, [category.id]: seeded }));
+          setIconLoadingByCategory((prev) => ({ ...prev, [category.id]: false }));
+          setIconErrorByCategory((prev) => ({ ...prev, [category.id]: '' }));
+        }
+        return;
+      }
+
+      const query = typed || category.defaultQuery || '';
       if (!query) {
         if (!cancelled) {
-          setIconResultsByCategory((prev) => ({ ...prev, [category.id]: [] }));
+          setIconResultsByCategory((prev) => ({ ...prev, [category.id]: seeded }));
         }
         return;
       }
@@ -2648,11 +2666,18 @@ const GenericProductDesigner = () => {
       try {
         const icons = await searchIconifyIcons(query, 64, category.prefix || '');
         if (!cancelled) {
-          setIconResultsByCategory((prev) => ({ ...prev, [category.id]: icons }));
+          setIconResultsByCategory((prev) => ({
+            ...prev,
+            [category.id]: icons.length ? icons : seeded,
+          }));
         }
       } catch {
         if (!cancelled) {
-          setIconErrorByCategory((prev) => ({ ...prev, [category.id]: 'Failed to load icons' }));
+          setIconResultsByCategory((prev) => ({ ...prev, [category.id]: seeded }));
+          setIconErrorByCategory((prev) => ({
+            ...prev,
+            [category.id]: seeded.length ? '' : 'Failed to load icons',
+          }));
         }
       } finally {
         if (!cancelled) {
@@ -2698,14 +2723,27 @@ const GenericProductDesigner = () => {
     }
   };
 
-  const placeImageOnCanvas = (url, left = 100, top = 100) => {
+  const placeImageOnCanvas = (url) => {
     if (!canvas || !url) return;
     fabric.Image.fromURL(
       url,
       (img) => {
         if (!img) return;
-        img.scaleToWidth(300);
-        img.set({ left, top, objectCaching: false });
+        const canvasW = canvas.getWidth() || 320;
+        const canvasH = canvas.getHeight() || 208;
+        const maxW = canvasW * 0.6;
+        const maxH = canvasH * 0.6;
+        const naturalW = img.width || 1;
+        const naturalH = img.height || 1;
+        const scale = Math.min(maxW / naturalW, maxH / naturalH, 1);
+        img.set({
+          left: (canvasW - naturalW * scale) / 2,
+          top: (canvasH - naturalH * scale) / 2,
+          scaleX: scale,
+          scaleY: scale,
+          lockUniScaling: true,
+          objectCaching: false,
+        });
         canvas.add(img);
         finalizeNewObject(img);
       },
@@ -2718,7 +2756,7 @@ const GenericProductDesigner = () => {
     if (!file || !canvas) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
-      placeImageOnCanvas(ev.target?.result, 100, 100);
+      placeImageOnCanvas(ev.target?.result);
     };
     reader.readAsDataURL(file);
   };
@@ -3477,7 +3515,7 @@ const GenericProductDesigner = () => {
     return matchesCategory && matchesQuery;
   });
 
-  const restoreAutosave = () => {
+  const restoreAutosave = async () => {
     const saved = loadOnlineDesignerAutosave(autosaveStorageKey);
     if (!saved?.pages?.length) return;
     const restoredPages = saved.pages.map((page) => ({
@@ -3490,7 +3528,15 @@ const GenericProductDesigner = () => {
     const restoreIndex = saved.currentPageIndex || 0;
     commitPagesState(restoredPages);
     setActivePageIndex(restoreIndex);
-    loadPage(restoreIndex);
+    await loadPage(restoreIndex);
+    if (canvas && isProductMode && lockedProductPixels) {
+      const fill =
+        (typeof canvas.backgroundColor === 'string' && canvas.backgroundColor !== 'transparent'
+          ? canvas.backgroundColor
+          : restoredPages[restoreIndex]?.backgroundStyle?.color) || '#ffffff';
+      await applyCanvasBackgroundFill(canvas, fill === 'transparent' ? '#ffffff' : fill);
+      refreshCanvas();
+    }
     setShowAutosaveRestore(false);
     toast.success('Previous session restored');
   };
@@ -4337,7 +4383,31 @@ const GenericProductDesigner = () => {
     }
   };
 
-  const runPreviewAndOrder = async () => {
+  const pageHasPrintableContent = (page, pageIndex) => {
+    const isCurrent = pageIndex === currentPageIndexRef.current && canvas;
+    const objects = isCurrent
+      ? canvas.getObjects()
+      : page?.json?.objects || [];
+    return (objects || []).some((obj) => {
+      if (!obj) return false;
+      if (obj.excludeFromExport) return false;
+      if (String(obj.name || '').toLowerCase() === 'background') return false;
+      if (isTextObject(obj) || ['text', 'i-text', 'textbox'].includes(obj.type)) {
+        return Boolean(String(obj.text || '').trim());
+      }
+      return true;
+    });
+  };
+
+  const runPreviewAndOrder = async ({ skipBlankCheck = false } = {}) => {
+    if (isProductDoubleSided && !skipBlankCheck) {
+      const snapshot = buildProjectPagesSnapshot(currentPageIndexRef.current) || pagesRef.current;
+      const backPage = snapshot[1];
+      if (backPage && !pageHasPrintableContent(backPage, 1)) {
+        setShowBlankBackPrompt(true);
+        return;
+      }
+    }
     const ok = await exportProductArtwork();
     if (ok) setShowReviewScreen(true);
   };
@@ -4509,8 +4579,13 @@ const GenericProductDesigner = () => {
       } else if (selectedObject.type === 'circle') {
         selectedObject.set({ radius: targetW / 2, scaleX: 1, scaleY: 1 });
       } else {
-        const baseW = selectedObject.width || 1;
-        selectedObject.set('scaleX', targetW / Math.max(baseW, 0.001));
+        const currentW = (selectedObject.width || 1) * (selectedObject.scaleX || 1);
+        const currentH = (selectedObject.height || 1) * (selectedObject.scaleY || 1);
+        selectedObject.set('scaleX', targetW / Math.max(selectedObject.width || 1, 0.001));
+        if (lockTransformRatio && currentW > 0) {
+          const nextH = targetW * (currentH / currentW);
+          selectedObject.set('scaleY', nextH / Math.max(selectedObject.height || 1, 0.001));
+        }
       }
     } else if (field === 'h') {
       const targetH = Math.max(1, num);
@@ -4520,8 +4595,13 @@ const GenericProductDesigner = () => {
       } else if (selectedObject.type === 'circle') {
         selectedObject.set({ radius: targetH / 2, scaleX: 1, scaleY: 1 });
       } else {
-        const baseH = selectedObject.height || 1;
-        selectedObject.set('scaleY', targetH / Math.max(baseH, 0.001));
+        const currentW = (selectedObject.width || 1) * (selectedObject.scaleX || 1);
+        const currentH = (selectedObject.height || 1) * (selectedObject.scaleY || 1);
+        selectedObject.set('scaleY', targetH / Math.max(selectedObject.height || 1, 0.001));
+        if (lockTransformRatio && currentH > 0) {
+          const nextW = targetH * (currentW / currentH);
+          selectedObject.set('scaleX', nextW / Math.max(selectedObject.width || 1, 0.001));
+        }
       }
     }
 
@@ -6140,7 +6220,19 @@ const GenericProductDesigner = () => {
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-600 block mb-1">W</label>
+                <label className="text-xs text-gray-600 mb-1 flex items-center justify-between gap-2">
+                  <span>W</span>
+                  <button
+                    type="button"
+                    onClick={() => setLockTransformRatio((prev) => !prev)}
+                    className={`text-[10px] font-semibold uppercase tracking-wide ${
+                      lockTransformRatio ? 'text-blue-600' : 'text-gray-400'
+                    }`}
+                    title={lockTransformRatio ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
+                  >
+                    {lockTransformRatio ? 'Lock on' : 'Lock off'}
+                  </button>
+                </label>
                 <input
                   type="text"
                   inputMode="decimal"
@@ -6612,7 +6704,7 @@ const GenericProductDesigner = () => {
             </div>
           )}
           {selectedObject && isTextObject(selectedObject) && !textEditorActive && (
-            <div className="pointer-events-none fixed bottom-24 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-2">
+            <div className="pointer-events-none absolute top-3 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-2">
               <div className="flex items-center gap-2 rounded-full bg-slate-900/92 px-4 py-2 text-xs font-medium text-white shadow-lg">
                 <span>Text selected</span>
                 <span className="text-slate-400">·</span>
@@ -6714,16 +6806,18 @@ const GenericProductDesigner = () => {
             <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-700">
               Page {currentPageIndex + 1}/{pages.length}
             </span>
+            {!isProductMode ? (
             <button
               onClick={deletePage}
-              disabled={pages.length <= 1 || isProductMode}
+              disabled={pages.length <= 1}
               className="p-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title={isProductMode ? 'Sides are fixed for this product' : 'Remove Current Page'}
+              title="Remove Current Page"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 7h12M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m-8 0l1 12h8l1-12" />
               </svg>
             </button>
+            ) : null}
           </div>
           <div className="flex items-center gap-2">
             {selectedObject && (
@@ -6927,9 +7021,9 @@ const GenericProductDesigner = () => {
                   </h3>
                   <p className="mt-1 text-sm leading-relaxed text-slate-600">
                     {isProductMode
-                      ? 'Return to the product page? Unsaved design changes will be lost unless you have already prepared your order.'
+                      ? 'Your draft is saved on this device — leave?'
                       : canvasHasDesign()
-                        ? 'Are you sure you want to exit? Download your design as a PDF before leaving so you don\'t lose your work.'
+                        ? 'Your draft is saved on this device. Download a PDF if you also want a copy, then leave.'
                         : 'Are you sure you want to exit the design tool?'}
                   </p>
                 </div>
@@ -6974,6 +7068,43 @@ const GenericProductDesigner = () => {
                   className="rounded-xl px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60"
                 >
                   Exit without saving
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showBlankBackPrompt ? (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm">
+          <div
+            className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
+            style={font}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="px-5 py-4">
+              <h3 className="text-base font-semibold text-slate-900">Your Back side is blank</h3>
+              <p className="mt-2 text-sm text-slate-600">
+                This product is double-sided, but the back page has no artwork. Continue to Preview &amp; Order anyway, or stay and design the back?
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBlankBackPrompt(false)}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Stay and edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowBlankBackPrompt(false);
+                    void runPreviewAndOrder({ skipBlankCheck: true });
+                  }}
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                  Continue anyway
                 </button>
               </div>
             </div>

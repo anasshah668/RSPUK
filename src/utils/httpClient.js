@@ -101,10 +101,12 @@ class HttpClient {
       
       // Handle 401 Unauthorized - clear token and redirect
       if (response.status === 401) {
+        const hadSession = Boolean(localStorage.getItem('token') || localStorage.getItem('user'));
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        // Optionally redirect to login
-        // window.location.href = '/login';
+        if (hadSession && typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('rspuk-session-expired'));
+        }
       }
 
       const error = new Error(errorMessage);

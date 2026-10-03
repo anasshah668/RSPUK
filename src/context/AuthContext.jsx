@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { toast } from 'react-toastify';
 import httpClient from '../utils/httpClient';
 import { apiRoutes } from '../config/routes';
 
@@ -57,6 +58,17 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     bootstrapSession();
   }, [bootstrapSession]);
+
+  useEffect(() => {
+    const onExpired = () => {
+      setUser(null);
+      toast.warn('Session expired — sign in again. Your design draft is still on this device.', {
+        autoClose: 8000,
+      });
+    };
+    window.addEventListener('rspuk-session-expired', onExpired);
+    return () => window.removeEventListener('rspuk-session-expired', onExpired);
+  }, []);
 
   useEffect(() => {
     if (user) {

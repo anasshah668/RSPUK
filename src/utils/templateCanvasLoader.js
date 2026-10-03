@@ -1,7 +1,6 @@
 import { fabric } from 'fabric';
 import {
   DEFAULT_BACKGROUND_STYLE,
-  applyCanvasBackgroundFill,
   renderCanvasBackgroundStyle,
 } from './designerBackground';
 
@@ -34,6 +33,9 @@ export function sanitizeTemplateJson(json) {
     if (!obj || typeof obj !== 'object') return;
     if (obj.fill) obj.fill = fixGradient(obj.fill);
     if (obj.stroke) obj.stroke = fixGradient(obj.stroke);
+    if (isTextType(obj) && (!obj.styles || typeof obj.styles !== 'object' || Array.isArray(obj.styles))) {
+      obj.styles = {};
+    }
     if (Array.isArray(obj.objects)) obj.objects.forEach(visitObject);
   };
 
@@ -455,10 +457,20 @@ export async function loadPageOntoCanvas(canvas, page) {
             resetCanvasViewport(canvas);
             // Always restore the page's declared size after JSON load.
             setCanvasLogicalDimensions(canvas, width, height);
+            canvas.getObjects().forEach((obj) => {
+              if (isTextType(obj) && (!obj.styles || typeof obj.styles !== 'object' || Array.isArray(obj.styles))) {
+                obj.styles = {};
+              }
+            });
             resolve();
           },
           (objectData, fabricObject) => {
             if (!fabricObject || !objectData) return;
+            if (isTextType(fabricObject) || isTextType(objectData)) {
+              if (!fabricObject.styles || typeof fabricObject.styles !== 'object' || Array.isArray(fabricObject.styles)) {
+                fabricObject.styles = {};
+              }
+            }
             if (objectData.fill?.colorStops && !(objectData.fill instanceof fabric.Gradient)) {
               try {
                 fabricObject._initGradient(objectData.fill, 'fill');
@@ -478,12 +490,7 @@ export async function loadPageOntoCanvas(canvas, page) {
     setCanvasLogicalDimensions(canvas, width, height);
   }
 
-  const hasSceneObjects = Boolean(json?.objects?.length);
-  if (hasSceneObjects) {
-    await applyCanvasBackgroundFill(canvas, 'transparent');
-  } else {
-    await renderCanvasBackgroundStyle(canvas, pageBackgroundStyle);
-  }
+  await renderCanvasBackgroundStyle(canvas, pageBackgroundStyle);
 
   prepareCanvasForInteraction(canvas);
   enforceCanvasDisplayAspectRatio(canvas);
