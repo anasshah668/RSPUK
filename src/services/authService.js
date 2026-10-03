@@ -5,9 +5,9 @@ const getApiBaseUrl = async () => {
   try {
     const response = await fetch('/config.json');
     const config = await response.json();
-    return config?.api?.baseUrl || import.meta.env.VITE_API_URL || 'http://localhost:5002/api';
+    return config?.api?.baseUrl || import.meta.env.VITE_API_URL || 'https://rspuk-services.vercel.app/api';
   } catch (error) {
-    return import.meta.env.VITE_API_URL || 'http://localhost:5002/api';
+    return import.meta.env.VITE_API_URL || 'https://rspuk-services.vercel.app/api';
   }
 };
 

@@ -14,7 +14,7 @@ const loadConfig = async () => {
     // Fallback to default
     configData = {
       api: {
-        baseUrl: import.meta.env.VITE_API_URL || 'http://localhost:5002/api',
+        baseUrl: import.meta.env.VITE_API_URL || 'https://rspuk-services.vercel.app/api',
         timeout: 30000
       }
     };

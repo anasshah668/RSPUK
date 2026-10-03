@@ -29,6 +29,9 @@ const isPdfFile = (url, fileName = '') =>
 export const toProxiedFileUrl = (fileUrl) => {
   const url = String(fileUrl || '').trim();
   if (!isHttpUrl(url) || !isOurS3Url(url)) return url;
+  // Public product photos load in <img> without CORS. Only proxy PDFs/docs
+  // so a down local API cannot blank every shop image.
+  if (/\.(jpe?g|png|gif|webp|avif|svg)(?:$|[?#])/i.test(url)) return url;
   const base = String(API_BASE_URL || '').replace(/\/+$/, '');
   if (!base) return url;
   return `${base}/uploads/file?url=${encodeURIComponent(url)}`;

@@ -1,5 +1,5 @@
 export const COMPANY_CONTACT = {
-  email: 'Manager@riversigns.uk',
+  email: 'info@riversigns.uk',
   phone: '07727107037',
   phoneDisplay: '07727 107037',
   phoneTel: 'tel:+447727107037',
