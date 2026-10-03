@@ -53,7 +53,7 @@ const FloatingHelpMenu = () => {
   };
 
   return (
-    <div ref={rootRef} className="fixed bottom-6 right-6 z-[60] flex flex-col items-end gap-3">
+    <div ref={rootRef} className="pointer-events-none fixed bottom-6 right-6 z-[60] flex flex-col items-end gap-3">
       <div
         className={`origin-bottom-right transition-all duration-300 ease-out ${
           open
@@ -191,7 +191,7 @@ const FloatingHelpMenu = () => {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label={open ? 'Close help menu' : 'Open help menu'}
-        className={`group relative flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-[0_14px_30px_-12px_rgba(37,99,235,0.65)] transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 ${
+        className={`group relative pointer-events-auto flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-[0_14px_30px_-12px_rgba(37,99,235,0.65)] transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 ${
           open
             ? 'rotate-0 bg-slate-900 hover:bg-slate-800'
             : 'bg-blue-600 hover:-translate-y-0.5 hover:bg-blue-700'

@@ -1,19 +1,102 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+
+const SHOW_AFTER = 280;
+const RING = 2 * Math.PI * 20;
+
+const getScrollTop = () =>
+  window.pageYOffset ||
+  document.documentElement.scrollTop ||
+  document.body.scrollTop ||
+  0;
+
+const getScrollLimit = () => {
+  const doc = document.documentElement;
+  return Math.max(doc.scrollHeight - window.innerHeight, 1);
+};
+
+const setScrollTop = (top) => {
+  const el = document.scrollingElement || document.documentElement;
+  el.scrollTop = top;
+  document.body.scrollTop = top;
+};
+
+const easeInOutCubic = (t) =>
+  t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2;
 
 const ScrollToTopButton = () => {
   const [isVisible, setIsVisible] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [isScrolling, setIsScrolling] = useState(false);
+  const frameRef = useRef(0);
+  const cancelRef = useRef(null);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsVisible(window.scrollY > 320);
+    const update = () => {
+      const top = getScrollTop();
+      setIsVisible(top > SHOW_AFTER);
+      setProgress(Math.min(1, top / getScrollLimit()));
     };
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
   }, []);
 
+  useEffect(
+    () => () => {
+      if (frameRef.current) window.cancelAnimationFrame(frameRef.current);
+      cancelRef.current?.();
+    },
+    []
+  );
+
   const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const start = getScrollTop();
+    if (start <= 0) return;
+
+    cancelRef.current?.();
+    if (frameRef.current) window.cancelAnimationFrame(frameRef.current);
+
+    const html = document.documentElement;
+    const previousBehavior = html.style.scrollBehavior;
+    html.style.scrollBehavior = 'auto';
+
+    const duration = Math.min(920, Math.max(520, start * 0.42));
+    const startedAt = performance.now();
+    let cancelled = false;
+
+    const stop = () => {
+      cancelled = true;
+      html.style.scrollBehavior = previousBehavior;
+      setIsScrolling(false);
+      window.removeEventListener('wheel', stop);
+      window.removeEventListener('touchstart', stop);
+      window.removeEventListener('keydown', stop);
+    };
+
+    cancelRef.current = stop;
+    window.addEventListener('wheel', stop, { passive: true });
+    window.addEventListener('touchstart', stop, { passive: true });
+    window.addEventListener('keydown', stop);
+    setIsScrolling(true);
+
+    const step = (now) => {
+      if (cancelled) return;
+      const t = Math.min(1, (now - startedAt) / duration);
+      setScrollTop(start * (1 - easeInOutCubic(t)));
+      if (t < 1) {
+        frameRef.current = window.requestAnimationFrame(step);
+        return;
+      }
+      setScrollTop(0);
+      stop();
+    };
+
+    frameRef.current = window.requestAnimationFrame(step);
   };
 
   return (
@@ -21,11 +104,28 @@ const ScrollToTopButton = () => {
       type="button"
       aria-label="Scroll to top"
       onClick={scrollToTop}
-      className={`fixed bottom-[5.75rem] right-6 z-50 h-11 w-11 rounded-full bg-slate-800 text-white shadow-lg transition-all duration-300 hover:bg-slate-900 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 ${
-        isVisible ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-3 pointer-events-none'
-      }`}
+      className={`fixed bottom-[6.25rem] right-5 z-[70] flex h-12 w-12 items-center justify-center rounded-full bg-[#0f172a] text-white shadow-[0_12px_28px_-10px_rgba(15,23,42,0.55)] ring-1 ring-white/10 transition-[opacity,transform,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_18px_36px_-12px_rgba(37,99,235,0.45)] hover:ring-blue-400/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 sm:right-6 ${
+        isVisible
+          ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
+          : 'pointer-events-none translate-y-3 scale-90 opacity-0'
+      } ${isScrolling ? 'ring-blue-400/50' : ''}`}
     >
-      <svg className="mx-auto h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 48 48" aria-hidden>
+        <circle cx="24" cy="24" r="20" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2" />
+        <circle
+          cx="24"
+          cy="24"
+          r="20"
+          fill="none"
+          stroke="#60a5fa"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeDasharray={RING}
+          strokeDashoffset={RING * (1 - progress)}
+          className="transition-[stroke-dashoffset] duration-150 ease-out"
+        />
+      </svg>
+      <svg className="relative h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M5 15l7-7 7 7" />
       </svg>
     </button>
@@ -33,4 +133,3 @@ const ScrollToTopButton = () => {
 };
 
 export default ScrollToTopButton;
-
