@@ -1143,7 +1143,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
     }, 120);
   };
   return (
-    <div className="min-h-screen bg-gray-50 py-6 pb-24">
+    <div className="min-h-screen bg-gray-50 py-6 pb-36 md:pb-28">
       <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
         {/* Back Button */}
         <button
@@ -1159,7 +1159,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
 
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Product Image */}
-          <div className="bg-white rounded-xl shadow-lg overflow-hidden sticky top-6 self-start">
+          <div className="relative z-0 bg-white rounded-xl shadow-lg overflow-hidden lg:sticky lg:top-28 lg:z-0 lg:self-start">
             <div
               className="aspect-square w-full relative p-4 bg-gray-100 overflow-hidden cursor-zoom-in"
               onMouseMove={handleImageMouseMove}
@@ -1211,7 +1211,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
           </div>
 
           {/* Product Info */}
-          <div className="space-y-4">
+          <div className="relative z-10 space-y-4">
             {/* Category & Name */}
             <div>
               <span className="text-xs text-blue-600 font-semibold uppercase tracking-wide" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>

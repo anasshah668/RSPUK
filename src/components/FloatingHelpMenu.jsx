@@ -52,8 +52,15 @@ const FloatingHelpMenu = () => {
     navigate(path);
   };
 
+  const hasStickyPriceBar = location.pathname.split('/').filter(Boolean).length === 3;
+
   return (
-    <div ref={rootRef} className="pointer-events-none fixed bottom-6 right-6 z-[60] flex flex-col items-end gap-3">
+    <div
+      ref={rootRef}
+      className={`pointer-events-none fixed right-4 z-[60] flex flex-col items-end gap-3 sm:right-6 ${
+        hasStickyPriceBar ? 'bottom-24' : 'bottom-6'
+      }`}
+    >
       <div
         className={`origin-bottom-right transition-all duration-300 ease-out ${
           open
