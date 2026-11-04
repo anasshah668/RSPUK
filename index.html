@@ -8,6 +8,10 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#0f172a" />
+    <meta name="application-name" content="River Signs & Print" />
+    <meta name="apple-mobile-web-app-title" content="River Signs & Print" />
+    <meta property="og:site_name" content="River Signs & Print" />
+    <meta property="og:locale" content="en_GB" />
     <meta property="og:image" content="https://riversigns.co.uk/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -16,18 +20,37 @@
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "Organization",
-        "name": "River Signs & Print",
-        "url": "https://riversigns.co.uk/",
-        "logo": "https://riversigns.co.uk/brand-mark.png"
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://riversigns.co.uk/#organization",
+            "name": "River Signs & Print",
+            "alternateName": ["River Signs", "River Signs and Print"],
+            "url": "https://riversigns.co.uk/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://riversigns.co.uk/brand-mark.png",
+              "width": 512,
+              "height": 512
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://riversigns.co.uk/#website",
+            "name": "River Signs & Print",
+            "alternateName": "River Signs",
+            "url": "https://riversigns.co.uk/",
+            "publisher": { "@id": "https://riversigns.co.uk/#organization" }
+          }
+        ]
       }
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="RSP UK provides custom signage, commercial printing, window graphics, fabrication, and print products in Middlesbrough. Get a free quote today."
+      content="River Signs & Print provides custom signage, commercial printing, window graphics, fabrication, and print products in Middlesbrough. Get a free quote today."
     />
-    <title>Custom Signage, Printing & Fabrication Company | RSP UK</title>
+    <title>River Signs & Print | Custom Signage, Printing & Fabrication</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link

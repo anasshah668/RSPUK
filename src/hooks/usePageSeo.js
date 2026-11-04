@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 
-const DEFAULT_TITLE = 'Custom Signage, Printing & Fabrication Company | RSP UK';
+const DEFAULT_TITLE = 'River Signs & Print | Custom Signage, Printing & Fabrication';
 const DEFAULT_DESCRIPTION =
-  'RSP UK provides custom signage, commercial printing, window graphics, fabrication, and print products in Middlesbrough. Get a free quote today.';
+  'River Signs & Print provides custom signage, commercial printing, window graphics, fabrication, and print products in Middlesbrough. Get a free quote today.';
 
 function stripHtml(value) {
   return String(value || '')

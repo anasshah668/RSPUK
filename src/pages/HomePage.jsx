@@ -39,7 +39,7 @@ const HOME_JSON_LD = {
 const HomePage = () => {
   const jsonLd = useMemo(() => HOME_JSON_LD, []);
   usePageSeo({
-    title: 'Custom Signage, Printing & Fabrication | River Signs & Print',
+    title: 'River Signs & Print | Custom Signage, Printing & Fabrication',
     description:
       'UK print, signage, neon and fabrication from River Signs & Print in Middlesbrough. Business cards, banners, window graphics and custom neon.',
     path: '/',
