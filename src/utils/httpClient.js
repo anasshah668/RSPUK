@@ -1,4 +1,5 @@
 import { getBrowserClientId } from './clientIdentity';
+import { clearAuthToken, getAuthToken } from './authToken';
 let configData = null;
 
 // Load config from public folder
@@ -47,29 +48,46 @@ class HttpClient {
   async interceptRequest(url, options = {}) {
     await this.init();
     
-    const token = localStorage.getItem('token');
+    const token = getAuthToken();
     const shouldSkipAuth = Boolean(options.skipAuth);
-    
+
     // Determine if this is a file upload (FormData)
     const isFormData = options.body instanceof FormData;
-    
+    if (isFormData && token && !shouldSkipAuth && !options.body.has('authToken')) {
+      options.body.append('authToken', token);
+    }
+
+    const extraHeaders =
+      options.headers && typeof options.headers === 'object' && !(options.headers instanceof Headers)
+        ? options.headers
+        : {};
+
     const headers = {
       ...(!isFormData && { 'Content-Type': 'application/json' }),
-      ...(!shouldSkipAuth && token && { Authorization: `Bearer ${token}` }),
       ...(getBrowserClientId() && { 'X-Client-Id': getBrowserClientId() }),
-      ...options.headers,
+      ...extraHeaders,
     };
+
+    if (!shouldSkipAuth && token) {
+      if (!headers.Authorization && !headers.authorization) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+      if (!headers['X-Access-Token'] && !headers['x-access-token']) {
+        headers['X-Access-Token'] = token;
+      }
+    }
 
     const { skipAuth, ...restOptions } = options;
 
     return {
       ...restOptions,
       headers,
+      credentials: restOptions.credentials || 'include',
     };
   }
 
   // Response interceptor - handles errors, transforms responses
-  async interceptResponse(response) {
+  async interceptResponse(response, meta = {}) {
     // Handle empty responses (204 No Content, etc.)
     let data;
     const contentType = response.headers.get('content-type');
@@ -99,12 +117,14 @@ class HttpClient {
           (rawText.trim() && !/^FUNCTION_/i.test(rawText) ? rawText.trim() : '') ||
           `HTTP ${response.status}: ${response.statusText}`;
       
-      // Handle 401 Unauthorized - clear token and redirect
-      if (response.status === 401) {
-        const hadSession = Boolean(localStorage.getItem('token') || localStorage.getItem('user'));
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        if (hadSession && typeof window !== 'undefined') {
+      if (response.status === 401 && !meta.skipAuth && meta.sentToken) {
+        clearAuthToken();
+        try {
+          localStorage.removeItem('user');
+        } catch {
+          /* ignore */
+        }
+        if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('rspuk-session-expired'));
         }
       }
@@ -127,23 +147,28 @@ class HttpClient {
     
     // Apply request interceptor
     const interceptedOptions = await this.interceptRequest(url, requestOptions);
-    
+    const sentToken = Boolean(
+      interceptedOptions?.headers?.Authorization || interceptedOptions?.headers?.['X-Access-Token'],
+    );
+
     // Create abort controller for timeout
     const controller = new AbortController();
     const isFormData = interceptedOptions.body instanceof FormData;
     const timeoutMs = timeout || (isFormData ? Math.max(this.timeout, 120000) : this.timeout);
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    
+
     try {
       const response = await fetch(url, {
         ...interceptedOptions,
         signal: controller.signal,
       });
-      
+
       clearTimeout(timeoutId);
-      
-      // Apply response interceptor
-      return await this.interceptResponse(response);
+
+      return await this.interceptResponse(response, {
+        skipAuth: Boolean(requestOptions.skipAuth),
+        sentToken,
+      });
     } catch (error) {
       clearTimeout(timeoutId);
       

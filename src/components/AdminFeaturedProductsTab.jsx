@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
 import { featuredSignageItems } from '../data/featuredSignageData';
 import { featuredSignageMediaService } from '../services/featuredSignageMediaService';
+import AdminImageThumb from './AdminImageThumb';
 
 const CATEGORIES = featuredSignageItems.map((item) => ({
   slug: item.categorySlug,
@@ -161,7 +162,17 @@ const AdminFeaturedProductsTab = () => {
       </div>
 
       {loading ? (
-        <p className="text-sm text-gray-500">Loading images…</p>
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 h-5 w-48 animate-pulse rounded bg-slate-200" />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div
+                key={`skeleton-${index}`}
+                className="aspect-[4/3] animate-pulse rounded-lg bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100"
+              />
+            ))}
+          </div>
+        </div>
       ) : (
         <div className="space-y-5 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -186,8 +197,8 @@ const AdminFeaturedProductsTab = () => {
               </p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
                 {selectedCategory.fallbackImages.map((src) => (
-                  <div key={src} className="aspect-[4/3] overflow-hidden rounded-lg border border-amber-100 bg-amber-50">
-                    <img src={src} alt="" className="h-full w-full object-cover opacity-90" />
+                  <div key={src} className="overflow-hidden rounded-lg border border-amber-100">
+                    <AdminImageThumb src={src} className="aspect-[4/3] opacity-90" />
                   </div>
                 ))}
               </div>
@@ -203,9 +214,9 @@ const AdminFeaturedProductsTab = () => {
                 {displayImages.map((img, index) => (
                   <div
                     key={`${img.url}-${index}`}
-                    className="group relative aspect-[4/3] overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
+                    className="group relative overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
                   >
-                    <img src={img.url} alt="" className="h-full w-full object-cover" />
+                    <AdminImageThumb src={img.url} className="aspect-[4/3]" />
                     <button
                       type="button"
                       onClick={() => removeSavedAt(index)}

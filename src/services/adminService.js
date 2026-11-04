@@ -62,11 +62,7 @@ const createGalleryProject = async (payload, files = []) => {
 
 const updateGalleryProject = async (projectId, payload, files = []) => {
   if (!files.length) {
-    const formData = new FormData();
-    appendGalleryPayload(formData, payload);
-    return httpClient.put(`${apiRoutes.admin.galleryProjectById}/${projectId}`, formData, {
-      timeout: 120000,
-    });
+    return httpClient.put(`${apiRoutes.admin.galleryProjectById}/${projectId}`, payload);
   }
 
   let existingImages = Array.isArray(payload?.existingImages) ? [...payload.existingImages] : [];

@@ -15,6 +15,7 @@ import AdminFeaturedProductsTab from '../components/AdminFeaturedProductsTab';
 import AdminDesignServiceTab from '../components/AdminDesignServiceTab';
 import AdminActivityFeed from '../components/AdminActivityFeed';
 import { FileViewerLink, isHttpUrl, linkLabelForUrl, openFileViewer, toProxiedFileUrl } from '../components/FileDocViewer';
+import AdminImageThumb from '../components/AdminImageThumb';
 
 const productImageList = (product) => {
   const fromArray = Array.isArray(product?.images)
@@ -1079,11 +1080,7 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {existingImages.map((img, idx) => (
                     <div key={`${img?.publicId || img?.url || 'img'}-${idx}`} className="relative border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
-                      <img
-                        src={displayImageUrl(img?.url)}
-                        alt={`Product ${idx + 1}`}
-                        className="w-full h-24 object-cover"
-                      />
+                      <AdminImageThumb src={displayImageUrl(img?.url)} alt={`Product ${idx + 1}`} className="h-24 w-full" />
                       {idx === 0 ? (
                         <span className="absolute bottom-1 left-1 rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                           Main
@@ -3644,7 +3641,7 @@ const GalleryProjectModal = ({ project, onClose, onSave, isSaving }) => {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {existingImages.map((img, idx) => (
                   <div key={`${img?.url || 'img'}-${idx}`} className="relative border rounded-lg overflow-hidden">
-                    <img src={img?.url} alt={`Existing ${idx + 1}`} className="w-full h-24 object-cover" />
+                    <AdminImageThumb src={img?.url} alt={`Existing ${idx + 1}`} className="h-24 w-full" />
                     <button
                       type="button"
                       onClick={() => setExistingImages((prev) => prev.filter((_, i) => i !== idx))}

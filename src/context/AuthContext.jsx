@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { toast } from 'react-toastify';
 import httpClient from '../utils/httpClient';
 import { apiRoutes } from '../config/routes';
+import { clearAuthToken, getAuthToken, setAuthToken } from '../utils/authToken';
 
 const AuthContext = createContext();
 
@@ -28,7 +29,7 @@ export const AuthProvider = ({ children }) => {
   const [authReady, setAuthReady] = useState(false);
 
   const bootstrapSession = useCallback(async () => {
-    const token = localStorage.getItem('token');
+    const token = getAuthToken();
     if (!token) {
       setUser(null);
       localStorage.removeItem('user');
@@ -48,7 +49,7 @@ export const AuthProvider = ({ children }) => {
       }));
     } catch {
       setUser(null);
-      localStorage.removeItem('token');
+      clearAuthToken();
       localStorage.removeItem('user');
     } finally {
       setAuthReady(true);
@@ -62,9 +63,13 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const onExpired = () => {
       setUser(null);
-      toast.warn('Session expired — sign in again. Your design draft is still on this device.', {
-        autoClose: 8000,
-      });
+      const onAdmin = window.location.pathname.startsWith('/admin');
+      toast.warn(
+        onAdmin
+          ? 'Session expired — sign in again to keep making admin changes.'
+          : 'Session expired — sign in again. Your design draft is still on this device.',
+        { autoClose: 8000 },
+      );
     };
     window.addEventListener('rspuk-session-expired', onExpired);
     return () => window.removeEventListener('rspuk-session-expired', onExpired);
@@ -83,7 +88,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (userData, token) => {
     if (token) {
-      localStorage.setItem('token', token);
+      setAuthToken(token);
     }
     try {
       await httpClient.post(apiRoutes.cart.merge, {});
@@ -103,7 +108,7 @@ export const AuthProvider = ({ children }) => {
 
   /** Does not clear the basket in MongoDB or via cart APIs — only ends the session. */
   const logout = () => {
-    localStorage.removeItem('token');
+    clearAuthToken();
     localStorage.removeItem('user');
     setUser(null);
   };

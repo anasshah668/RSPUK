@@ -8,6 +8,7 @@ import {
   clearAdminGateToken,
   hasValidAdminGate,
 } from '../utils/adminGateStorage';
+import { setAuthToken } from '../utils/authToken';
 import {
   AuthAlert,
   AuthFieldError,
@@ -186,7 +187,7 @@ const AdminLogin = () => {
       );
 
       if (data.token) {
-        localStorage.setItem('token', data.token);
+        setAuthToken(data.token);
       }
 
       await login(
