@@ -1089,7 +1089,7 @@ const AddProductModal = ({ product, onClose, onSaved }) => {
                       <button
                         type="button"
                         onClick={() => removeExistingImage(idx)}
-                        className="absolute top-1 right-1 bg-white/95 text-red-600 rounded px-1.5 py-0.5 text-xs font-semibold shadow"
+                        className="absolute top-1 right-1 z-20 rounded bg-red-600 px-2 py-0.5 text-xs font-semibold text-white shadow-md hover:bg-red-700"
                       >
                         Remove
                       </button>
@@ -3637,7 +3637,9 @@ const GalleryProjectModal = ({ project, onClose, onSave, isSaving }) => {
 
           {existingImages.length > 0 ? (
             <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Existing Images</p>
+              <p className="text-sm font-medium text-gray-700 mb-2">
+                Existing Images — click Remove on any photo, then Update Project
+              </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {existingImages.map((img, idx) => (
                   <div key={`${img?.url || 'img'}-${idx}`} className="relative border rounded-lg overflow-hidden">
@@ -3645,7 +3647,7 @@ const GalleryProjectModal = ({ project, onClose, onSave, isSaving }) => {
                     <button
                       type="button"
                       onClick={() => setExistingImages((prev) => prev.filter((_, i) => i !== idx))}
-                      className="absolute top-1 right-1 bg-white/90 text-red-600 rounded px-1.5 py-0.5 text-xs font-semibold"
+                      className="absolute top-1 right-1 z-20 rounded bg-red-600 px-2 py-0.5 text-xs font-semibold text-white shadow-md hover:bg-red-700"
                     >
                       Remove
                     </button>

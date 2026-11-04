@@ -80,8 +80,34 @@ const AdminFeaturedProductsTab = () => {
     });
   };
 
-  const removeSavedAt = (index) => {
-    setSavedImages((prev) => prev.filter((_, i) => i !== index));
+  const removeSavedAt = async (index) => {
+    const removed = savedImages[index];
+    const next = savedImages.filter((_, i) => i !== index);
+    setSavedImages(next);
+    try {
+      setSaving(true);
+      if (next.length === 0) {
+        await featuredSignageMediaService.clearAdmin(selectedSlug);
+        toast.success('Picture removed. The site will use the default pictures until you add new ones.');
+      } else {
+        const updated = await featuredSignageMediaService.updateAdmin(
+          selectedSlug,
+          { existingImages: next },
+          [],
+        );
+        setSavedImages(Array.isArray(updated?.images) ? updated.images : next);
+        toast.success('Picture removed');
+      }
+    } catch (err) {
+      setSavedImages((prev) => {
+        const copy = [...prev];
+        copy.splice(Math.min(index, copy.length), 0, removed);
+        return copy;
+      });
+      toast.error(err?.message || 'Failed to remove picture');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSave = async () => {
@@ -208,19 +234,20 @@ const AdminFeaturedProductsTab = () => {
           {displayImages.length > 0 ? (
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Saved admin pictures
+                Saved admin pictures — click Remove on any photo to delete it
               </p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
                 {displayImages.map((img, index) => (
                   <div
                     key={`${img.url}-${index}`}
-                    className="group relative overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
+                    className="relative overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
                   >
                     <AdminImageThumb src={img.url} className="aspect-[4/3]" />
                     <button
                       type="button"
+                      disabled={saving}
                       onClick={() => removeSavedAt(index)}
-                      className="absolute right-2 top-2 rounded-md bg-red-600 px-2 py-1 text-[11px] font-semibold text-white opacity-0 transition group-hover:opacity-100"
+                      className="absolute right-2 top-2 z-20 rounded-md bg-red-600 px-2.5 py-1 text-[11px] font-semibold text-white shadow-md transition hover:bg-red-700 disabled:opacity-50"
                     >
                       Remove
                     </button>
@@ -239,13 +266,13 @@ const AdminFeaturedProductsTab = () => {
                 {pendingPreviews.map((src, index) => (
                   <div
                     key={src}
-                    className="group relative aspect-[4/3] overflow-hidden rounded-lg border border-blue-200 bg-blue-50"
+                    className="relative aspect-[4/3] overflow-hidden rounded-lg border border-blue-200 bg-blue-50"
                   >
                     <img src={src} alt="" className="h-full w-full object-cover" />
                     <button
                       type="button"
                       onClick={() => removePendingAt(index)}
-                      className="absolute right-2 top-2 rounded-md bg-red-600 px-2 py-1 text-[11px] font-semibold text-white opacity-0 transition group-hover:opacity-100"
+                      className="absolute right-2 top-2 z-20 rounded-md bg-red-600 px-2.5 py-1 text-[11px] font-semibold text-white shadow-md transition hover:bg-red-700"
                     >
                       Remove
                     </button>
