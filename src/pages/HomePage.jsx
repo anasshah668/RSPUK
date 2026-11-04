@@ -24,6 +24,8 @@ const HOME_JSON_LD = {
   '@type': 'LocalBusiness',
   name: 'River Signs & Print',
   url: 'https://riversigns.co.uk/',
+  logo: 'https://riversigns.co.uk/brand-mark.png',
+  image: 'https://riversigns.co.uk/og-image.png',
   telephone: '07727107037',
   address: {
     '@type': 'PostalAddress',

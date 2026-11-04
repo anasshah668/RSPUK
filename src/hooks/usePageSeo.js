@@ -43,7 +43,7 @@ export function usePageSeo({ title, description, path, image, noindex = false, j
     const nextDescription = stripHtml(description) || DEFAULT_DESCRIPTION;
     const origin = window.location.origin;
     const canonical = `${origin}${path || window.location.pathname}`;
-    const ogImage = image || `${origin}/logo.png`;
+    const ogImage = image || `${origin}/og-image.png`;
 
     const previousTitle = document.title;
     document.title = nextTitle;
@@ -52,8 +52,12 @@ export function usePageSeo({ title, description, path, image, noindex = false, j
     upsertMeta('property', 'og:description', nextDescription);
     upsertMeta('property', 'og:url', canonical);
     upsertMeta('property', 'og:image', ogImage);
+    upsertMeta('property', 'og:image:width', '1200');
+    upsertMeta('property', 'og:image:height', '630');
     upsertMeta('property', 'og:type', 'website');
+    upsertMeta('property', 'og:site_name', 'River Signs & Print');
     upsertMeta('name', 'twitter:card', 'summary_large_image');
+    upsertMeta('name', 'twitter:image', ogImage);
     upsertMeta('name', 'robots', noindex ? 'noindex, nofollow' : 'index, follow');
     upsertLink('canonical', canonical);
 
