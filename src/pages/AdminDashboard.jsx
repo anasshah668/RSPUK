@@ -67,6 +67,7 @@ const AdminDashboard = () => {
     designRequests: [],
   });
   const [dashboardRefreshing, setDashboardRefreshing] = useState(false);
+  const [quotesRefreshing, setQuotesRefreshing] = useState(false);
   const tourAutoStartRef = useRef(false);
 
   const refreshTabBadges = async () => {
@@ -106,17 +107,14 @@ const AdminDashboard = () => {
 
     const intervalId = setInterval(() => {
       refreshTabBadges();
-      if (activeTab === 'quotes') {
-        fetchData();
-      }
     }, 30000);
 
     return () => clearInterval(intervalId);
   }, [activeTab, user]);
 
-  const fetchData = async () => {
+  const fetchData = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       if (activeTab === 'overview') {
         const data = await adminService.analytics();
         setAnalytics(data);
@@ -241,7 +239,7 @@ const AdminDashboard = () => {
     try {
       await quoteService.update(quoteId, response);
       toast.success('Quote updated');
-      fetchData();
+      await fetchData({ silent: true });
       refreshTabBadges();
     } catch (error) {
       console.error('Error responding to quote:', error);
@@ -399,7 +397,21 @@ const AdminDashboard = () => {
               <OrdersTab orders={orders} onStatusUpdate={handleOrderStatusUpdate} />
             )}
             {activeTab === 'quotes' && (
-              <QuotesTab quotes={quotes} onResponse={handleQuoteResponse} />
+              <QuotesTab
+                quotes={quotes}
+                onResponse={handleQuoteResponse}
+                onRefresh={async () => {
+                  if (quotesRefreshing) return;
+                  setQuotesRefreshing(true);
+                  try {
+                    await fetchData({ silent: true });
+                    await refreshTabBadges();
+                  } finally {
+                    setQuotesRefreshing(false);
+                  }
+                }}
+                refreshing={quotesRefreshing}
+              />
             )}
             {activeTab === 'design-service' && (
               <div data-tour="admin-design-service">
@@ -2030,7 +2042,7 @@ const OrdersTab = ({ orders, onStatusUpdate }) => {
 };
 
 // Quotes Tab Component
-const QuotesTab = ({ quotes, onResponse }) => {
+const QuotesTab = ({ quotes, onResponse, onRefresh, refreshing = false }) => {
   const [selectedQuote, setSelectedQuote] = useState(null);
   const [responseText, setResponseText] = useState('');
   const [quotedPrice, setQuotedPrice] = useState('');
@@ -2169,11 +2181,8 @@ const QuotesTab = ({ quotes, onResponse }) => {
   useEffect(() => {
     if (!selectedQuote?._id) return;
     const freshQuote = quotes.find((q) => q._id === selectedQuote._id);
-    if (freshQuote) {
-      setSelectedQuote(freshQuote);
-      setResponseText(freshQuote?.adminResponse || '');
-      setQuotedPrice(freshQuote?.quotedPrice || '');
-    }
+    if (!freshQuote) return;
+    setSelectedQuote(freshQuote);
   }, [quotes, selectedQuote?._id]);
 
   const filteredQuotes = quotes.filter((q) => {
@@ -2196,9 +2205,33 @@ const QuotesTab = ({ quotes, onResponse }) => {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">
-        Quote Requests
-      </h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-2xl font-bold text-gray-900">Quote Requests</h2>
+        <button
+          type="button"
+          onClick={() => onRefresh?.()}
+          disabled={refreshing || !onRefresh}
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+          aria-label="Refresh quotes"
+          title="Refresh quotes"
+        >
+          <svg
+            className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+          Refresh
+        </button>
+      </div>
 
       <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
