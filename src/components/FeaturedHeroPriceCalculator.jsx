@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { featuredPriceLabel } from '../utils/featuredSignagePricing';
 import { CUSTOMER_DIMENSION_UNITS } from '../utils/featuredSignageDimensionUnits';
+import { payableFromNet } from '../utils/vatUtils';
 
 const font = { fontFamily: 'Lexend Deca, system-ui, sans-serif' };
 
@@ -19,6 +20,17 @@ const FeaturedHeroPriceCalculator = ({
     String(formData.width || '').trim() &&
     String(formData.height || '').trim() &&
     Number(formData.quantity) >= 1;
+
+  const sizeLines = useMemo(
+    () =>
+      (Array.isArray(pricing?.breakdown) ? pricing.breakdown : []).filter((line) =>
+        /base \+ size/i.test(String(line.label || ''))
+      ),
+    [pricing]
+  );
+  const quantity = Math.max(1, Number(pricing?.quantity) || Number(formData.quantity) || 1);
+  const sizeNet = sizeLines.reduce((sum, line) => sum + (Number(line.amount) || 0), 0) * quantity;
+  const sizeDisplayTotal = sizeLines.length > 0 ? payableFromNet(sizeNet, vatInclusive) : displayTotal;
 
   const handleStart = () => {
     if (!hasDimensions) return;
@@ -108,21 +120,21 @@ const FeaturedHeroPriceCalculator = ({
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-200">Size estimate</p>
               <p className="mt-0.5 text-3xl font-bold tabular-nums text-white sm:text-4xl">
-                £{displayTotal.toFixed(2)}
+                £{sizeDisplayTotal.toFixed(2)}
                 <span className="ml-2 text-sm font-medium text-blue-200">{featuredPriceLabel(vatInclusive)}</span>
               </p>
               <p className="mt-1 text-xs text-blue-200/80">
                 Base + size only. Options such as installation are added on the quote form.
               </p>
-              {pricing.quantity > 1 ? (
+              {quantity > 1 ? (
                 <p className="mt-1 text-xs text-blue-200/80 tabular-nums">
-                  £{(displayTotal / pricing.quantity).toFixed(2)} per unit × {pricing.quantity}
+                  £{(sizeDisplayTotal / quantity).toFixed(2)} per unit × {quantity}
                 </p>
               ) : null}
             </div>
-            {Array.isArray(pricing.breakdown) && pricing.breakdown.length > 0 ? (
+            {sizeLines.length > 0 ? (
               <ul className="min-w-[200px] space-y-1 rounded-lg bg-white/5 px-3 py-2 text-xs text-blue-100">
-                {pricing.breakdown.slice(0, 4).map((line, i) => (
+                {sizeLines.slice(0, 2).map((line, i) => (
                   <li key={`${line.label}-${i}`} className="flex justify-between gap-3">
                     <span className="truncate">{line.label}</span>
                     <span className="shrink-0 font-medium tabular-nums text-white">

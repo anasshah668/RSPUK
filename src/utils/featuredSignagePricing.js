@@ -32,6 +32,7 @@ export function buildFeaturedPricingInput(
     rushOrder: advancedInputs.rushOrder ?? formData.rushOrder,
     designServiceRequired: advancedInputs.designServiceRequired ?? formData.designServiceRequired,
     productSpecific: productSpecificInputs,
+    includeAddons: true,
   };
 }
 
