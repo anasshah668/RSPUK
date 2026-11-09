@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { canEditCartItem, getCartItemEditTarget } from '../utils/cartItemEdit';
 import { fallbackImageDataUri, handleImageErrorOnce, isUsableImageUrl } from '../utils/safeImage';
+import SmartImage from './SmartImage';
 
 const API_ORIGIN = (import.meta.env.VITE_API_URL || '')
   .replace(/\/api\/?$/i, '')
@@ -158,14 +159,14 @@ const CartDropdown = ({ isOpen, onClose }) => {
                 >
                   {/* Product Image */}
                   <div className="w-20 h-20 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
-                    <img
+                    <SmartImage
                       src={
                         resolveCartImageUrl(item.artworkPreviewUrl) ||
                         resolveCartImageUrl(item.image) ||
                         fallbackImageDataUri(item.name || item.title || 'Item', 80)
                       }
                       alt={item.name || item.title || 'Item'}
-                      className="w-full h-full object-cover"
+                      className="h-full w-full"
                       onError={(e) => handleImageErrorOnce(e, item.name || item.title || 'Item')}
                     />
                   </div>

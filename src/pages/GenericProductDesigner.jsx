@@ -15,6 +15,7 @@ import { uploadService } from '../services/uploadService';
 import { getProductPrintAreas, getLockedProductSizeMm, getProductCanvasPixels } from '../config/productPrintAreas';
 import { dedupeOptionRows, formatOptionLabel } from '../utils/optionLabels';
 import { generateTemplateThumbnail } from '../utils/templateThumbnail';
+import SmartImage from '../components/SmartImage';
 import {
   applyCanvasDisplayZoom,
   extractFillColor,
@@ -5139,7 +5140,12 @@ const GenericProductDesigner = () => {
                         style={{ aspectRatio: String(ratio || 1) }}
                       >
                         {thumb ? (
-                          <img src={thumb} alt={template.name} className="h-full w-full object-contain" />
+                          <SmartImage
+                            src={thumb}
+                            alt={template.name}
+                            className="h-full w-full"
+                            imgClassName="h-full w-full object-contain"
+                          />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center">
                             <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-emerald-500" />
@@ -6017,11 +6023,11 @@ const GenericProductDesigner = () => {
                   title={asset.title}
                 >
                   <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
-                    <img
+                    <SmartImage
                       src={asset.thumb || asset.url}
                       alt={asset.title}
-                      loading="lazy"
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      className="h-full w-full"
+                      imgClassName="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                     />
                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-900/70 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                     <div className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-1 p-2 text-[10px] text-white opacity-0 transition-all group-hover:translate-y-0 group-hover:opacity-100">

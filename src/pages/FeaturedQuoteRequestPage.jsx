@@ -13,6 +13,7 @@ import { useCart } from '../context/CartContext';
 import { featuredSignageMediaService } from '../services/featuredSignageMediaService';
 import { mergeFeaturedItemWithMedia } from '../utils/featuredSignageMedia';
 import { CUSTOMER_DIMENSION_UNITS } from '../utils/featuredSignageDimensionUnits';
+import SmartImage from '../components/SmartImage';
 
 const font = { fontFamily: 'Lexend Deca, system-ui, sans-serif' };
 
@@ -571,12 +572,12 @@ ${(orderPayload?.notes || '').trim()}`.trim(),
           {/* Hero header */}
           <div className="relative border-b border-slate-100 bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-900 px-6 py-8 text-white sm:px-8">
             <div className="absolute inset-0 opacity-20">
-              <img src={heroImage} alt="" className="h-full w-full object-cover" aria-hidden="true" />
+              <SmartImage src={heroImage} alt="" className="h-full w-full bg-transparent" />
             </div>
             <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-4">
                 <div className="hidden h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-white/20 bg-white/10 sm:block">
-                  <img src={heroImage} alt={heading} className="h-full w-full object-cover" />
+                  <SmartImage src={heroImage} alt={heading} className="h-full w-full" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-widest text-emerald-300">Featured product</p>
@@ -829,7 +830,7 @@ ${(orderPayload?.notes || '').trim()}`.trim(),
                 <div className="space-y-4 lg:col-span-3">
                   <div className="overflow-hidden rounded-xl border border-slate-200">
                     <div className="flex items-center gap-4 border-b border-slate-100 bg-slate-50 px-4 py-3">
-                      <img src={heroImage} alt={heading} className="h-14 w-14 rounded-lg object-cover" />
+                      <SmartImage src={heroImage} alt={heading} className="h-14 w-14 rounded-lg" />
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Order preview</p>
                         <p className="font-semibold text-slate-900">{orderPayload.productType}</p>

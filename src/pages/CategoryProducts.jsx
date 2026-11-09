@@ -8,6 +8,7 @@ import { getFeaturedSignageBySlug } from '../data/featuredSignageData';
 import { isTradeprintCategory } from '../utils/tradeprintCategories';
 import { toProxiedFileUrl } from '../components/FileDocViewer';
 import { extractImageUrl, isUsableImageUrl } from '../utils/safeImage';
+import SmartImage, { ProductCardSkeleton } from '../components/SmartImage';
 
 const productCardImage = (product) => {
   const raw =
@@ -373,11 +374,11 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
               <div className="relative">
                 <div className="bg-white/90 rounded-3xl shadow-2xl p-6 ring-1 ring-black/5">
                   <div className="relative overflow-hidden rounded-2xl bg-white">
-                    <img
+                    <SmartImage
                       src={featuredCategoryHeroImage}
                       alt={categoryInfo.label}
-                      className="w-full h-[420px] object-contain bg-white"
-                      draggable={false}
+                      className="h-[420px] w-full bg-white"
+                      imgClassName="h-full w-full object-contain"
                     />
                   </div>
                 </div>
@@ -424,11 +425,10 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
               <div className="relative">
                 <div className="aspect-square bg-gray-800 rounded-lg overflow-hidden">
                   {products.length > 0 && products[0].image ? (
-                    <img
+                    <SmartImage
                       src={products[0].image}
                       alt={categoryInfo.label}
-                      className="w-full h-full object-cover"
-                      draggable={false}
+                      className="h-full w-full"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-500">
@@ -457,11 +457,10 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
             </div>
 
             {loading ? (
-              <div className="text-center py-12">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-                <p className="mt-4 text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                  Loading products...
-                </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {Array.from({ length: 8 }).map((_, index) => (
+                  <ProductCardSkeleton key={`category-skeleton-${index}`} />
+                ))}
               </div>
             ) : products.length === 0 ? (
               <div className="text-center py-12">
@@ -479,14 +478,15 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
                     onClick={() => handleProductClick(product)}
                   >
                     <div className="relative h-56 bg-gray-100 overflow-hidden">
-                      <img
+                      <SmartImage
                         src={
                           imageErrors[product.id]
                             ? getImagePlaceholder(product.name)
                             : product.image || getImagePlaceholder(product.name)
                         }
                         alt={product.name}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        className="h-full w-full"
+                        imgClassName="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                         onError={() => {
                           if (!imageErrors[product.id]) {
                             setImageErrors((prev) => ({ ...prev, [product.id]: true }));
@@ -567,21 +567,19 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
                 They should be the same dimensions.
               */}
               <div className="relative aspect-square">
-                <img
+                <SmartImage
                   src="/sign.jpg"
                   alt="Standard signage"
-                  className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
+                  className={`absolute inset-0 h-full w-full bg-transparent transition-opacity duration-500 ${
                     isNeon ? 'opacity-0' : 'opacity-100'
                   }`}
-                  draggable={false}
                 />
-                <img
+                <SmartImage
                   src="/neon-sign.jpg"
                   alt="Neon signage"
-                  className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
+                  className={`absolute inset-0 h-full w-full bg-transparent transition-opacity duration-500 ${
                     isNeon ? 'opacity-100' : 'opacity-0'
                   }`}
-                  draggable={false}
                 />
               </div>
             </div>
@@ -755,19 +753,12 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
                   className="aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
                   onClick={() => handleProductClick(product)}
                 >
-                  {product.image ? (
-                    <img
-                      src={product.image}
-                      alt={product.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                      <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                  )}
+                  <SmartImage
+                    src={product.image}
+                    alt={product.name}
+                    className="h-full w-full"
+                    fallbackLabel=""
+                  />
                 </div>
               ))}
             </div>
@@ -790,11 +781,10 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
           </div>
           
           {recommendedLoading ? (
-            <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <p className="mt-4 text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-                Loading recommended products...
-              </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <ProductCardSkeleton key={`recommended-skeleton-${index}`} />
+              ))}
             </div>
           ) : recommendedProducts.length === 0 ? (
             <div className="text-center py-12">
@@ -830,21 +820,23 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
                       </div>
                     )}
                     
-                    <div className="relative h-56 bg-gray-100 overflow-hidden">
-                      <img
+                    <div
+                      className="relative h-56 bg-gray-100 overflow-hidden"
+                      onMouseEnter={() => setHoveredProduct(product.id)}
+                      onMouseLeave={() => setHoveredProduct(null)}
+                    >
+                      <SmartImage
                         src={imgSrc}
                         alt={product.name}
-                        className={`w-full h-full object-cover transition-transform duration-500 ${
+                        className="h-full w-full"
+                        imgClassName={`h-full w-full object-cover transition-transform duration-500 ${
                           hoveredProduct === product.id ? 'scale-110' : 'scale-100'
                         }`}
-                        onError={(e) => {
+                        onError={() => {
                           if (!imageErrors[product.id]) {
-                            setImageErrors(prev => ({ ...prev, [product.id]: true }));
-                            e.target.src = getImagePlaceholder(product.name);
+                            setImageErrors((prev) => ({ ...prev, [product.id]: true }));
                           }
                         }}
-                        onMouseEnter={() => setHoveredProduct(product.id)}
-                        onMouseLeave={() => setHoveredProduct(null)}
                       />
                       <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity duration-300 ${
                         hoveredProduct === product.id ? 'opacity-100' : 'opacity-0'

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { galleryService } from '../services/galleryService';
 import { COMPANY_CONTACT } from '../config/companyContact';
+import SmartImage, { ImageHolderSkeleton } from '../components/SmartImage';
 
 const GalleryPage = () => {
   const [projects, setProjects] = useState([]);
@@ -68,9 +69,19 @@ const GalleryPage = () => {
         </header>
 
         {loading ? (
-          <div className="text-center py-16">
-            <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
-          </div>
+          <section className="mt-8 space-y-8">
+            {Array.from({ length: 2 }).map((_, projectIndex) => (
+              <article key={`gallery-skeleton-${projectIndex}`} className="bg-white border border-gray-200 rounded-2xl p-5 md:p-6 shadow-sm">
+                <div className="h-6 w-48 animate-pulse rounded bg-slate-200" />
+                <div className="mt-3 h-4 w-3/4 max-w-xl animate-pulse rounded bg-slate-100" />
+                <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {Array.from({ length: 3 }).map((__, imageIndex) => (
+                    <ImageHolderSkeleton key={`gallery-skel-${projectIndex}-${imageIndex}`} className="aspect-[4/3] w-full" />
+                  ))}
+                </div>
+              </article>
+            ))}
+          </section>
         ) : null}
 
         {!loading && error ? (
@@ -109,11 +120,11 @@ const GalleryPage = () => {
                       onClick={() => openPreview(project, idx)}
                       className="aspect-[4/3] rounded-xl overflow-hidden border border-gray-200 bg-gray-100 group relative text-left"
                     >
-                      <img
+                      <SmartImage
                         src={img?.url}
                         alt={`${project.title} ${idx + 1}`}
-                        className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
-                        loading="lazy"
+                        className="h-full w-full"
+                        imgClassName="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
                       />
                       <span className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -183,10 +194,11 @@ const GalleryPage = () => {
           onClick={closePreview}
         >
           <div className="relative w-full max-w-5xl" onClick={(e) => e.stopPropagation()}>
-            <img
+            <SmartImage
               src={previewState.images[previewState.index]?.url}
               alt={`${previewState.projectTitle} ${previewState.index + 1}`}
-              className="w-full max-h-[78vh] object-contain"
+              className="w-full bg-black/20"
+              imgClassName="h-full w-full max-h-[78vh] object-contain"
             />
 
             <button

@@ -13,6 +13,7 @@ import DesignerAuthModal from '../components/DesignerAuthModal';
 import { useNeonPreviewExit } from '../context/NeonPreviewExitContext';
 import { useVatInclusive } from '../hooks/useVatInclusive';
 import { grossFromNet, vatAmountFromNet } from '../utils/vatUtils';
+import SmartImage from '../components/SmartImage';
 
 const NEON_LIVE_BG_IMAGES = [
   { id: '1', src: '/NeonBg/1.jpg', label: 'Scene 1' },
@@ -897,7 +898,7 @@ const CustomNeonBuilder = () => {
                               : 'border-gray-200 hover:border-gray-300'
                           }`}
                         >
-                          <img src={img.src} alt="" className="w-full h-full object-cover" loading="lazy" />
+                          <SmartImage src={img.src} alt="" className="h-full w-full" />
                         </button>
                       );
                     })}

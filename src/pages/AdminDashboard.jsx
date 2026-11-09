@@ -15,6 +15,7 @@ import AdminDesignServiceTab from '../components/AdminDesignServiceTab';
 import AdminActivityFeed from '../components/AdminActivityFeed';
 import { FileViewerLink, isHttpUrl, linkLabelForUrl, openFileViewer, toProxiedFileUrl } from '../components/FileDocViewer';
 import AdminImageThumb from '../components/AdminImageThumb';
+import { ImageHolderSkeleton } from '../components/SmartImage';
 
 const productImageList = (product) => {
   const fromArray = Array.isArray(product?.images)
@@ -609,10 +610,10 @@ const ProductsTab = ({ products, onRefresh }) => {
               <tr key={product._id}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   {productImageList(product)[0]?.url ? (
-                    <img
+                    <AdminImageThumb
                       src={displayImageUrl(productImageList(product)[0].url)}
                       alt=""
-                      className="h-12 w-12 rounded-md object-cover border border-gray-200 bg-gray-50"
+                      className="h-12 w-12 rounded-md border border-gray-200"
                     />
                   ) : (
                     <div className="h-12 w-12 rounded-md bg-gray-100 border border-gray-200" />
@@ -1786,7 +1787,7 @@ const OrderDetailModal = ({ order, onClose }) => {
                                 rel="noreferrer"
                                 className="shrink-0 w-16 h-16 rounded-md overflow-hidden border border-gray-100 bg-gray-50"
                               >
-                                <img src={thumb} alt="" className="w-full h-full object-cover" />
+                                <AdminImageThumb src={thumb} alt="" className="h-full w-full" />
                               </a>
                             ) : null}
                             <div className="flex justify-between gap-3 flex-1 min-w-0">
@@ -2469,10 +2470,10 @@ const QuotesTab = ({ quotes, onResponse, onRefresh, refreshing = false }) => {
                     onClick={() => openFileViewer(selectedQuote.artworkUrl, 'Uploaded artwork')}
                     className="flex items-center gap-4 hover:bg-gray-50 rounded-lg p-2 -m-2 text-left w-full"
                   >
-                    <img
+                    <AdminImageThumb
                       src={selectedQuote.artworkUrl}
                       alt="Uploaded artwork"
-                      className="w-24 h-24 object-cover rounded-lg border border-gray-200 bg-white"
+                      className="h-24 w-24 rounded-lg border border-gray-200"
                     />
                     <div>
                       <p className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
@@ -3270,8 +3271,16 @@ const SettingsTab = () => {
         </div>
 
         {galleryLoading ? (
-          <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="mt-5 space-y-3">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={`gallery-admin-skel-${index}`} className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-4">
+                <ImageHolderSkeleton className="h-16 w-20 shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-40 animate-pulse rounded bg-slate-200" />
+                  <div className="h-3 w-56 animate-pulse rounded bg-slate-100" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : null}
 
@@ -3287,6 +3296,13 @@ const SettingsTab = () => {
               <div key={project._id} className="rounded-xl border border-gray-200 p-4 bg-white">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div>
+                    <div className="flex items-start gap-3">
+                      <AdminImageThumb
+                        src={project.images?.[0]?.url}
+                        alt=""
+                        className="h-16 w-20 shrink-0 rounded-lg border border-gray-100"
+                      />
+                      <div>
                     <h4 className="text-base font-semibold text-gray-900">{project.title}</h4>
                     <p className="text-xs text-gray-500 mt-1">
                       {(project.images || []).length} image(s) · Order {project.displayOrder || 0} · {project.isActive ? 'Active' : 'Hidden'}
@@ -3294,6 +3310,8 @@ const SettingsTab = () => {
                     {project.description ? (
                       <p className="text-sm text-gray-600 mt-2 line-clamp-3">{project.description}</p>
                     ) : null}
+                      </div>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <button

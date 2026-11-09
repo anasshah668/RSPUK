@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getRoutePath } from '../config/routes.config';
+import SmartImage from './SmartImage';
 
 const Transformation = () => {
   const [isNeon, setIsNeon] = useState(false);
@@ -102,21 +103,19 @@ const Transformation = () => {
                 They should be the same dimensions.
               */}
               <div className="relative aspect-square">
-                <img
+                <SmartImage
                   src="/sign.jpg"
                   alt="Standard signage"
-                  className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
+                  className={`absolute inset-0 h-full w-full bg-transparent transition-opacity duration-500 ${
                     isNeon ? 'opacity-0' : 'opacity-100'
                   }`}
-                  draggable={false}
                 />
-                <img
+                <SmartImage
                   src="/neon-sign.jpg"
                   alt="Neon signage"
-                  className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
+                  className={`absolute inset-0 h-full w-full bg-transparent transition-opacity duration-500 ${
                     isNeon ? 'opacity-100' : 'opacity-0'
                   }`}
-                  draggable={false}
                 />
               </div>
             </div>

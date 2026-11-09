@@ -8,6 +8,7 @@ import { getRoutePath } from '../config/routes.config';
 import WavyUnderline from './WavyUnderline';
 import { toProxiedFileUrl } from './FileDocViewer';
 import { extractImageUrl, fallbackImageDataUri, handleImageErrorOnce, isUsableImageUrl } from '../utils/safeImage';
+import SmartImage, { ProductCardSkeleton } from './SmartImage';
 
 const Products = () => {
   const location = useLocation();
@@ -202,11 +203,10 @@ const Products = () => {
 
         {/* Products Grid */}
         {loading ? (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="mt-4 text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-              Loading products...
-            </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <ProductCardSkeleton key={`product-skeleton-${index}`} imageClassName="h-64 w-full" />
+            ))}
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="text-center py-12">
@@ -232,10 +232,11 @@ const Products = () => {
             >
               {/* Product Image Container */}
               <div className="relative h-64 bg-gray-100 overflow-hidden">
-                <img
+                <SmartImage
                   src={imageErrors[product.id] ? fallbackImageDataUri(product.name, 500) : (product.image || fallbackImageDataUri(product.name, 500))}
                   alt={product.name}
-                  className={`w-full h-full object-cover transition-transform duration-500 ${
+                  className="h-full w-full"
+                  imgClassName={`h-full w-full object-cover transition-transform duration-500 ${
                     hoveredProduct === product.id ? 'scale-110' : 'scale-100'
                   }`}
                   onError={(e) => {

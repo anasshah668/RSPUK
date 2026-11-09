@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import { featuredSignageItems } from '../data/featuredSignageData';
 import { featuredSignageMediaService } from '../services/featuredSignageMediaService';
 import AdminImageThumb from './AdminImageThumb';
+import { ImageHolderSkeleton } from './SmartImage';
 
 const CATEGORIES = featuredSignageItems.map((item) => ({
   slug: item.categorySlug,
@@ -192,10 +193,7 @@ const AdminFeaturedProductsTab = () => {
           <div className="mb-4 h-5 w-48 animate-pulse rounded bg-slate-200" />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
             {Array.from({ length: 8 }).map((_, index) => (
-              <div
-                key={`skeleton-${index}`}
-                className="aspect-[4/3] animate-pulse rounded-lg bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100"
-              />
+              <ImageHolderSkeleton key={`skeleton-${index}`} className="aspect-[4/3] w-full" />
             ))}
           </div>
         </div>
@@ -268,7 +266,7 @@ const AdminFeaturedProductsTab = () => {
                     key={src}
                     className="relative aspect-[4/3] overflow-hidden rounded-lg border border-blue-200 bg-blue-50"
                   >
-                    <img src={src} alt="" className="h-full w-full object-cover" />
+                    <AdminImageThumb src={src} alt="" className="h-full w-full" />
                     <button
                       type="button"
                       onClick={() => removePendingAt(index)}

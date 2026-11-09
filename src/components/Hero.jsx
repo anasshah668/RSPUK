@@ -1,10 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getRoutePath } from '../config/routes.config';
 import WavyUnderline from './WavyUnderline';
+import SmartImage from './SmartImage';
+
+const HERO_IMAGE_CANDIDATES = [
+  '/hero.jpg',
+  '/hero.png',
+  '/hero.jpeg',
+  'https://images.unsplash.com/photo-1561070791-2526d30994b5?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
+];
 
 const Hero = () => {
   const navigate = useNavigate();
+  const [heroImageIndex, setHeroImageIndex] = useState(0);
   return (
     <section className="relative min-h-[600px] md:min-h-[700px] flex items-center overflow-hidden bg-gradient-to-br from-gray-50 via-white to-gray-100 py-16">
       {/* Decorative Yellow Lines */}
@@ -118,25 +127,16 @@ const Hero = () => {
                 {/* Card */}
                 <div className="relative rounded-xl overflow-hidden shadow-lg bg-white border border-gray-200">
                   <div className="aspect-[4/3] overflow-hidden bg-white relative">
-                    <img 
-                      src="/hero.jpg" 
-                      alt="Neon Products" 
-                      className="w-full h-full object-cover animate-image-zoom"
-                      onError={(e) => {
-                        // Fallback to alternative paths
-                        const fallbacks = [
-                          '/hero.png',
-                          '/hero.jpeg',
-                          'https://images.unsplash.com/photo-1561070791-2526d30994b5?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80'
-                        ];
-                        let currentIndex = 0;
-                        e.target.onerror = () => {
-                          if (currentIndex < fallbacks.length - 1) {
-                            currentIndex++;
-                            e.target.src = fallbacks[currentIndex];
-                          }
-                        };
-                        e.target.src = fallbacks[0];
+                    <SmartImage
+                      src={HERO_IMAGE_CANDIDATES[heroImageIndex]}
+                      alt="Custom signage"
+                      className="h-full w-full"
+                      imgClassName="h-full w-full object-cover animate-image-zoom"
+                      eager
+                      onError={() => {
+                        setHeroImageIndex((current) =>
+                          current < HERO_IMAGE_CANDIDATES.length - 1 ? current + 1 : current,
+                        );
                       }}
                     />
                   </div>

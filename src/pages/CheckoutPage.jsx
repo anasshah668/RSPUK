@@ -18,6 +18,7 @@ import {
 import { formatPaymentErrorForToast } from '../utils/formatPaymentChargeError';
 import { isTradeprintLineItem } from '../utils/productSource';
 import { usePageSeo } from '../hooks/usePageSeo';
+import SmartImage from '../components/SmartImage';
 
 const sliderItems = [
   {
@@ -1163,7 +1164,7 @@ const CheckoutPage = () => {
                     <div className="flex items-start gap-3 flex-1 min-w-0">
                       <div className="w-14 h-14 rounded-lg bg-amber-50 border border-amber-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
                         {previewUrl && isImagePreview ? (
-                          <img src={previewUrl} alt={`${itemTitle} artwork`} className="w-full h-full object-cover" />
+                          <SmartImage src={previewUrl} alt={`${itemTitle} artwork`} className="h-full w-full" />
                         ) : previewUrl ? (
                           <span className="text-[10px] font-semibold text-amber-700 px-1 text-center leading-tight">PDF</span>
                         ) : (

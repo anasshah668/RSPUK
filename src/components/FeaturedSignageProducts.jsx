@@ -4,6 +4,7 @@ import WavyUnderline from './WavyUnderline';
 import { featuredSignageItems } from '../data/featuredSignageData';
 import { featuredSignageMediaService } from '../services/featuredSignageMediaService';
 import { mergeFeaturedItemsWithMedia } from '../utils/featuredSignageMedia';
+import SmartImage from './SmartImage';
 
 const FeaturedSignageProducts = () => {
   const [items, setItems] = useState(() =>
@@ -60,11 +61,11 @@ const FeaturedSignageProducts = () => {
               className="group bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden"
             >
               <div className="h-40 bg-gray-100 overflow-hidden">
-                <img
+                <SmartImage
                   src={item.image}
                   alt={item.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  draggable={false}
+                  className="h-full w-full"
+                  imgClassName="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />
               </div>
               <div className="p-4">

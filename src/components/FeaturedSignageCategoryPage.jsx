@@ -14,6 +14,7 @@ import { buildFeaturedPricingInput } from '../utils/featuredSignagePricing';
 import { readVatInclusiveFromStorage, payableFromNet } from '../utils/vatUtils';
 import { featuredSignageMediaService } from '../services/featuredSignageMediaService';
 import { mergeFeaturedItemWithMedia } from '../utils/featuredSignageMedia';
+import SmartImage from './SmartImage';
 import { CUSTOMER_DIMENSION_UNITS } from '../utils/featuredSignageDimensionUnits';
 
 const getInitialFormState = (productType) => ({
@@ -555,11 +556,12 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
               <div className="rounded-3xl p-[1px] bg-gradient-to-br from-white/70 via-blue-200/50 to-slate-300/40 shadow-2xl">
                 <div className="bg-white/95 rounded-3xl p-3 md:p-4">
                   <div className="relative overflow-hidden rounded-2xl">
-                    <img
+                    <SmartImage
                       src={activeHeroImage || galleryImages[0] || `${import.meta.env.BASE_URL}hero.jpg`}
                       alt={pageCopy.heading}
-                      className="w-full h-[320px] md:h-[360px] object-cover transition-transform duration-700 hover:scale-[1.03]"
-                      draggable={false}
+                      className="h-[320px] w-full md:h-[360px]"
+                      imgClassName="h-full w-full object-cover transition-transform duration-700 hover:scale-[1.03]"
+                      eager
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
                     <div className="absolute left-4 bottom-4 right-4">
@@ -576,22 +578,20 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
 
               {galleryImages[1] && (
                 <div className="hidden md:block absolute -bottom-6 -left-6 w-32 h-24 rounded-xl overflow-hidden border-4 border-white shadow-xl">
-                  <img
+                  <SmartImage
                     src={galleryImages[1]}
                     alt={`${pageCopy.heading} sample`}
-                    className="w-full h-full object-cover cursor-pointer"
-                    draggable={false}
+                    className="h-full w-full cursor-pointer"
                     onClick={() => setActiveHeroImage(galleryImages[1])}
                   />
                 </div>
               )}
               {galleryImages[2] && (
                 <div className="hidden md:block absolute -top-5 -right-5 w-28 h-20 rounded-xl overflow-hidden border-4 border-white shadow-xl">
-                  <img
+                  <SmartImage
                     src={galleryImages[2]}
                     alt={`${pageCopy.heading} detail`}
-                    className="w-full h-full object-cover cursor-pointer"
-                    draggable={false}
+                    className="h-full w-full cursor-pointer"
                     onClick={() => setActiveHeroImage(galleryImages[2])}
                   />
                 </div>
@@ -756,11 +756,11 @@ ${orderPayload?.notes || ''}`,
                   }`}
                   style={{ transitionDelay: `${idx * 60}ms` }}
                 >
-                  <img
+                  <SmartImage
                     src={imageSrc}
                     alt={`${pageCopy.heading} project ${idx + 1}`}
-                    className="w-full h-36 object-cover transition-transform duration-700 hover:scale-105"
-                    draggable={false}
+                    className="h-36 w-full"
+                    imgClassName="h-full w-full object-cover transition-transform duration-700 hover:scale-105"
                   />
                   <span
                     className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full ${
@@ -807,11 +807,11 @@ ${orderPayload?.notes || ''}`,
                   }}
                 >
                   <div className="h-56 bg-gray-100">
-                    <img
+                    <SmartImage
                       src={product?.images?.[0]?.url || galleryImages[0] || `${import.meta.env.BASE_URL}hero.jpg`}
                       alt={product?.name || 'Product'}
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                      draggable={false}
+                      className="h-full w-full"
+                      imgClassName="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
                     />
                   </div>
                   <div className="p-4">

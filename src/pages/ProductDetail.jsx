@@ -17,6 +17,7 @@ import { formatPdfPageMm, inspectPdfFile, pdfPageFitsProduct } from '../utils/in
 import { toProxiedFileUrl } from '../components/FileDocViewer';
 import { usePageSeo } from '../hooks/usePageSeo';
 import { extractImageUrl, handleImageErrorOnce, isUsableImageUrl } from '../utils/safeImage';
+import SmartImage, { ImageHolderSkeleton } from '../components/SmartImage';
 
 const productDisplayImages = (item) => {
   const raw = [
@@ -721,14 +722,31 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
 
   // Don't render until we have product data (since hardcoded fallback was removed)
   if (!displayProduct) {
+    if (loading) {
+      return (
+        <div className="min-h-screen bg-gray-50 py-6">
+          <div className="container mx-auto max-w-7xl px-4 lg:px-8">
+            <div className="grid gap-8 lg:grid-cols-2">
+              <div className="overflow-hidden rounded-xl bg-white shadow-lg">
+                <ImageHolderSkeleton className="aspect-square w-full" rounded={false} />
+              </div>
+              <div className="space-y-4 pt-2">
+                <div className="h-3 w-24 animate-pulse rounded bg-slate-200" />
+                <div className="h-8 w-3/4 animate-pulse rounded bg-slate-200" />
+                <div className="h-4 w-full animate-pulse rounded bg-slate-100" />
+                <div className="h-4 w-5/6 animate-pulse rounded bg-slate-100" />
+                <div className="mt-8 h-12 w-40 animate-pulse rounded-lg bg-slate-200" />
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-gray-50 py-6 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p className="mt-4 text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-            {loading ? 'Loading product...' : 'Product not found'}
-          </p>
-        </div>
+        <p className="text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
+          Product not found
+        </p>
       </div>
     );
   }
@@ -1167,13 +1185,14 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
               onMouseLeave={handleImageMouseLeave}
             >
               {selectedImage ? (
-                <img
+                <SmartImage
                   key={`${product?._id || productProp?._id || 'product'}-${selectedImage}`}
                   src={selectedImage}
                   alt={displayProduct.name}
-                  className="w-full h-full object-contain transition-transform duration-200 ease-out"
-                  loading="eager"
-                  style={{
+                  className="h-full w-full"
+                  imgClassName="h-full w-full object-contain transition-transform duration-200 ease-out"
+                  eager
+                  imgStyle={{
                     transform: imageZoom.active ? 'scale(2)' : 'scale(1)',
                     transformOrigin: `${imageZoom.x}% ${imageZoom.y}%`,
                   }}
@@ -1197,10 +1216,10 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                         index === selectedImageIndex ? 'border-blue-500' : 'border-gray-200'
                       }`}
                     >
-                      <img
+                      <SmartImage
                         src={imgUrl}
                         alt={`${displayProduct.name} ${index + 1}`}
-                        className="w-full h-full object-cover"
+                        className="h-full w-full"
                         onError={(e) => handleImageErrorOnce(e, displayProduct.name)}
                       />
                     </button>
@@ -2101,7 +2120,7 @@ const ProductDetail = ({ productType, productId, product: productProp }) => {
                                 </div>
                               )}
                               {uploadedImage && typeof uploadedImage === 'string' && uploadedImage.startsWith('data:') && (
-                                <img src={uploadedImage} alt="Uploaded design" className="w-24 h-24 object-cover rounded border" />
+                                <SmartImage src={uploadedImage} alt="Uploaded design" className="h-24 w-24 rounded border" />
                               )}
                             </div>
                           )}

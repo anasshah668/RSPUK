@@ -5,6 +5,7 @@ import { authService } from '../services/authService';
 import { quoteService } from '../services/quoteService';
 import { orderService } from '../services/orderService';
 import { designService } from '../services/designService';
+import SmartImage from '../components/SmartImage';
 
 const font = { fontFamily: 'Lexend Deca, sans-serif' };
 
@@ -483,10 +484,11 @@ const ViewQuotes = () => {
               {q.artworkUrl ? (
                 <a href={q.artworkUrl} target="_blank" rel="noreferrer" className="group block">
                   <div className="aspect-[4/3] overflow-hidden rounded-xl border border-gray-200 bg-gray-100">
-                    <img
+                    <SmartImage
                       src={q.artworkUrl}
                       alt="Quote artwork"
-                      className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                      className="h-full w-full"
+                      imgClassName="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                     />
                   </div>
                   <span className="mt-2 inline-flex text-xs font-semibold text-blue-600 group-hover:text-blue-700" style={font}>
@@ -932,7 +934,7 @@ const TrackOrder = () => {
                   return (
                   <div key={idx} className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
                     {it.imageUrl ? (
-                      <img src={it.imageUrl} alt="" className="h-14 w-14 shrink-0 rounded-lg object-cover" />
+                      <SmartImage src={it.imageUrl} alt="" className="h-14 w-14 shrink-0 rounded-lg" />
                     ) : (
                       <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-400">
                         <IconPackage className="h-6 w-6" />
@@ -1387,7 +1389,7 @@ const Account = () => {
             <div className="flex items-center gap-4">
               <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-2xl font-bold text-white ring-2 ring-white/20 backdrop-blur-sm">
                 {user?.avatar ? (
-                  <img src={user.avatar} alt="" className="h-full w-full rounded-2xl object-cover" />
+                  <SmartImage src={user.avatar} alt="" className="h-full w-full rounded-2xl" />
                 ) : (
                   getUserInitial()
                 )}
