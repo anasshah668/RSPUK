@@ -8,6 +8,7 @@ import { ImageHolderSkeleton } from './SmartImage';
 const CATEGORIES = featuredSignageItems.map((item) => ({
   slug: item.categorySlug,
   label: item.title || item.heading,
+  fallbackImages: item.images || [],
 }));
 
 const AdminFeaturedProductsTab = () => {
@@ -24,6 +25,7 @@ const AdminFeaturedProductsTab = () => {
   );
 
   const displayImages = savedImages.length > 0 ? savedImages : [];
+  const usingFallback = savedImages.length === 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -112,7 +114,7 @@ const AdminFeaturedProductsTab = () => {
   const handleSave = async () => {
     if (!selectedSlug) return;
     if (savedImages.length === 0 && pendingFiles.length === 0) {
-      toast.error('Add at least one picture before saving.');
+      toast.error('Add at least one image, or reset to use the default public-folder pictures.');
       return;
     }
     try {
@@ -139,7 +141,7 @@ const AdminFeaturedProductsTab = () => {
   const handleResetToDefaults = async () => {
     if (!selectedSlug) return;
     const ok = window.confirm(
-      `Clear pictures for “${selectedCategory?.label}”? The site will show an empty image holder until you upload new ones.`,
+      `Clear admin images for “${selectedCategory?.label}”? The site will fall back to the default pictures in the public folder.`,
     );
     if (!ok) return;
     try {
@@ -151,7 +153,7 @@ const AdminFeaturedProductsTab = () => {
         prev.forEach((url) => URL.revokeObjectURL(url));
         return [];
       });
-      toast.success('Pictures cleared');
+      toast.success('Reset to default public-folder images');
     } catch (err) {
       toast.error(err?.message || 'Failed to reset images');
     } finally {
@@ -166,8 +168,8 @@ const AdminFeaturedProductsTab = () => {
           Featured product pictures
         </h2>
         <p className="mt-1 text-sm text-gray-600" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-          Upload and manage gallery images for each featured signage category. If a category has no
-          pictures, the website shows an empty holder.
+          Upload and manage gallery images for each featured signage category. When images are saved
+          here, they replace the default pictures from the public folder on the website.
         </p>
       </div>
 
@@ -201,9 +203,9 @@ const AdminFeaturedProductsTab = () => {
             <div>
               <h3 className="text-base font-semibold text-gray-900">{selectedCategory?.label}</h3>
               <p className="text-xs text-gray-500">
-                {savedImages.length === 0
-                  ? 'No pictures yet — the site will show an empty holder for this category.'
-                  : `${savedImages.length} image${savedImages.length === 1 ? '' : 's'} active on the site.`}
+                {usingFallback
+                  ? 'No admin images yet — site is using default public-folder pictures.'
+                  : `${savedImages.length} admin image${savedImages.length === 1 ? '' : 's'} active on the site.`}
               </p>
             </div>
             <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">
@@ -211,6 +213,21 @@ const AdminFeaturedProductsTab = () => {
               Add pictures
             </label>
           </div>
+
+          {usingFallback && selectedCategory?.fallbackImages?.length > 0 ? (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700">
+                Current default pictures (public folder)
+              </p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                {selectedCategory.fallbackImages.map((src) => (
+                  <div key={src} className="overflow-hidden rounded-lg border border-amber-100">
+                    <AdminImageThumb src={src} className="aspect-[4/3] opacity-90" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {displayImages.length > 0 ? (
             <div>
@@ -278,7 +295,7 @@ const AdminFeaturedProductsTab = () => {
               disabled={saving || (savedImages.length === 0 && pendingFiles.length === 0)}
               className="rounded-lg border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Clear pictures
+              Reset to defaults
             </button>
           </div>
         </div>

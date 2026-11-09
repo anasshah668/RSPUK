@@ -144,8 +144,7 @@ const FeaturedQuoteRequestPage = () => {
         if (cancelled) return;
         setSignageItem(mergeFeaturedItemWithMedia(categorySlug, data?.images || data?.imageObjects));
       } catch {
-        const base = getFeaturedSignageBySlug(categorySlug);
-        if (!cancelled && base) setSignageItem({ ...base, images: [] });
+        /* keep static */
       }
     })();
     return () => {
@@ -154,7 +153,7 @@ const FeaturedQuoteRequestPage = () => {
   }, [categorySlug]);
 
   const heading = signageItem?.heading || signageItem?.title || 'Featured Signage';
-  const heroImage = signageItem?.images?.[0] || '';
+  const heroImage = signageItem?.images?.[0] || `${import.meta.env.BASE_URL}hero.jpg`;
 
   const renderInput = (name, label, type = 'text', placeholder = '', required = false, disabled = false) => (
     <div>
@@ -572,18 +571,14 @@ ${(orderPayload?.notes || '').trim()}`.trim(),
         <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xl shadow-slate-200/50">
           {/* Hero header */}
           <div className="relative border-b border-slate-100 bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-900 px-6 py-8 text-white sm:px-8">
-            {heroImage ? (
-              <div className="absolute inset-0 opacity-20">
-                <SmartImage src={heroImage} alt="" className="h-full w-full bg-transparent" fallbackLabel="" />
-              </div>
-            ) : null}
+            <div className="absolute inset-0 opacity-20">
+              <SmartImage src={heroImage} alt="" className="h-full w-full bg-transparent" />
+            </div>
             <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-4">
-                {heroImage ? (
-                  <div className="hidden h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-white/20 bg-white/10 sm:block">
-                    <SmartImage src={heroImage} alt={heading} className="h-full w-full" fallbackLabel="" />
-                  </div>
-                ) : null}
+                <div className="hidden h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-white/20 bg-white/10 sm:block">
+                  <SmartImage src={heroImage} alt={heading} className="h-full w-full" />
+                </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-widest text-emerald-300">Featured product</p>
                   <h1 className="mt-1 text-2xl font-bold sm:text-3xl">Request a Quote</h1>
@@ -835,9 +830,7 @@ ${(orderPayload?.notes || '').trim()}`.trim(),
                 <div className="space-y-4 lg:col-span-3">
                   <div className="overflow-hidden rounded-xl border border-slate-200">
                     <div className="flex items-center gap-4 border-b border-slate-100 bg-slate-50 px-4 py-3">
-                      {heroImage ? (
-                        <SmartImage src={heroImage} alt={heading} className="h-14 w-14 rounded-lg" fallbackLabel="" />
-                      ) : null}
+                      <SmartImage src={heroImage} alt={heading} className="h-14 w-14 rounded-lg" />
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Order preview</p>
                         <p className="font-semibold text-slate-900">{orderPayload.productType}</p>

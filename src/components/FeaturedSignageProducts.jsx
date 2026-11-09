@@ -4,17 +4,15 @@ import WavyUnderline from './WavyUnderline';
 import { featuredSignageItems } from '../data/featuredSignageData';
 import { featuredSignageMediaService } from '../services/featuredSignageMediaService';
 import { mergeFeaturedItemsWithMedia } from '../utils/featuredSignageMedia';
-import SmartImage, { ImageHolderSkeleton } from './SmartImage';
-
-const emptyItems = () =>
-  featuredSignageItems.map((item) => ({
-    ...item,
-    image: '',
-  }));
+import SmartImage from './SmartImage';
 
 const FeaturedSignageProducts = () => {
-  const [items, setItems] = useState(emptyItems);
-  const [mediaReady, setMediaReady] = useState(false);
+  const [items, setItems] = useState(() =>
+    featuredSignageItems.map((item) => ({
+      ...item,
+      image: item.images?.[0] || '',
+    })),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -22,8 +20,7 @@ const FeaturedSignageProducts = () => {
       try {
         const data = await featuredSignageMediaService.listPublic();
         if (cancelled) return;
-        const mediaRows = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
-        const merged = mergeFeaturedItemsWithMedia(mediaRows);
+        const merged = mergeFeaturedItemsWithMedia(data?.items);
         setItems(
           merged.map((item) => ({
             ...item,
@@ -31,9 +28,7 @@ const FeaturedSignageProducts = () => {
           })),
         );
       } catch {
-        if (!cancelled) setItems(emptyItems());
-      } finally {
-        if (!cancelled) setMediaReady(true);
+        // Keep static public-folder images if media API is unavailable.
       }
     })();
     return () => {
@@ -66,17 +61,12 @@ const FeaturedSignageProducts = () => {
               className="group bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden"
             >
               <div className="h-40 bg-gray-100 overflow-hidden">
-                {!mediaReady ? (
-                  <ImageHolderSkeleton className="h-full w-full" rounded={false} />
-                ) : (
-                  <SmartImage
-                    src={item.image}
-                    alt={item.title}
-                    className="h-full w-full"
-                    imgClassName="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    fallbackLabel=""
-                  />
-                )}
+                <SmartImage
+                  src={item.image}
+                  alt={item.title}
+                  className="h-full w-full"
+                  imgClassName="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
               </div>
               <div className="p-4">
                 <h3 className="text-sm md:text-base font-bold text-gray-900 mb-2">{item.title}</h3>

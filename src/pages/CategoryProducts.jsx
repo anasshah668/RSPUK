@@ -178,7 +178,8 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
     'printed-board',
   ].includes(String(categorySlug || '').toLowerCase());
   const featuredSignageItem = getFeaturedSignageBySlug(categorySlug);
-  const featuredCategoryHeroImage = featuredSignageItem?.images?.[0] || '';
+  const featuredCategoryHeroImage =
+    featuredSignageItem?.images?.[0] || `${import.meta.env.BASE_URL}threeD.png`;
   const isTradeprintShop = isTradeprintCategory(categorySlug);
 
   useEffect(() => {
@@ -378,7 +379,6 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
                       alt={categoryInfo.label}
                       className="h-[420px] w-full bg-white"
                       imgClassName="h-full w-full object-contain"
-                      fallbackLabel=""
                     />
                   </div>
                 </div>

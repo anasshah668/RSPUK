@@ -1,39 +1,32 @@
 import { featuredSignageItems, getFeaturedSignageBySlug } from '../data/featuredSignageData';
 
-const urlsFromMedia = (images) =>
-  (Array.isArray(images) ? images : [])
-    .map((img) => (typeof img === 'string' ? img : img?.url))
-    .filter(Boolean);
-
 /**
- * Merge static featured copy with admin-uploaded images.
- * Categories without admin pictures stay empty — no public-folder defaults.
+ * Merge static featured items with admin-uploaded Cloudinary images.
+ * When a category has admin images, they replace public-folder images.
  */
 export function mergeFeaturedItemsWithMedia(mediaItems = []) {
   const bySlug = new Map();
   (Array.isArray(mediaItems) ? mediaItems : []).forEach((row) => {
     const slug = String(row?.categorySlug || '').toLowerCase();
-    const urls = urlsFromMedia(row?.images);
+    const urls = Array.isArray(row?.images)
+      ? row.images.map((img) => (typeof img === 'string' ? img : img?.url)).filter(Boolean)
+      : [];
     if (slug && urls.length > 0) bySlug.set(slug, urls);
   });
 
   return featuredSignageItems.map((item) => {
     const override = bySlug.get(String(item.categorySlug || '').toLowerCase());
-    return {
-      ...item,
-      images: override?.length ? override : [],
-      imagesFromAdmin: Boolean(override?.length),
-    };
+    if (!override?.length) return item;
+    return { ...item, images: override, imagesFromAdmin: true };
   });
 }
 
 export function mergeFeaturedItemWithMedia(slug, mediaImages = []) {
   const item = getFeaturedSignageBySlug(slug);
   if (!item) return null;
-  const urls = urlsFromMedia(mediaImages);
-  return {
-    ...item,
-    images: urls,
-    imagesFromAdmin: urls.length > 0,
-  };
+  const urls = (Array.isArray(mediaImages) ? mediaImages : [])
+    .map((img) => (typeof img === 'string' ? img : img?.url))
+    .filter(Boolean);
+  if (!urls.length) return item;
+  return { ...item, images: urls, imagesFromAdmin: true };
 }
