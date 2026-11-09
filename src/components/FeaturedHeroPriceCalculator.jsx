@@ -1,14 +1,8 @@
 import React from 'react';
 import { featuredPriceLabel } from '../utils/featuredSignagePricing';
+import { CUSTOMER_DIMENSION_UNITS } from '../utils/featuredSignageDimensionUnits';
 
 const font = { fontFamily: 'Lexend Deca, system-ui, sans-serif' };
-
-const UNIT_OPTIONS = [
-  { value: 'mm', label: 'mm' },
-  { value: 'cm', label: 'cm' },
-  { value: 'inch', label: 'in' },
-  { value: 'ft', label: 'ft' },
-];
 
 const FeaturedHeroPriceCalculator = ({
   formData,
@@ -52,7 +46,7 @@ const FeaturedHeroPriceCalculator = ({
           <label className="mb-1.5 block text-xs font-medium text-blue-100">Width</label>
           <input
             type="number"
-            min="1"
+            min="0.01"
             step="any"
             value={formData.width}
             onChange={(e) => setFormData((prev) => ({ ...prev, width: e.target.value }))}
@@ -64,7 +58,7 @@ const FeaturedHeroPriceCalculator = ({
           <label className="mb-1.5 block text-xs font-medium text-blue-100">Height</label>
           <input
             type="number"
-            min="1"
+            min="0.01"
             step="any"
             value={formData.height}
             onChange={(e) => setFormData((prev) => ({ ...prev, height: e.target.value }))}
@@ -79,7 +73,7 @@ const FeaturedHeroPriceCalculator = ({
             onChange={(e) => setFormData((prev) => ({ ...prev, unit: e.target.value }))}
             className="w-full rounded-xl border border-white/25 bg-white/95 px-3 py-2.5 text-sm text-slate-900 shadow-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300/50"
           >
-            {UNIT_OPTIONS.map((opt) => (
+            {CUSTOMER_DIMENSION_UNITS.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>

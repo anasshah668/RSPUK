@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
 import { featuredSignagePricingService } from '../services/featuredSignagePricingService';
 import { featuredSignageItems } from '../data/featuredSignageData';
-import { RATE_UNIT_OPTIONS, fieldsForAdminCategory, normalizeRateUnit } from '../utils/featuredSignageDimensionUnits';
+import { fieldsForAdminCategory } from '../utils/featuredSignageDimensionUnits';
 
 const PRICING_CATEGORIES = [
   { slug: '_default', label: 'Default (fallback for all categories)' },
@@ -14,13 +14,11 @@ const PRICING_CATEGORIES = [
 
 const AdminFeaturedSignagePricingTab = () => {
   const [selectedSlug, setSelectedSlug] = useState('2d-box-signage');
-  const [form, setForm] = useState({ rateUnit: 'cm' });
+  const [form, setForm] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const rateUnit = normalizeRateUnit(form.rateUnit);
-
-  const fields = useMemo(() => fieldsForAdminCategory(selectedSlug, rateUnit), [selectedSlug, rateUnit]);
+  const fields = useMemo(() => fieldsForAdminCategory(selectedSlug), [selectedSlug]);
 
   useEffect(() => {
     let cancelled = false;
@@ -29,15 +27,12 @@ const AdminFeaturedSignagePricingTab = () => {
         setLoading(true);
         const data = await featuredSignagePricingService.getAdmin(selectedSlug);
         if (!cancelled) {
-          setForm({
-            ...data,
-            rateUnit: normalizeRateUnit(data?.rateUnit),
-          });
+          setForm({ ...data });
         }
       } catch (err) {
         if (!cancelled) {
           toast.error(err.message || 'Failed to load pricing');
-          setForm({ rateUnit: 'cm' });
+          setForm({});
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -58,17 +53,13 @@ const AdminFeaturedSignagePricingTab = () => {
       setSaving(true);
       const payload = {
         currency: form.currency || 'GBP',
-        rateUnit: normalizeRateUnit(form.rateUnit),
       };
       fields.forEach(({ key }) => {
         const v = form[key];
         if (v !== '' && v !== undefined && v !== null) payload[key] = Number(v);
       });
       const updated = await featuredSignagePricingService.updateAdmin(selectedSlug, payload);
-      setForm({
-        ...updated,
-        rateUnit: normalizeRateUnit(updated?.rateUnit),
-      });
+      setForm({ ...updated });
       toast.success('Featured signage pricing saved');
     } catch (err) {
       toast.error(err.message || 'Failed to save pricing');
@@ -84,44 +75,29 @@ const AdminFeaturedSignagePricingTab = () => {
           Featured signage pricing
         </h2>
         <p className="text-sm text-gray-600 mt-1" style={{ fontFamily: 'Lexend Deca, sans-serif' }}>
-          Set size rates in your chosen unit (cm, mm, ft, or inch). Customer width/height are converted
-          automatically to match. Amounts are ex-VAT; the header VAT toggle controls display on the site.
+          Enter size rates in feet only. On the site, a customer choosing cm, mm, or inches has their size
+          converted to feet before the price is calculated. Amounts are ex-VAT; the header VAT toggle
+          controls display on the site.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
-        <div>
-          <label className="block text-xs font-semibold text-gray-700 mb-1">Category</label>
-          <select
-            value={selectedSlug}
-            onChange={(e) => setSelectedSlug(e.target.value)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2.5 bg-white text-sm"
-          >
-            {PRICING_CATEGORIES.map((c) => (
-              <option key={c.slug} value={c.slug}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-gray-700 mb-1">Rate unit for size pricing</label>
-          <select
-            value={rateUnit}
-            onChange={(e) => handleChange('rateUnit', e.target.value)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2.5 bg-white text-sm"
-          >
-            {RATE_UNIT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          <p className="text-[11px] text-gray-500 mt-1">
-            Width, height and area rates below apply per {rateUnit}
-            {rateUnit === 'cm' || rateUnit === 'mm' ? ' / per square unit for area' : '² for area'}.
-          </p>
-        </div>
+      <div className="max-w-2xl">
+        <label className="block text-xs font-semibold text-gray-700 mb-1">Category</label>
+        <select
+          value={selectedSlug}
+          onChange={(e) => setSelectedSlug(e.target.value)}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2.5 bg-white text-sm"
+        >
+          {PRICING_CATEGORIES.map((c) => (
+            <option key={c.slug} value={c.slug}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+        <p className="text-[11px] text-gray-500 mt-1">
+          Width, height and area rates below apply per ft / per ft². Example: £10 per ft is £10 for 12
+          inches, 30.48 cm, or 304.8 mm.
+        </p>
       </div>
 
       {loading ? (

@@ -1,4 +1,5 @@
 import { readVatInclusiveFromStorage, payableFromNet } from './vatUtils';
+import { normalizeDimensionUnit } from './featuredSignageDimensionUnits';
 
 /** Build API calculate payload from featured form state. */
 export function buildFeaturedPricingInput(categorySlug, formData, productSpecificInputs = {}, advancedInputs = {}) {
@@ -6,7 +7,7 @@ export function buildFeaturedPricingInput(categorySlug, formData, productSpecifi
     categorySlug: categorySlug || '_default',
     width: formData.width,
     height: formData.height,
-    unit: formData.unit || 'mm',
+    unit: normalizeDimensionUnit(formData.unit),
     quantity: formData.quantity,
     usage: formData.usage,
     installationRequired: formData.installationRequired,

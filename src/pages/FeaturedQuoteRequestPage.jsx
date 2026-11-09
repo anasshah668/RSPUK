@@ -12,6 +12,7 @@ import { getRoutePath } from '../config/routes.config';
 import { useCart } from '../context/CartContext';
 import { featuredSignageMediaService } from '../services/featuredSignageMediaService';
 import { mergeFeaturedItemWithMedia } from '../utils/featuredSignageMedia';
+import { CUSTOMER_DIMENSION_UNITS } from '../utils/featuredSignageDimensionUnits';
 
 const font = { fontFamily: 'Lexend Deca, system-ui, sans-serif' };
 
@@ -623,11 +624,7 @@ ${(orderPayload?.notes || '').trim()}`.trim(),
                   {renderInput('quantity', 'Quantity', 'number')}
                   {renderInput('width', 'Width', 'number')}
                   {renderInput('height', 'Height', 'number')}
-                  {renderSelect('unit', 'Unit', [
-                    { value: 'mm', label: 'mm' },
-                    { value: 'inch', label: 'inch' },
-                    { value: 'ft', label: 'ft' },
-                  ])}
+                  {renderSelect('unit', 'Unit', CUSTOMER_DIMENSION_UNITS)}
                   {renderSelect('usage', 'Indoor or outdoor use', [
                     { value: 'indoor', label: 'Indoor' },
                     { value: 'outdoor', label: 'Outdoor' },

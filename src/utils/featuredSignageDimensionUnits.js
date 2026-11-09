@@ -1,31 +1,33 @@
-export const RATE_UNIT_OPTIONS = [
-  { value: 'cm', label: 'Centimetres (cm)' },
-  { value: 'mm', label: 'Millimetres (mm)' },
-  { value: 'ft', label: 'Feet (ft)' },
-  { value: 'inch', label: 'Inches (in)' },
+/** Admin size rates are always in feet. Customer units convert to feet at quote time. */
+export const ADMIN_RATE_UNIT = 'ft';
+
+export const CUSTOMER_DIMENSION_UNITS = [
+  { value: 'mm', label: 'mm' },
+  { value: 'cm', label: 'cm' },
+  { value: 'inch', label: 'inch' },
+  { value: 'ft', label: 'ft' },
 ];
 
-export function normalizeRateUnit(unit) {
-  const u = String(unit || 'cm').toLowerCase().trim();
-  if (u === 'ft' || u === 'feet') return 'ft';
+export function normalizeDimensionUnit(unit) {
+  const u = String(unit || 'mm').toLowerCase().trim();
+  if (u === 'ft' || u === 'feet' || u === 'foot') return 'ft';
   if (u === 'inch' || u === 'in' || u === 'inches') return 'inch';
-  if (u === 'mm') return 'mm';
-  return 'cm';
+  if (u === 'cm' || u.startsWith('centi')) return 'cm';
+  if (u === 'm' || u === 'meter' || u === 'metre' || u === 'meters' || u === 'metres') return 'm';
+  return 'mm';
 }
 
-export function getDimensionRateLabels(rateUnit) {
-  const u = normalizeRateUnit(rateUnit);
-  const areaSuffix = u === 'cm' ? 'cm²' : u === 'mm' ? 'mm²' : u === 'ft' ? 'ft²' : 'in²';
+export function getDimensionRateLabels() {
   return {
-    width: `Per ${u} width (£)`,
-    height: `Per ${u} height (£)`,
-    area: `Per ${areaSuffix} area (£) — if > 0, replaces width+height`,
-    letterHeight: `Per ${u} letter height (£)`,
+    width: 'Per ft width (£)',
+    height: 'Per ft height (£)',
+    area: 'Per ft² area (£) — if > 0, replaces width+height',
+    letterHeight: 'Per ft letter height (£)',
   };
 }
 
-function buildCommonFields(rateUnit) {
-  const dim = getDimensionRateLabels(rateUnit);
+function buildCommonFields() {
+  const dim = getDimensionRateLabels();
   return [
     { key: 'basePrice', label: 'Base price (£)', step: '0.01' },
     { key: 'widthCmRate', label: dim.width, step: '0.01' },
@@ -81,14 +83,13 @@ const STATIC_EXTRA_FIELDS = {
   ],
 };
 
-export function fieldsForAdminCategory(slug, rateUnit = 'cm') {
-  const unit = normalizeRateUnit(rateUnit);
-  const dim = getDimensionRateLabels(unit);
+export function fieldsForAdminCategory(slug) {
+  const dim = getDimensionRateLabels();
   const extras = (STATIC_EXTRA_FIELDS[slug] || []).map((field) => {
     if (field.dimensionLabelKey) {
       return { ...field, label: dim[field.dimensionLabelKey] };
     }
     return field;
   });
-  return [...buildCommonFields(unit), ...extras];
+  return [...buildCommonFields(), ...extras];
 }

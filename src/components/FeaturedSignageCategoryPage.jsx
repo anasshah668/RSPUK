@@ -14,6 +14,7 @@ import { buildFeaturedPricingInput } from '../utils/featuredSignagePricing';
 import { readVatInclusiveFromStorage, payableFromNet } from '../utils/vatUtils';
 import { featuredSignageMediaService } from '../services/featuredSignageMediaService';
 import { mergeFeaturedItemWithMedia } from '../utils/featuredSignageMedia';
+import { CUSTOMER_DIMENSION_UNITS } from '../utils/featuredSignageDimensionUnits';
 
 const getInitialFormState = (productType) => ({
   productType: productType || '',
@@ -924,11 +925,7 @@ ${orderPayload?.notes || ''}`,
                   {renderInput('quantity', 'Quantity', 'number')}
                   {renderInput('width', 'Width', 'number')}
                   {renderInput('height', 'Height', 'number')}
-                  {renderSelect('unit', 'Unit', [
-                    { value: 'mm', label: 'mm' },
-                    { value: 'inch', label: 'inch' },
-                    { value: 'ft', label: 'ft' },
-                  ])}
+                  {renderSelect('unit', 'Unit', CUSTOMER_DIMENSION_UNITS)}
                   {renderSelect('usage', 'Indoor or Outdoor Use', [
                     { value: 'indoor', label: 'Indoor' },
                     { value: 'outdoor', label: 'Outdoor' },
