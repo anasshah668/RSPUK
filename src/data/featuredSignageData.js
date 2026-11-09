@@ -1,15 +1,9 @@
-const withBase = (relativePath) => `${import.meta.env.BASE_URL}${relativePath}`;
-
-const toAssetPath = (folderName, fileName) =>
-  withBase(`${encodeURIComponent(folderName)}/${encodeURIComponent(fileName)}`);
-
 export const featuredSignageItems = [
   {
     id: '3d-built-up-letters',
     title: '3D Built-up Letters',
     categorySlug: '3d-built-up-letters',
     route: '/featured/3d-built-up-letters',
-    folderName: '3D Lettering',
     description: 'Premium dimensional signage that creates strong visual impact for your business.',
     heading: '3D Built-up Letters',
     blurb:
@@ -19,14 +13,12 @@ export const featuredSignageItems = [
     details:
       'From concept and fabrication to final fitment, each sign is produced with accurate detailing and clean return edges. Suitable for retail, hospitality, and office environments where brand presence and durability are equally important.',
     highlights: ['Premium acrylic/metal finishes', 'Frontlit and halo-lit options', 'Indoor and outdoor installation'],
-    images: [toAssetPath('3D Lettering', '1.jpg'), toAssetPath('3D Lettering', '2.jpg')],
   },
   {
     id: '2d-box-signage',
     title: '2D Box Signage',
     categorySlug: '2d-box-signage',
     route: '/featured/2d-box-signage',
-    folderName: '2D Signage',
     description: 'Modern and clean signage with optional illumination for day and night visibility.',
     heading: '2D Box Signage',
     blurb:
@@ -36,14 +28,12 @@ export const featuredSignageItems = [
     details:
       'Each unit is fabricated for longevity and can be supplied in a range of finishes, depths, and color combinations. We can also configure illumination options to improve visibility for high-footfall and evening trade locations.',
     highlights: ['Slim profile construction', 'Durable weather-ready build', 'Custom sizes and colors'],
-    images: [toAssetPath('2D Signage', '1.jpg'), toAssetPath('2D Signage', '2.jpg')],
   },
   {
     id: 'flex-face',
     title: 'Flex Face Sign',
     categorySlug: 'flex-face',
     route: '/featured/flex-face',
-    folderName: 'Flex Face',
     description: 'Ideal for large shopfronts and retail spaces requiring seamless, bold graphics.',
     heading: 'Flex Face Sign',
     blurb:
@@ -53,14 +43,12 @@ export const featuredSignageItems = [
     details:
       'Our systems are designed with durable framework and quality lighting setup to ensure even brightness. This makes flex face a practical choice for supermarkets, showrooms, and commercial sites with big frontage requirements.',
     highlights: ['Great for very large signs', 'Even front illumination', 'Cost-effective for broad storefronts'],
-    images: [toAssetPath('Flex Face', '1.jpg'), toAssetPath('Flex Face', '2.jpg')],
   },
   {
     id: 'lightbox',
     title: 'Lightbox Sign',
     categorySlug: 'lightbox',
     route: '/featured/lightbox',
-    folderName: 'Light Box',
     description: 'Bright, illuminated signage designed to stand out in any environment.',
     heading: 'Lightbox Sign',
     blurb:
@@ -70,18 +58,12 @@ export const featuredSignageItems = [
     details:
       'We design lightboxes in multiple profiles, mounting styles, and face materials so they integrate neatly with your brand environment. LED systems are selected for stable output, energy efficiency, and low maintenance performance.',
     highlights: ['High brightness LED system', 'Uniform light diffusion', 'Ideal for shopfronts and menus'],
-    images: [
-      toAssetPath('Light Box', '1.jpg'),
-      toAssetPath('Light Box', '2.jpg'),
-      toAssetPath('Light Box', '3.jpg'),
-    ],
   },
   {
     id: 'printed-board',
     title: 'Printed Board Sign',
     categorySlug: 'printed-board',
     route: '/featured/printed-board',
-    folderName: 'Printed Board Sign',
     description: 'Durable and cost-effective signage for both indoor and outdoor applications',
     heading: 'Printed Board Sign',
     blurb:
@@ -91,14 +73,12 @@ export const featuredSignageItems = [
     details:
       'We provide multiple board material options and production finishes depending on your usage environment. With accurate color reproduction and robust print quality, these signs are excellent for storefronts, offices, and events.',
     highlights: ['UV-stable print quality', 'Rigid board material options', 'Quick turnaround production'],
-    images: [toAssetPath('Printed Board Sign', '1.jpg'), toAssetPath('Printed Board Sign', '2.jpg')],
   },
   {
     id: 'posters',
     title: 'Posters',
     categorySlug: 'posters',
     route: '/featured/posters',
-    folderName: 'Posters',
     description: 'High-impact poster printing for promotions, events, and retail campaigns.',
     heading: 'Posters',
     blurb:
@@ -108,18 +88,12 @@ export const featuredSignageItems = [
     details:
       'Choose from a variety of paper stocks and finishes based on campaign duration and placement. Posters are suitable for retail displays, hospitality promotions, office communication, and public-facing announcements.',
     highlights: ['Multiple size options', 'Vibrant color reproduction', 'Fast campaign turnaround'],
-    images: [
-      toAssetPath('Posters', '1.jpg'),
-      toAssetPath('Posters', '2.jpg'),
-      toAssetPath('Posters', '3.jpg'),
-    ],
   },
   {
     id: 'pvc-banners',
     title: 'PVC Banners',
     categorySlug: 'pvc-banners',
     route: '/featured/pvc-banners',
-    folderName: 'PVC',
     description: 'Durable PVC banners for outdoor promotions, events, and large-format messaging.',
     heading: 'PVC Banners',
     blurb:
@@ -129,19 +103,12 @@ export const featuredSignageItems = [
     details:
       'We produce reinforced banners with finishing options such as hems and eyelets to make installation straightforward. Print output is optimized for readability from distance and reliable outdoor performance.',
     highlights: ['Outdoor-ready material', 'Large-format print support', 'Hems and eyelets available'],
-    images: [
-      toAssetPath('PVC', '1.jpg'),
-      toAssetPath('PVC', '2.jpg'),
-      toAssetPath('PVC', '3.jpg'),
-      
-    ],
   },
   {
     id: 'correx-foamex-aluminium-prints',
     title: 'Correx / Foamex / Aluminium Prints',
     categorySlug: 'correx-foamex-aluminium-prints',
     route: '/featured/correx-foamex-aluminium-prints',
-    folderName: 'CorrexPrints',
     description: 'Rigid board printing options for temporary and long-term signage needs.',
     heading: 'Correx / Foamex / Aluminium Prints',
     blurb:
@@ -151,22 +118,12 @@ export const featuredSignageItems = [
     details:
       'We help match substrate to use-case, ensuring your graphics perform correctly in their intended environment. Suitable for estate boards, wall branding, directional signage, and premium display panels.',
     highlights: ['Material options for every use-case', 'Crisp direct print quality', 'Ideal for fixed signage'],
-    images: [
-      toAssetPath('CorrexPrints', '1.jpg'),
-      toAssetPath('CorrexPrints', '2.jpg'),
-      toAssetPath('CorrexPrints', '3.jpg'),
-      toAssetPath('CorrexPrints', '4.jpg'),
-      toAssetPath('CorrexPrints', '5.jpg'),
-      toAssetPath('CorrexPrints', '6.jpg'),
-      toAssetPath('CorrexPrints', '7.jpg'),
-    ],
   },
   {
     id: 'backlit-prints',
     title: 'Backlit Prints',
     categorySlug: 'backlit-prints',
     route: '/featured/backlit-prints',
-    folderName: 'Backlit',
     description: 'Translucent print media optimized for illuminated lightbox applications.',
     heading: 'Backlit Prints',
     blurb:
@@ -176,20 +133,12 @@ export const featuredSignageItems = [
     details:
       'We calibrate artwork output for illuminated conditions to maintain balanced color and contrast once lit. This helps preserve brand accuracy and visual clarity across varying ambient light levels.',
     highlights: ['Optimized for illuminated displays', 'Balanced color under lighting', 'Suitable for day/night branding'],
-    images: [
-      toAssetPath('Backlit', '1.jpg'),
-      toAssetPath('Backlit', '2.jpg'),
-      toAssetPath('Backlit', '3.jpg'),
-      toAssetPath('Backlit', '4.jpg'),
-      
-    ],
   },
   {
     id: 'canvas-prints',
     title: 'Canvas Prints',
     categorySlug: 'canvas-prints',
     route: '/featured/canvas-prints',
-    folderName: 'Canvas',
     description: 'Premium canvas prints for interior branding, decor, and visual storytelling.',
     heading: 'Canvas Prints',
     blurb:
@@ -199,18 +148,12 @@ export const featuredSignageItems = [
     details:
       'Produced using high-resolution print processes, our canvases offer strong tonal detail and durable finish. Available in multiple dimensions to suit wall displays and feature installations.',
     highlights: ['Premium interior finish', 'Rich color and tonal depth', 'Multiple display sizes'],
-    images: [
-      toAssetPath('Canvas', '1.jpg'),
-      toAssetPath('Canvas', '2.jpg'),
-      toAssetPath('Canvas', '3.jpg'),
-    ],
   },
   {
     id: 'printed-vinyl',
     title: 'Printed Vinyl',
     categorySlug: 'printed-vinyl',
     route: '/featured/printed-vinyl',
-    folderName: 'Vinyl',
     description: 'Custom printed vinyl graphics for walls, windows, and branded surfaces.',
     heading: 'Printed Vinyl',
     blurb:
@@ -220,19 +163,12 @@ export const featuredSignageItems = [
     details:
       'We provide production guidance based on placement, durability needs, and finish type. This ensures cleaner installation, reliable adhesion, and consistent visual quality throughout campaign duration.',
     highlights: ['Full-color custom graphics', 'Versatile indoor/outdoor use', 'Ideal for branded environments'],
-    images: [
-      toAssetPath('Vinyl', '1.jpg'),
-      toAssetPath('Vinyl', '2.jpg'),
-      toAssetPath('Vinyl', '3.jpg'),
-      toAssetPath('Vinyl', '4.jpg'),
-    ],
   },
   {
     id: 'frosted-vinyl',
     title: 'Frosted Vinyl',
     categorySlug: 'frosted-vinyl',
     route: '/featured/frosted-vinyl',
-    folderName: 'Frosted',
     description: 'Elegant privacy vinyl with a clean etched-glass look for internal glazing.',
     heading: 'Frosted Vinyl',
     blurb:
@@ -242,21 +178,12 @@ export const featuredSignageItems = [
     details:
       'Design options include full frosting, cut shapes, logo integration, and banding styles. The finish is subtle, premium, and highly effective for interior branding and privacy management.',
     highlights: ['Privacy without blocking light', 'Etched-glass visual effect', 'Custom logo and pattern options'],
-    images: [
-      toAssetPath('Frosted', '1.jpg'),
-      toAssetPath('Frosted', '2.jpg'),
-      toAssetPath('Frosted', '3.jpg'),
-      toAssetPath('Frosted', '4.jpg'),
-      toAssetPath('Frosted', '5.jpg'),
-      toAssetPath('Frosted', '6.jpg'),
-    ],
   },
   {
     id: 'one-way-vision',
     title: 'One Way Vision',
     categorySlug: 'one-way-vision',
     route: '/featured/one-way-vision',
-    folderName: 'OneVision',
     description: 'Perforated window graphics allowing outward visibility with external branding.',
     heading: 'One Way Vision',
     blurb:
@@ -266,20 +193,12 @@ export const featuredSignageItems = [
     details:
       'We print high-contrast graphics optimized for perforated media and viewing distance. This helps keep artwork clear externally while maintaining practical day-to-day visibility from inside.',
     highlights: ['External ad space on glazing', 'Internal outward visibility', 'Great for shops and vehicles'],
-    images: [
-      toAssetPath('OneVision', '1.jpg'),
-      toAssetPath('OneVision', '2.jpg'),
-      toAssetPath('OneVision', '3.jpg'),
-      toAssetPath('OneVision', '4.jpg'),
-      
-    ],
   },
   {
     id: 'cut-vinyl',
     title: 'Cut Vinyl',
     categorySlug: 'cut-vinyl',
     route: '/featured/cut-vinyl',
-    folderName: 'CutVinyl',
     description: 'Precision-cut lettering and shapes for clean, minimal, long-lasting graphics.',
     heading: 'Cut Vinyl',
     blurb:
@@ -289,21 +208,12 @@ export const featuredSignageItems = [
     details:
       'Available in multiple colors and finishes, cut vinyl graphics are produced with accurate contour cutting for neat edges and professional presentation. Ideal for long-term branding consistency.',
     highlights: ['Sharp, clean graphic edges', 'Long-lasting finish', 'Excellent for text and logos'],
-    images: [
-      toAssetPath('CutVinyl', '1.jpg'),
-      toAssetPath('CutVinyl', '2.jpg'),
-      toAssetPath('CutVinyl', '3.jpg'),
-      toAssetPath('CutVinyl', '4.jpg'),
-      toAssetPath('CutVinyl', '5.jpg'),
-      
-    ],
   },
   {
     id: 'privacy-films',
     title: 'Privacy Films',
     categorySlug: 'privacy-films',
     route: '/featured/privacy-films',
-    folderName: 'PrivacyFilms',
     description: 'Functional privacy films for glazing with optional branding and decorative styles.',
     heading: 'Privacy Films',
     blurb:
@@ -313,22 +223,12 @@ export const featuredSignageItems = [
     details:
       'Solutions include full coverage, gradient effects, and branded layouts depending on your design requirements. Film selection is tailored to privacy level, glass type, and maintenance expectations.',
     highlights: ['Improved visual privacy', 'Suitable for office glazing', 'Custom decorative options'],
-    images: [
-      toAssetPath('PrivacyFilms', '1.jpg'),
-      toAssetPath('PrivacyFilms', '2.jpg'),
-      toAssetPath('PrivacyFilms', '3.jpg'),
-      toAssetPath('PrivacyFilms', '4.jpg'),
-      toAssetPath('PrivacyFilms', '5.jpg'),
-     
-      
-    ],
   },
   {
     id: 'cnc-router-cutting',
     title: 'CNC Router Cutting',
     categorySlug: 'cnc-router-cutting',
     route: '/featured/cnc-router-cutting',
-    folderName: 'CNCRouterCutting',
     description: 'Precision CNC router cutting for signage, panels, and custom fabrication projects.',
     heading: 'CNC Router Cutting',
     blurb:
@@ -338,18 +238,12 @@ export const featuredSignageItems = [
     details:
       'From prototype parts to production batches, we machine materials to your drawings with tight tolerances and smooth edges. Suitable for shopfitting, exhibition builds, display systems, and bespoke signage fabrication.',
     highlights: ['Accurate profile cutting', 'Multiple sheet materials', 'Single pieces or batch runs'],
-    images: [
-      toAssetPath('CNCRouterCutting', '1.jpg'),
-      toAssetPath('CNCRouterCutting', '2.jpg'),
-      toAssetPath('CNCRouterCutting', '3.jpg'),
-    ],
   },
   {
     id: 'fibre-laser-cutting',
     title: 'Fibre Laser Cutting',
     categorySlug: 'fibre-laser-cutting',
     route: '/featured/fibre-laser-cutting',
-    folderName: 'FibreLaserCutting',
     description: 'Fast, precise fibre laser cutting for metal signage and fabrication components.',
     heading: 'Fibre Laser Cutting',
     blurb:
@@ -359,18 +253,12 @@ export const featuredSignageItems = [
     details:
       'We process DXF and production-ready artwork to deliver clean edges and consistent repeatability. This service supports signage manufacturers, contractors, and businesses needing reliable metal cutting for indoor and outdoor applications.',
     highlights: ['Fine detail on metal', 'Fast production turnaround', 'Clean, repeatable edges'],
-    images: [
-      toAssetPath('FibreLaserCutting', '1.jpg'),
-      toAssetPath('FibreLaserCutting', '2.jpg'),
-      toAssetPath('FibreLaserCutting', '3.jpg'),
-    ],
   },
   {
     id: 'fibre-laser-welding',
     title: 'Fibre Laser Welding',
     categorySlug: 'fibre-laser-welding',
     route: '/featured/fibre-laser-welding',
-    folderName: 'FibreLaserWelding',
     description: 'Precision fibre laser welding for strong, clean joins in metal signage and fabrication.',
     heading: 'Fibre Laser Welding',
     blurb:
@@ -380,11 +268,6 @@ export const featuredSignageItems = [
     details:
       'Our welding service supports fabrication projects that require accurate alignment, minimal cleanup, and durable joins. We work with production teams and installers who need reliable metal assemblies built to specification.',
     highlights: ['Strong, precise welds', 'Reduced heat distortion', 'Ideal for frames and assemblies'],
-    images: [
-      toAssetPath('FibreLaserWelding', '1.jpg'),
-      toAssetPath('FibreLaserWelding', '2.jpg'),
-      toAssetPath('FibreLaserWelding', '3.jpg'),
-    ],
   },
 ];
 

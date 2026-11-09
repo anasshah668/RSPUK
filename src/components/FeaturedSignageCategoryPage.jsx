@@ -116,7 +116,7 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
   useEffect(() => {
     let cancelled = false;
     const base = getFeaturedSignageBySlug(categorySlug);
-    setSignageItem(base);
+    setSignageItem(base ? { ...base, images: [] } : null);
     setFormData(getInitialFormState(base?.title || ''));
 
     (async () => {
@@ -125,7 +125,7 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
         if (cancelled) return;
         setSignageItem(mergeFeaturedItemWithMedia(categorySlug, data?.images || data?.imageObjects));
       } catch {
-        // Keep static public-folder images if media API is unavailable.
+        if (!cancelled && base) setSignageItem({ ...base, images: [] });
       }
     })();
 
@@ -189,7 +189,7 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
   }, [signageItem?.faqs]);
 
   useEffect(() => {
-    setActiveHeroImage(galleryImages[0] || `${import.meta.env.BASE_URL}hero.jpg`);
+    setActiveHeroImage(galleryImages[0] || '');
   }, [galleryImages, categorySlug]);
 
   useEffect(() => {
@@ -557,11 +557,12 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
                 <div className="bg-white/95 rounded-3xl p-3 md:p-4">
                   <div className="relative overflow-hidden rounded-2xl">
                     <SmartImage
-                      src={activeHeroImage || galleryImages[0] || `${import.meta.env.BASE_URL}hero.jpg`}
+                      src={activeHeroImage || galleryImages[0] || ''}
                       alt={pageCopy.heading}
                       className="h-[320px] w-full md:h-[360px]"
                       imgClassName="h-full w-full object-cover transition-transform duration-700 hover:scale-[1.03]"
                       eager
+                      fallbackLabel=""
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
                     <div className="absolute left-4 bottom-4 right-4">

@@ -74,12 +74,12 @@ const SmartImage = ({
             onError?.(event);
           }}
         />
-      ) : (
+      ) : fallbackLabel || failed ? (
         <div className="absolute inset-0 z-[1] flex items-center justify-center px-2 text-center text-[11px] font-medium text-slate-400">
           {failed ? 'Could not load' : fallbackLabel}
         </div>
-      )}
-      {!loaded && !failed ? (
+      ) : null}
+      {url && !loaded && !failed ? (
         <div className="absolute inset-0 z-[2] overflow-hidden" aria-hidden>
           <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100" />
           <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/70 to-transparent" />
