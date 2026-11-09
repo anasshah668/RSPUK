@@ -567,19 +567,21 @@ const CategoryProducts = ({ categorySlugOverride } = {}) => {
                 They should be the same dimensions.
               */}
               <div className="relative aspect-square">
-                <SmartImage
+                <img
                   src="/sign.jpg"
                   alt="Standard signage"
-                  className={`absolute inset-0 h-full w-full bg-transparent transition-opacity duration-500 ${
+                  className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
                     isNeon ? 'opacity-0' : 'opacity-100'
                   }`}
+                  draggable={false}
                 />
-                <SmartImage
+                <img
                   src="/neon-sign.jpg"
                   alt="Neon signage"
-                  className={`absolute inset-0 h-full w-full bg-transparent transition-opacity duration-500 ${
+                  className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
                     isNeon ? 'opacity-100' : 'opacity-0'
                   }`}
+                  draggable={false}
                 />
               </div>
             </div>
