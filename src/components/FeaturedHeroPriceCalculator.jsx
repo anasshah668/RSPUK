@@ -106,10 +106,13 @@ const FeaturedHeroPriceCalculator = ({
         ) : pricing?.complete ? (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-200">Estimated total</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-200">Size estimate</p>
               <p className="mt-0.5 text-3xl font-bold tabular-nums text-white sm:text-4xl">
                 £{displayTotal.toFixed(2)}
                 <span className="ml-2 text-sm font-medium text-blue-200">{featuredPriceLabel(vatInclusive)}</span>
+              </p>
+              <p className="mt-1 text-xs text-blue-200/80">
+                Base + size only. Options such as installation are added on the quote form.
               </p>
               {pricing.quantity > 1 ? (
                 <p className="mt-1 text-xs text-blue-200/80 tabular-nums">

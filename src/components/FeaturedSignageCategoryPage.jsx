@@ -304,9 +304,31 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
     [categorySlug, formData, productSpecificInputsMemo]
   );
 
+  const estimateInput = useMemo(
+    () => buildFeaturedPricingInput(categorySlug, formData, {}, {}, { sizeOnly: true }),
+    [categorySlug, formData.width, formData.height, formData.unit, formData.quantity]
+  );
+
+  const estimateDepsKey = JSON.stringify(estimateInput);
   const pricingDepsKey = JSON.stringify(pricingInput);
-  const { pricing, loading: pricingLoading, error: pricingError, displayTotal, vatInclusive } =
-    useFeaturedSignagePrice(pricingInput, pricingDepsKey);
+  const {
+    pricing: estimatePricing,
+    loading: estimateLoading,
+    error: estimateError,
+    displayTotal: estimateDisplayTotal,
+    vatInclusive: estimateVatInclusive,
+  } = useFeaturedSignagePrice(estimateInput, estimateDepsKey);
+  const formPricingEnabled = Boolean(orderFlowStep);
+  const {
+    pricing,
+    loading: pricingLoading,
+    error: pricingError,
+    displayTotal,
+    vatInclusive,
+  } = useFeaturedSignagePrice(
+    formPricingEnabled ? pricingInput : { width: '', height: '', quantity: 0 },
+    formPricingEnabled ? pricingDepsKey : 'estimate-only'
+  );
 
   const buildOrderPayload = (pricingSnapshot = pricing) => {
     if (!formData.width || !formData.height || !formData.quantity) {
@@ -501,11 +523,11 @@ const FeaturedSignageCategoryPage = ({ categorySlug }) => {
               <FeaturedHeroPriceCalculator
                 formData={formData}
                 setFormData={setFormData}
-                pricing={pricing}
-                pricingLoading={pricingLoading}
-                pricingError={pricingError}
-                displayTotal={displayTotal}
-                vatInclusive={vatInclusive}
+                pricing={estimatePricing}
+                pricingLoading={estimateLoading}
+                pricingError={estimateError}
+                displayTotal={estimateDisplayTotal}
+                vatInclusive={estimateVatInclusive}
                 productName={pageCopy.heading}
                 onStartProject={openOrderForm}
               />

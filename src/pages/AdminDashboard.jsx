@@ -10,8 +10,7 @@ import { categoryService } from '../services/categoryService';
 import { thirdPartyService } from '../services/thirdPartyService';
 import { neonPricingService } from '../services/neonPricingService';
 import AdminNeonPricingTab from '../components/AdminNeonPricingTab';
-import AdminFeaturedSignagePricingTab from '../components/AdminFeaturedSignagePricingTab';
-import AdminFeaturedProductsTab from '../components/AdminFeaturedProductsTab';
+import AdminFeaturedTab from '../components/AdminFeaturedTab';
 import AdminDesignServiceTab from '../components/AdminDesignServiceTab';
 import AdminActivityFeed from '../components/AdminActivityFeed';
 import { FileViewerLink, isHttpUrl, linkLabelForUrl, openFileViewer, toProxiedFileUrl } from '../components/FileDocViewer';
@@ -159,6 +158,10 @@ const AdminDashboard = () => {
   };
 
   const handleTabSelect = (tab) => {
+    if (tab === 'featured-pricing' || tab === 'featured-products') {
+      setActiveTab('featured');
+      return;
+    }
     if (user?._id && (tab === 'orders' || tab === 'quotes' || tab === 'design-service')) {
       const tabItems =
         tab === 'orders'
@@ -327,18 +330,16 @@ const AdminDashboard = () => {
       <div className="bg-white border-b" data-tour="admin-tabs">
         <div className="container mx-auto px-4">
           <div className="flex gap-1 overflow-x-auto">
-            {['overview', 'products', 'categories', 'orders', 'quotes', 'design-service', 'neon-pricing', 'featured-pricing', 'featured-products', 'settings'].map((tab) => {
+            {['overview', 'products', 'categories', 'orders', 'quotes', 'design-service', 'neon-pricing', 'featured', 'settings'].map((tab) => {
               const badgeCount = getAdminTabBadgeCount(tab, tabBadges);
               const tabLabel =
                 tab === 'neon-pricing'
                   ? 'Neon pricing'
-                  : tab === 'featured-pricing'
-                    ? 'Featured pricing'
-                    : tab === 'featured-products'
-                      ? 'Featured products'
-                      : tab === 'design-service'
-                        ? 'Design service'
-                        : tab;
+                  : tab === 'featured'
+                    ? 'Featured'
+                    : tab === 'design-service'
+                      ? 'Design service'
+                      : tab;
 
               return (
               <button
@@ -432,15 +433,12 @@ const AdminDashboard = () => {
                 </p>
               )
             )}
-            {activeTab === 'featured-pricing' && (
-              <div data-tour="admin-featured-pricing">
-                <AdminFeaturedSignagePricingTab />
-              </div>
-            )}
-            {activeTab === 'featured-products' && (
-              <div data-tour="admin-featured-products-tab">
-                <AdminFeaturedProductsTab />
-              </div>
+            {(activeTab === 'featured' ||
+              activeTab === 'featured-pricing' ||
+              activeTab === 'featured-products') && (
+              <AdminFeaturedTab
+                initialSection={activeTab === 'featured-products' ? 'pictures' : 'pricing'}
+              />
             )}
             {activeTab === 'settings' && <SettingsTab />}
           </>

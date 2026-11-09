@@ -25,7 +25,9 @@ const TAB_LABELS = {
   quotes: 'Quotes',
   'design-service': 'Design service',
   'neon-pricing': 'Neon pricing',
-  'featured-pricing': 'Featured pricing',
+  featured: 'Featured',
+  'featured-pricing': 'Featured',
+  'featured-products': 'Featured',
   settings: 'Settings',
 };
 
@@ -154,13 +156,25 @@ const TAB_STEPS = {
       },
     },
   ],
+  featured: [
+    {
+      tourIcon: 'settings',
+      element: '[data-tour="admin-featured"]',
+      popover: {
+        title: 'Featured signage',
+        description: 'Use Pricing for size rates in feet, and Pictures for category gallery images.',
+        side: 'top',
+        align: 'start',
+      },
+    },
+  ],
   'featured-pricing': [
     {
       tourIcon: 'settings',
-      element: '[data-tour="admin-featured-pricing"]',
+      element: '[data-tour="admin-featured"]',
       popover: {
-        title: 'Featured signage pricing',
-        description: 'Set pricing rules used on featured category pages and quote flows.',
+        title: 'Featured signage',
+        description: 'Use Pricing for size rates in feet, and Pictures for category gallery images.',
         side: 'top',
         align: 'start',
       },
